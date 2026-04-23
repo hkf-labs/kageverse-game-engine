@@ -1,0 +1,57 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node / Dependencies
+node_modules/
+jspm_packages/
+.npm
+.yarn-integrity
+
+# Build outputs (Vite/Rollup/Webpack)
+dist/
+dist-ssr/
+build/
+out/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Coverage / Testing
+coverage/
+*.lcov
+.nyc_output
+
+# Environment Variables (Secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS system files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# IDE, Editor, and AI Tooling directories
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.cursor/
+.windsurf/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Game engine specific/Misc ignored files
+# raw-assets/    # Bỏ comment nếu có thư mục chứa raw PSD/Aseprite nặng
+# .parcel-cache/
