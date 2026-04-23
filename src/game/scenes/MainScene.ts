@@ -4,16 +4,23 @@ import { WebSocketClient } from '../../network/WebSocketClient';
 export class MainScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private wsClient: WebSocketClient;
+    private wsClient!: WebSocketClient;
     private lastSentPosition = { x: 0, y: 0 };
 
     constructor() {
         super('MainScene');
-        // Connect to local WebSocket by default (can be updated later via env var)
-        this.wsClient = new WebSocketClient('ws://localhost:8080/ws');
     }
 
     init() {
+        const token = localStorage.getItem('kageverse_jwt');
+        if (!token) {
+            this.scene.start('AuthScene');
+            return;
+        }
+        
+        // Connect to WebSocket with token payload
+        const wsBase = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080';
+        this.wsClient = new WebSocketClient(`${wsBase}/ws?token=${token}`);
         this.wsClient.connect();
     }
 

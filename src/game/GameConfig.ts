@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { MainScene } from './scenes/MainScene';
+import { AuthScene } from './scenes/AuthScene';
 
 export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
     return {
@@ -8,6 +9,9 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
         width: 800,
         height: 600,
         backgroundColor: '#0a0a0a',
+        dom: {
+            createContainer: true
+        },
         physics: {
             default: 'arcade',
             arcade: {
@@ -15,6 +19,6 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
                 debug: false
             }
         },
-        scene: [MainScene]
+        scene: [AuthScene, MainScene]
     };
 };

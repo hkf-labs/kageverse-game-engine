@@ -1,0 +1,27 @@
+<div id="auth-container" style="
+    width: 300px;
+    background: rgba(10, 10, 10, 0.9);
+    border: 2px solid #555;
+    padding: 20px;
+    border-radius: 8px;
+    color: white;
+    font-family: 'Press Start 2P', monospace, sans-serif;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+">
+    <div id="login-view">
+        <h2 style="text-align: center; font-size: 16px; margin-bottom: 20px;">ACADEMY GATES</h2>
+        <input type="text" name="identifier" placeholder="Username or Email" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <input type="password" name="password" placeholder="Password" style="width: 100%; padding: 10px; margin-bottom: 20px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <button id="btn-login" style="width: 100%; padding: 10px; background: #4caf50; color: white; border: none; cursor: pointer; font-weight: bold; margin-bottom: 10px;">ENTER GAME</button>
+        <div style="text-align: center; font-size: 12px; cursor: pointer; color: #888;" id="switch-to-register">New Initiate? Register here.</div>
+    </div>
+
+    <div id="register-view" style="display: none;">
+        <h2 style="text-align: center; font-size: 16px; margin-bottom: 20px;">ENROLLMENT</h2>
+        <input type="text" name="reg-username" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <input type="email" name="reg-email" placeholder="Email" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <input type="password" name="reg-password" placeholder="Password (min 6)" style="width: 100%; padding: 10px; margin-bottom: 20px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <button id="btn-register" style="width: 100%; padding: 10px; background: #2196f3; color: white; border: none; cursor: pointer; font-weight: bold; margin-bottom: 10px;">REGISTER</button>
+        <div style="text-align: center; font-size: 12px; cursor: pointer; color: #888;" id="switch-to-login">Already enrolled? Back to Gates.</div>
+    </div>
+</div>
