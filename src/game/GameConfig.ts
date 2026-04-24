@@ -7,9 +7,13 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
     return {
         type: Phaser.AUTO,
         parent: parent,
-        width: 800,
-        height: 600,
+        width: window.innerWidth,
+        height: window.innerHeight,
         backgroundColor: '#0a0a0a',
+        scale: {
+            mode: Phaser.Scale.RESIZE,
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
         dom: {
             createContainer: true
         },

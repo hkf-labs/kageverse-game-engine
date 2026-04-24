@@ -23,15 +23,17 @@ export class CharacterCreateScene extends Phaser.Scene {
         }
 
         this.cameras.main.setBackgroundColor('#1a1a2e');
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
 
-        this.statusText = this.add.text(400, 70, '', {
+        this.statusText = this.add.text(centerX, centerY - 250, '', {
             fontSize: '14px',
             color: '#ff6b6b',
             align: 'center',
             wordWrap: { width: 520 },
         }).setOrigin(0.5);
 
-        this.domElement = this.add.dom(400, 320).createFromCache('characterCreateForm');
+        this.domElement = this.add.dom(centerX, centerY).createFromCache('characterCreateForm');
         this.domElement.setOrigin(0.5, 0.5);
         this.domElement.setInteractive();
         this.domElement.addListener('click');
@@ -57,6 +59,14 @@ export class CharacterCreateScene extends Phaser.Scene {
 
         this.refreshGenderStyles();
         this.refreshColorStyles();
+        this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
+    }
+
+    private handleResize(gameSize: Phaser.Structs.Size) {
+        const centerX = gameSize.width / 2;
+        const centerY = gameSize.height / 2;
+        this.statusText?.setPosition(centerX, centerY - 250);
+        this.domElement?.setPosition(centerX, centerY);
     }
 
     private refreshGenderStyles() {

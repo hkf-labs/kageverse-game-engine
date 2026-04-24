@@ -6,6 +6,7 @@ export class MainScene extends Phaser.Scene {
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private wsClient!: WebSocketClient;
     private lastSentPosition = { x: 0, y: 0 };
+    private worldGrid?: Phaser.GameObjects.Grid;
 
     constructor() {
         super('MainScene');
@@ -34,14 +35,17 @@ export class MainScene extends Phaser.Scene {
     }
 
     create() {
+        const width = this.scale.width;
+        const height = this.scale.height;
+
         // Basic World bounds
-        this.physics.world.setBounds(0, 0, 800, 600);
+        this.physics.world.setBounds(0, 0, width, height);
 
         // Add a background grid to visualize movement
-        this.add.grid(400, 300, 800, 600, 32, 32, 0x1d1d1d, 1, 0x333333, 1);
+        this.worldGrid = this.add.grid(width / 2, height / 2, width, height, 32, 32, 0x1d1d1d, 1, 0x333333, 1);
 
         // Create player sprite
-        this.player = this.physics.add.sprite(400, 300, 'ninja');
+        this.player = this.physics.add.sprite(width / 2, height / 2, 'ninja');
         this.player.setCollideWorldBounds(true);
         
         // Add a simple name tag above player
@@ -57,6 +61,18 @@ export class MainScene extends Phaser.Scene {
         // Setup input keyboard
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
+        }
+
+        this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
+    }
+
+    private handleResize(gameSize: Phaser.Structs.Size) {
+        const width = gameSize.width;
+        const height = gameSize.height;
+        this.physics.world.setBounds(0, 0, width, height);
+        if (this.worldGrid) {
+            this.worldGrid.setPosition(width / 2, height / 2);
+            this.worldGrid.setDisplaySize(width, height);
         }
     }
 

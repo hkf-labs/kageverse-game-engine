@@ -16,15 +16,17 @@ export class AuthScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.setBackgroundColor('#1a1a2e');
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
 
-        this.statusText = this.add.text(400, 100, '', {
+        this.statusText = this.add.text(centerX, centerY - 200, '', {
             fontSize: '14px',
             color: '#ff5555',
             align: 'center',
             wordWrap: { width: 520 },
         }).setOrigin(0.5);
 
-        this.domElement = this.add.dom(400, 300).createFromCache('authForm');
+        this.domElement = this.add.dom(centerX, centerY).createFromCache('authForm');
         this.domElement.setInteractive();
         this.domElement.addListener('click');
         this.domElement.on('click', (event: Event) => {
@@ -39,6 +41,15 @@ export class AuthScene extends Phaser.Scene {
                 void this.handleRegister();
             }
         });
+
+        this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
+    }
+
+    private handleResize(gameSize: Phaser.Structs.Size) {
+        const centerX = gameSize.width / 2;
+        const centerY = gameSize.height / 2;
+        this.statusText?.setPosition(centerX, centerY - 200);
+        this.domElement?.setPosition(centerX, centerY);
     }
 
     private async toggleView(view: 'login' | 'register') {
