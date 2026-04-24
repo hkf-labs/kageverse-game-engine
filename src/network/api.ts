@@ -1,7 +1,41 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+const TRACE_ID_HEADER = 'X-Trace-Id';
 
 function getAccessToken(): string | null {
     return localStorage.getItem('kageverse_jwt');
+}
+
+function createTraceId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `trace-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildHeaders(extra: Record<string, string> = {}): Headers {
+    const headers = new Headers(extra);
+    if (!headers.has(TRACE_ID_HEADER)) {
+        headers.set(TRACE_ID_HEADER, createTraceId());
+    }
+    return headers;
+}
+
+async function parseJsonSafe(response: Response): Promise<any> {
+    const text = await response.text();
+    if (!text) return {};
+    try {
+        return JSON.parse(text);
+    } catch {
+        return {};
+    }
+}
+
+function extractTraceId(response: Response, fallbackHeaders?: Headers): string {
+    return (
+        response.headers.get(TRACE_ID_HEADER) ||
+        fallbackHeaders?.get(TRACE_ID_HEADER) ||
+        ''
+    );
 }
 
 export function formatApiError(resData: any, fallback: string): string {
@@ -20,24 +54,28 @@ export type SupportedCountry = { country_code: string; preferred_language: strin
 
 export const authAPI = {
     async supportedCountries(): Promise<SupportedCountry[]> {
-        const response = await fetch(`${API_BASE_URL}/auth/supported-countries`);
-        const resData = await response.json();
+        const headers = buildHeaders();
+        const response = await fetch(`${API_BASE_URL}/auth/supported-countries`, { headers });
+        const resData = await parseJsonSafe(response);
+        const traceId = extractTraceId(response, headers);
         if (!response.ok) {
-            throw new Error(formatApiError(resData, 'Không tải được danh sách quốc gia'));
+            throw new Error(`${formatApiError(resData, 'Không tải được danh sách quốc gia')} (trace_id=${traceId || 'n/a'})`);
         }
         const list = resData?.countries;
         return Array.isArray(list) ? list : [];
     },
 
     async register(data: { username: string; email: string; password: string; country_code: string }) {
+        const headers = buildHeaders({ 'Content-Type': 'application/json' });
         const response = await fetch(`${API_BASE_URL}/auth/register`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify(data),
         });
-        const resData = await response.json();
+        const resData = await parseJsonSafe(response);
+        const traceId = extractTraceId(response, headers);
         if (!response.ok) {
-            throw new Error(formatApiError(resData, 'Đăng ký thất bại'));
+            throw new Error(`${formatApiError(resData, 'Đăng ký thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as {
             user: Record<string, unknown>;
@@ -47,14 +85,16 @@ export const authAPI = {
     },
 
     async login(data: { identifier: string; password: string }) {
+        const headers = buildHeaders({ 'Content-Type': 'application/json' });
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify(data),
         });
-        const resData = await response.json();
+        const resData = await parseJsonSafe(response);
+        const traceId = extractTraceId(response, headers);
         if (!response.ok) {
-            throw new Error(formatApiError(resData, 'Đăng nhập thất bại'));
+            throw new Error(`${formatApiError(resData, 'Đăng nhập thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as {
             user: Record<string, unknown>;
@@ -88,12 +128,14 @@ export const charactersAPI = {
     async list(): Promise<ListCharactersResponse> {
         const token = getAccessToken();
         if (!token) throw new Error('Chưa đăng nhập');
+        const headers = buildHeaders({ Authorization: `Bearer ${token}` });
         const response = await fetch(`${API_BASE_URL}/characters`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers,
         });
-        const resData = await response.json();
+        const resData = await parseJsonSafe(response);
+        const traceId = extractTraceId(response, headers);
         if (!response.ok) {
-            throw new Error(formatApiError(resData, 'Không tải được nhân vật'));
+            throw new Error(`${formatApiError(resData, 'Không tải được nhân vật')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ListCharactersResponse;
     },
@@ -101,17 +143,19 @@ export const charactersAPI = {
     async create(payload: CreateCharacterPayload): Promise<{ character: CharacterDTO; max_characters_per_user: number }> {
         const token = getAccessToken();
         if (!token) throw new Error('Chưa đăng nhập');
+        const headers = buildHeaders({
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        });
         const response = await fetch(`${API_BASE_URL}/characters`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
+            headers,
             body: JSON.stringify(payload),
         });
-        const resData = await response.json();
+        const resData = await parseJsonSafe(response);
+        const traceId = extractTraceId(response, headers);
         if (!response.ok) {
-            throw new Error(formatApiError(resData, 'Tạo nhân vật thất bại'));
+            throw new Error(`${formatApiError(resData, 'Tạo nhân vật thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as { character: CharacterDTO; max_characters_per_user: number };
     },
