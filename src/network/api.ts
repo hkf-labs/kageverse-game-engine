@@ -1,4 +1,5 @@
 import { getMockMapDetail } from '../features/maps';
+import type { MapDetail } from '../features/maps';
 export type { MapDetail, Vec2 } from '../features/maps';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
@@ -23,7 +24,7 @@ function buildHeaders(extra: Record<string, string> = {}): Headers {
     return headers;
 }
 
-async function parseJsonSafe(response: Response): Promise<any> {
+async function parseJsonSafe(response: Response): Promise<unknown> {
     const text = await response.text();
     if (!text) return {};
     try {
@@ -31,6 +32,10 @@ async function parseJsonSafe(response: Response): Promise<any> {
     } catch {
         return {};
     }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 function extractTraceId(response: Response, fallbackHeaders?: Headers): string {
@@ -41,14 +46,16 @@ function extractTraceId(response: Response, fallbackHeaders?: Headers): string {
     );
 }
 
-export function formatApiError(resData: any, fallback: string): string {
-    const err = resData?.error;
+export function formatApiError(resData: unknown, fallback: string): string {
+    const data = asRecord(resData);
+    const err = data ? asRecord(data.error) : null;
     if (!err) return fallback;
-    if (err.message_key) return String(err.message_key);
+    if (typeof err.message_key === 'string') return err.message_key;
     if (Array.isArray(err.field_errors) && err.field_errors.length > 0) {
-        const fe = err.field_errors[0];
-        if (fe?.message_key) return String(fe.message_key);
-        if (fe?.field && fe?.code) return `${fe.field}: ${fe.code}`;
+        const fe = asRecord(err.field_errors[0]);
+        if (!fe) return fallback;
+        if (typeof fe.message_key === 'string') return fe.message_key;
+        if (typeof fe.field === 'string' && typeof fe.code === 'string') return `${fe.field}: ${fe.code}`;
     }
     return fallback;
 }
@@ -64,7 +71,8 @@ export const authAPI = {
         if (!response.ok) {
             throw new Error(`${formatApiError(resData, 'Không tải được danh sách quốc gia')} (trace_id=${traceId || 'n/a'})`);
         }
-        const list = resData?.countries;
+        const data = asRecord(resData);
+        const list = data?.countries;
         return Array.isArray(list) ? list : [];
     },
 
