@@ -245,7 +245,11 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     }
 
     private drawVillageBackdrop() {
-        this.add.image(0, 0, VILLAGE_BG_KEY).setOrigin(0, 0).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
+        const source = this.textures.get(VILLAGE_BG_KEY).getSourceImage() as { width: number; height: number };
+        const bg = this.add.image(0, WORLD_HEIGHT, VILLAGE_BG_KEY).setOrigin(0, 1);
+        // Scale đồng nhất để tránh méo ảnh; ưu tiên phủ đủ chiều cao map.
+        const scale = Math.max(WORLD_WIDTH / source.width, WORLD_HEIGHT / source.height);
+        bg.setScale(scale);
     }
 
     private drawVillagePlatforms() {
@@ -253,7 +257,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         const groundY = this.getGroundY();
         this.drawPixelBlock(0, groundY, WORLD_WIDTH / TILE, 7, 0x5f4f3e, 0x847463);
         this.drawPixelBlock(0, groundY - TILE, WORLD_WIDTH / TILE, 1, 0x6dbf4b, 0x90d968);
-        platforms.create(WORLD_WIDTH / 2, groundY + 28).setDisplaySize(WORLD_WIDTH, 56).setVisible(false).refreshBody();
+        platforms.create(WORLD_WIDTH / 2, groundY + 28, '__WHITE').setDisplaySize(WORLD_WIDTH, 56).setAlpha(0).refreshBody();
 
         const ledges = [
             { x: 350, y: groundY - 40, w: 180, h: 32 },
@@ -267,7 +271,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         ];
         for (const ledge of ledges) {
             this.drawPixelBlock(ledge.x - ledge.w / 2, ledge.y - ledge.h / 2, ledge.w / TILE, ledge.h / TILE, 0x756453, 0x9a8875);
-            platforms.create(ledge.x, ledge.y).setDisplaySize(ledge.w, ledge.h).setVisible(false).refreshBody();
+            platforms.create(ledge.x, ledge.y, '__WHITE').setDisplaySize(ledge.w, ledge.h).setAlpha(0).refreshBody();
         }
         return platforms;
     }
