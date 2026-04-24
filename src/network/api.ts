@@ -1,3 +1,7 @@
+import { getMockMapDetail } from '../features/maps';
+import type { MapDetail, Vec2 } from '../features/maps';
+export type { MapDetail, Vec2 } from '../features/maps';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 const TRACE_ID_HEADER = 'X-Trace-Id';
 
@@ -158,5 +162,11 @@ export const charactersAPI = {
             throw new Error(`${formatApiError(resData, 'Tạo nhân vật thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as { character: CharacterDTO; max_characters_per_user: number };
+    },
+};
+
+export const mapsAPI = {
+    async getDetail(mapId: string): Promise<MapDetail> {
+        return getMockMapDetail(mapId);
     },
 };

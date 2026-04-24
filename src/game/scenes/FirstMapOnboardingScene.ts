@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { getOnboardingGateway } from '../../features/onboarding';
 import type { OnboardingState } from '../../features/onboarding/types';
-import { charactersAPI } from '../../network/api';
+import { charactersAPI, mapsAPI, type MapDetail } from '../../network/api';
 import { getCurrentCharacter, saveCurrentCharacter } from '../playerSession';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
@@ -10,6 +10,7 @@ const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 1200;
 const PLAYABLE_BOTTOM = WORLD_HEIGHT - 110;
 const PLAYER_TEXTURE_KEY = 'player-placeholder-male';
+const VILLAGE_BG_KEY = 'map-bg-village-001';
 
 export class FirstMapOnboardingScene extends Phaser.Scene {
     private player?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -22,6 +23,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     private rewardText?: Phaser.GameObjects.Text;
     private actionHintText?: Phaser.GameObjects.Text;
     private state?: OnboardingState;
+    private mapDetail?: MapDetail;
 
     constructor() {
         super('FirstMapOnboardingScene');
@@ -29,6 +31,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     preload() {
         this.load.image(PLAYER_TEXTURE_KEY, 'assets/game/characters/placeholder-ninja-male.jpg');
+        this.load.image(VILLAGE_BG_KEY, 'assets/maps/village_001/bg.jpg');
     }
 
     create() {
@@ -111,6 +114,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     private async loadInitialState() {
         try {
+            this.mapDetail = await mapsAPI.getDetail('village_001');
             this.state = await getOnboardingGateway().getOnboardingState();
             this.renderState();
         } catch (error: unknown) {
@@ -126,7 +130,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.objectiveText?.setText(`Muc tieu: ${s.nextObjective || this.defaultObjective(s)}`);
         this.progressText?.setText(`Tien do Manh Da Dinh Vi: ${s.mainQuest.currentQty}/${s.mainQuest.requiredQty}`);
         this.mapText?.setText(
-            `Map:\n${s.mapNodes.map((n) => `- ${n.id}: ${n.state}`).join('\n')}`
+            `Map detail (mock API):\n- id: ${this.mapDetail?.mapId ?? 'n/a'}\n- nameKey: ${this.mapDetail?.displayNameKey ?? 'n/a'}\n- type: ${this.mapDetail?.mapType ?? 'n/a'}\n- bg: ${this.mapDetail?.assets.assetFolder}/${this.mapDetail?.assets.backgroundFile}\n- links: ${this.mapDetail?.links.length ?? 0}\nNodes:\n${s.mapNodes.map((n) => `- ${n.id}: ${n.state}`).join('\n')}`
         );
         this.rewardText?.setText(this.renderReward(s));
         this.actionHintText?.setText(this.renderHint(s.flowState));
@@ -241,18 +245,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     }
 
     private drawVillageBackdrop() {
-        const g = this.add.graphics();
-        g.fillStyle(0x87ceff, 1);
-        g.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-        g.fillStyle(0xf7f0b7, 1);
-        g.fillCircle(WORLD_WIDTH - 120, 95, 40);
-        g.fillStyle(0xffffff, 0.85);
-        g.fillEllipse(190, 90, 90, 30);
-        g.fillEllipse(230, 84, 70, 24);
-        g.fillEllipse(680, 72, 72, 22);
-        g.fillEllipse(1200, 105, 96, 30);
-        g.fillEllipse(1850, 80, 80, 28);
-        g.fillEllipse(2530, 92, 90, 24);
+        this.add.image(0, 0, VILLAGE_BG_KEY).setOrigin(0, 0).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
     }
 
     private drawVillagePlatforms() {
