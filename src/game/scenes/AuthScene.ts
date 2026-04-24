@@ -1,9 +1,10 @@
 import * as Phaser from 'phaser';
-import { authAPI } from '../../network/api';
+import { authAPI, charactersAPI } from '../../network/api';
 
 export class AuthScene extends Phaser.Scene {
     private domElement?: Phaser.GameObjects.DOMElement;
     private statusText?: Phaser.GameObjects.Text;
+    private countriesLoaded = false;
 
     constructor() {
         super('AuthScene');
@@ -14,41 +15,36 @@ export class AuthScene extends Phaser.Scene {
     }
 
     create() {
-        // Simple background
         this.cameras.main.setBackgroundColor('#1a1a2e');
-        
-        // Status Text (for errors or loading)
+
         this.statusText = this.add.text(400, 100, '', {
-            fontSize: '16px',
+            fontSize: '14px',
             color: '#ff5555',
-            align: 'center'
+            align: 'center',
+            wordWrap: { width: 520 },
         }).setOrigin(0.5);
 
-        // Add DOM Element
         this.domElement = this.add.dom(400, 300).createFromCache('authForm');
-        
-        // Ensure pointer events are captured correctly
         this.domElement.setInteractive();
-
-        // Listen for clicks on the HTML form
         this.domElement.addListener('click');
-        this.domElement.on('click', (event: any) => {
-            if (event.target.id === 'switch-to-register') {
-                this.toggleView('register');
-            } else if (event.target.id === 'switch-to-login') {
-                this.toggleView('login');
-            } else if (event.target.id === 'btn-login') {
-                this.handleLogin();
-            } else if (event.target.id === 'btn-register') {
-                this.handleRegister();
+        this.domElement.on('click', (event: Event) => {
+            const target = event.target as HTMLElement;
+            if (target.id === 'switch-to-register') {
+                void this.toggleView('register');
+            } else if (target.id === 'switch-to-login') {
+                void this.toggleView('login');
+            } else if (target.id === 'btn-login') {
+                void this.handleLogin();
+            } else if (target.id === 'btn-register') {
+                void this.handleRegister();
             }
         });
     }
 
-    private toggleView(view: 'login' | 'register') {
+    private async toggleView(view: 'login' | 'register') {
         const loginView = this.domElement?.getChildByID('login-view') as HTMLElement;
         const registerView = this.domElement?.getChildByID('register-view') as HTMLElement;
-        
+
         this.statusText?.setText('');
 
         if (view === 'login') {
@@ -57,6 +53,62 @@ export class AuthScene extends Phaser.Scene {
         } else {
             if (loginView) loginView.style.display = 'none';
             if (registerView) registerView.style.display = 'block';
+            await this.ensureCountriesLoaded();
+        }
+    }
+
+    private async ensureCountriesLoaded() {
+        if (this.countriesLoaded) return;
+        const select = this.domElement?.getChildByID('reg-country-code') as HTMLSelectElement;
+        if (!select) return;
+
+        select.innerHTML = '';
+        const loading = document.createElement('option');
+        loading.value = '';
+        loading.textContent = 'Đang tải danh sách...';
+        select.appendChild(loading);
+
+        try {
+            const rows = await authAPI.supportedCountries();
+            select.innerHTML = '';
+            if (rows.length === 0) {
+                const o = document.createElement('option');
+                o.value = 'VN';
+                o.textContent = 'VN — vi';
+                select.appendChild(o);
+            } else {
+                for (const r of rows) {
+                    const o = document.createElement('option');
+                    o.value = r.country_code;
+                    o.textContent = `${r.country_code} — ${r.preferred_language}`;
+                    select.appendChild(o);
+                }
+            }
+            this.countriesLoaded = true;
+        } catch {
+            select.innerHTML = '';
+            const o = document.createElement('option');
+            o.value = 'VN';
+            o.textContent = 'VN — vi (offline)';
+            select.appendChild(o);
+            this.countriesLoaded = true;
+        }
+    }
+
+    private async goToGameOrCharacterCreate() {
+        try {
+            this.statusText?.setText('Đang kiểm tra nhân vật...').setColor('#aaaaaa');
+            const list = await charactersAPI.list();
+            const max = list.max_characters_per_user ?? 1;
+            this.statusText?.setText('');
+            if (list.characters.length >= max) {
+                this.scene.start('MainScene');
+            } else {
+                this.scene.start('CharacterCreateScene');
+            }
+        } catch {
+            this.statusText?.setText('Không gọi được API nhân vật — vào game thử (kiểm tra server).').setColor('#ffaa00');
+            this.scene.start('MainScene');
         }
     }
 
@@ -64,26 +116,28 @@ export class AuthScene extends Phaser.Scene {
         const identifierInput = this.domElement?.getChildByName('identifier') as HTMLInputElement;
         const passwordInput = this.domElement?.getChildByName('password') as HTMLInputElement;
 
-        const identifier = identifierInput?.value;
+        const identifier = identifierInput?.value?.trim();
         const password = passwordInput?.value;
 
         if (!identifier || !password) {
-            this.statusText?.setText('Identifier and password are required');
+            this.statusText?.setText('Nhập đủ username/email và mật khẩu.');
             return;
         }
 
         try {
-            this.statusText?.setText('Logging in...').setColor('#aaaaaa');
+            this.statusText?.setText('Đang đăng nhập...').setColor('#aaaaaa');
             const response = await authAPI.login({ identifier, password });
-            
-            // Store token
+
             if (response.access_token) {
                 localStorage.setItem('kageverse_jwt', response.access_token);
-                // Transition to MainScene
-                this.scene.start('MainScene');
+                if (response.refresh_token) {
+                    localStorage.setItem('kageverse_refresh', response.refresh_token);
+                }
+                await this.goToGameOrCharacterCreate();
             }
-        } catch (error: any) {
-            this.statusText?.setText(error.message || 'Login Failed').setColor('#ff5555');
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : 'Đăng nhập thất bại';
+            this.statusText?.setText(msg).setColor('#ff5555');
         }
     }
 
@@ -91,27 +145,36 @@ export class AuthScene extends Phaser.Scene {
         const usernameInput = this.domElement?.getChildByName('reg-username') as HTMLInputElement;
         const emailInput = this.domElement?.getChildByName('reg-email') as HTMLInputElement;
         const passwordInput = this.domElement?.getChildByName('reg-password') as HTMLInputElement;
+        const countrySelect = this.domElement?.getChildByID('reg-country-code') as HTMLSelectElement;
 
-        const username = usernameInput?.value;
-        const email = emailInput?.value;
+        const username = usernameInput?.value?.trim();
+        const email = emailInput?.value?.trim();
         const password = passwordInput?.value;
+        const country_code = countrySelect?.value?.trim().toUpperCase();
 
         if (!username || !email || !password) {
-            this.statusText?.setText('All fields are required');
+            this.statusText?.setText('Điền đủ username, email và mật khẩu.');
+            return;
+        }
+        if (!country_code) {
+            this.statusText?.setText('Chọn quốc gia (hoặc đợi tải xong danh sách).');
             return;
         }
 
         try {
-            this.statusText?.setText('Registering...').setColor('#aaaaaa');
-            const response = await authAPI.register({ username, email, password });
-            
-            // On successful registration, typically we automatically log in or switch view
+            this.statusText?.setText('Đang đăng ký...').setColor('#aaaaaa');
+            const response = await authAPI.register({ username, email, password, country_code });
+
             if (response.access_token) {
                 localStorage.setItem('kageverse_jwt', response.access_token);
-                this.scene.start('MainScene');
+                if (response.refresh_token) {
+                    localStorage.setItem('kageverse_refresh', response.refresh_token);
+                }
+                await this.goToGameOrCharacterCreate();
             }
-        } catch (error: any) {
-            this.statusText?.setText(error.message || 'Registration Failed').setColor('#ff5555');
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : 'Đăng ký thất bại';
+            this.statusText?.setText(msg).setColor('#ff5555');
         }
     }
 }

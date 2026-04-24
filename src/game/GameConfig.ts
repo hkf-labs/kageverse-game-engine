@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { MainScene } from './scenes/MainScene';
 import { AuthScene } from './scenes/AuthScene';
+import { CharacterCreateScene } from './scenes/CharacterCreateScene';
 
 export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
     return {
@@ -19,6 +20,6 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
                 debug: false
             }
         },
-        scene: [AuthScene, MainScene]
+        scene: [AuthScene, CharacterCreateScene, MainScene]
     };
 };
