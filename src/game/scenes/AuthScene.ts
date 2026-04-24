@@ -18,6 +18,7 @@ export class AuthScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor('#1a1a2e');
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
+        const hasSession = Boolean(localStorage.getItem('kageverse_jwt'));
 
         this.statusText = this.add.text(centerX, centerY - 200, '', {
             fontSize: '14px',
@@ -26,23 +27,43 @@ export class AuthScene extends Phaser.Scene {
             wordWrap: { width: 520 },
         }).setOrigin(0.5);
 
-        this.domElement = this.add.dom(centerX, centerY).createFromCache('authForm');
-        this.domElement.setInteractive();
-        this.domElement.addListener('click');
-        this.domElement.on('click', (event: Event) => {
-            const target = event.target as HTMLElement;
-            if (target.id === 'switch-to-register') {
-                void this.toggleView('register');
-            } else if (target.id === 'switch-to-login') {
-                void this.toggleView('login');
-            } else if (target.id === 'btn-login') {
-                void this.handleLogin();
-            } else if (target.id === 'btn-register') {
-                void this.handleRegister();
-            }
-        });
+        if (!hasSession) {
+            this.domElement = this.add.dom(centerX, centerY).createFromCache('authForm');
+            this.domElement.setInteractive();
+            this.domElement.addListener('click');
+            this.domElement.on('click', (event: Event) => {
+                const target = event.target as HTMLElement;
+                if (target.id === 'switch-to-register') {
+                    void this.toggleView('register');
+                } else if (target.id === 'switch-to-login') {
+                    void this.toggleView('login');
+                } else if (target.id === 'btn-login') {
+                    void this.handleLogin();
+                } else if (target.id === 'btn-register') {
+                    void this.handleRegister();
+                }
+            });
+        }
 
         this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
+        if (hasSession) {
+            void this.bootstrapSession();
+        }
+    }
+
+    private async bootstrapSession() {
+        const token = localStorage.getItem('kageverse_jwt');
+        if (!token) return;
+
+        try {
+            this.statusText?.setText('Đang khôi phục phiên đăng nhập...').setColor('#aaaaaa');
+            await this.goToGameOrCharacterCreate();
+        } catch {
+            // Token có thể hết hạn/không hợp lệ: trả về màn login và xóa token cũ.
+            localStorage.removeItem('kageverse_jwt');
+            localStorage.removeItem('kageverse_refresh');
+            this.statusText?.setText('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.').setColor('#ff5555');
+        }
     }
 
     private handleResize(gameSize: Phaser.Structs.Size) {
@@ -117,7 +138,11 @@ export class AuthScene extends Phaser.Scene {
             } else {
                 this.scene.start('CharacterCreateScene');
             }
-        } catch {
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : '';
+            if (msg.includes('auth.error.unauthorized')) {
+                throw error;
+            }
             this.statusText?.setText('Không gọi được API nhân vật — vào game thử (kiểm tra server).').setColor('#ffaa00');
             this.scene.start('MainScene');
         }
