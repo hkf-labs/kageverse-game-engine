@@ -1,5 +1,4 @@
 import { getMockMapDetail } from '../features/maps';
-import type { MapDetail, Vec2 } from '../features/maps';
 export type { MapDetail, Vec2 } from '../features/maps';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
