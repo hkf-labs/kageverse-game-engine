@@ -227,8 +227,9 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     }
 
     private createPlayer() {
-        this.player = this.physics.add.sprite(200, WORLD_HEIGHT - 360, PLAYER_TEXTURE_KEY);
-        this.player.setScale(0.14);
+        const spawn = this.getGroundY() - 340;
+        this.player = this.physics.add.sprite(520, spawn, PLAYER_TEXTURE_KEY);
+        this.player.setScale(0.24);
         this.player.setCollideWorldBounds(true);
         this.player.setBounce(0);
         this.player.setDepth(10);
@@ -255,23 +256,33 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     private drawVillagePlatforms() {
         const platforms = this.physics.add.staticGroup();
         const groundY = this.getGroundY();
+        // Giữ lại đường mock để dễ canh map và thấy rõ vùng có thể đứng.
         this.drawPixelBlock(0, groundY, WORLD_WIDTH / TILE, 7, 0x5f4f3e, 0x847463);
         this.drawPixelBlock(0, groundY - TILE, WORLD_WIDTH / TILE, 1, 0x6dbf4b, 0x90d968);
+        // Safety floor: luôn có nền đáy để không rơi khỏi màn hình.
         platforms.create(WORLD_WIDTH / 2, groundY + 28, '__WHITE').setDisplaySize(WORLD_WIDTH, 56).setAlpha(0).refreshBody();
 
-        const ledges = [
-            { x: 350, y: groundY - 40, w: 180, h: 32 },
-            { x: 580, y: groundY - 90, w: 140, h: 32 },
-            { x: 760, y: groundY - 140, w: 120, h: 32 },
-            { x: 1100, y: groundY - 70, w: 240, h: 32 },
-            { x: 1470, y: groundY - 120, w: 180, h: 32 },
-            { x: 1860, y: groundY - 90, w: 200, h: 32 },
-            { x: 2270, y: groundY - 140, w: 220, h: 32 },
-            { x: 2700, y: groundY - 100, w: 180, h: 32 },
+        // Road colliders: bám theo con đường trên background để nhân vật đi "lên đường".
+        const roadSteps = [
+            { x: 260, y: groundY - 130, w: 420, h: 24 },
+            { x: 680, y: groundY - 160, w: 360, h: 24 },
+            { x: 1040, y: groundY - 190, w: 330, h: 24 },
+            { x: 1370, y: groundY - 220, w: 320, h: 24 },
+            { x: 1700, y: groundY - 250, w: 300, h: 24 },
+            { x: 2010, y: groundY - 235, w: 360, h: 24 },
+            { x: 2380, y: groundY - 210, w: 400, h: 24 },
+            { x: 2790, y: groundY - 185, w: 360, h: 24 },
         ];
-        for (const ledge of ledges) {
-            this.drawPixelBlock(ledge.x - ledge.w / 2, ledge.y - ledge.h / 2, ledge.w / TILE, ledge.h / TILE, 0x756453, 0x9a8875);
-            platforms.create(ledge.x, ledge.y, '__WHITE').setDisplaySize(ledge.w, ledge.h).setAlpha(0).refreshBody();
+        for (const step of roadSteps) {
+            this.drawPixelBlock(
+                step.x - step.w / 2,
+                step.y - step.h / 2,
+                Math.max(1, Math.floor(step.w / TILE)),
+                Math.max(1, Math.floor(step.h / TILE)),
+                0x756453,
+                0x9a8875
+            );
+            platforms.create(step.x, step.y, '__WHITE').setDisplaySize(step.w, step.h).setAlpha(0).refreshBody();
         }
         return platforms;
     }
