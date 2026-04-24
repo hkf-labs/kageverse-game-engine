@@ -1,5 +1,37 @@
 import * as Phaser from 'phaser';
 import { WebSocketClient } from '../../network/WebSocketClient';
+import { getCurrentCharacter } from '../playerSession';
+
+function normalizeWsBase(rawBase: string): string {
+    const trimmed = rawBase.trim();
+    const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)
+        ? trimmed
+        : `${window.location.protocol}//${trimmed}`;
+    const url = new URL(withProtocol);
+
+    if (url.protocol === 'http:') url.protocol = 'ws:';
+    if (url.protocol === 'https:') url.protocol = 'wss:';
+
+    // Browser chay tren HTTPS thi khong nen mo ws:// (mixed/insecure).
+    if (window.location.protocol === 'https:' && url.protocol === 'ws:') {
+        url.protocol = 'wss:';
+    }
+
+    // Render thuong expose qua 443, port 8080 hay bi fail tu browser public.
+    if (url.hostname.endsWith('.onrender.com') && url.port === '8080') {
+        url.port = '';
+    }
+
+    return `${url.protocol}//${url.host}`;
+}
+
+function buildWsUrl(token: string): string {
+    const envWsBase = String(import.meta.env.VITE_WS_BASE_URL || '').trim();
+    const envApiBase = String(import.meta.env.VITE_API_BASE_URL || '').trim();
+    const base = envWsBase || envApiBase || window.location.origin;
+    const normalizedBase = normalizeWsBase(base);
+    return `${normalizedBase}/ws?token=${encodeURIComponent(token)}`;
+}
 
 export class MainScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -18,10 +50,9 @@ export class MainScene extends Phaser.Scene {
             this.scene.start('AuthScene');
             return;
         }
-        
-        // Connect to WebSocket with token payload
-        const wsBase = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080';
-        this.wsClient = new WebSocketClient(`${wsBase}/ws?token=${token}`);
+
+        const wsUrl = buildWsUrl(token);
+        this.wsClient = new WebSocketClient(wsUrl);
         this.wsClient.connect();
     }
 
@@ -49,7 +80,8 @@ export class MainScene extends Phaser.Scene {
         this.player.setCollideWorldBounds(true);
         
         // Add a simple name tag above player
-        const nameText = this.add.text(0, 0, 'Kunai', { 
+        const displayName = getCurrentCharacter()?.displayName || 'Ninja';
+        const nameText = this.add.text(0, 0, displayName, {
             fontSize: '14px', 
             fontFamily: 'system-ui, sans-serif',
             color: '#ffffff',

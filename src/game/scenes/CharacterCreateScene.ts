@@ -1,5 +1,8 @@
 import * as Phaser from 'phaser';
 import { charactersAPI } from '../../network/api';
+import { saveCurrentCharacter } from '../playerSession';
+
+const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
 
 /** Scene tạo nhân vật (sau đăng nhập khi còn slot). */
 export class CharacterCreateScene extends Phaser.Scene {
@@ -103,13 +106,15 @@ export class CharacterCreateScene extends Phaser.Scene {
 
         try {
             this.statusText?.setText('Đang tạo nhân vật...').setColor('#aaa');
-            await charactersAPI.create({
+            const created = await charactersAPI.create({
                 display_name: displayName,
                 gender: this.selectedGender,
                 costume_primary_color: this.selectedColor,
             });
+            saveCurrentCharacter(created.character);
+            localStorage.setItem(FIRST_MAP_ONBOARDING_DONE_KEY, 'false');
             this.statusText?.setText('');
-            this.scene.start('MainScene');
+            this.scene.start('FirstMapOnboardingScene');
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Tạo nhân vật thất bại';
             this.statusText?.setText(msg).setColor('#ff6b6b');

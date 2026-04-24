@@ -1,5 +1,8 @@
 import * as Phaser from 'phaser';
 import { authAPI, charactersAPI } from '../../network/api';
+import { saveCurrentCharacter } from '../playerSession';
+
+const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
 
 export class AuthScene extends Phaser.Scene {
     private domElement?: Phaser.GameObjects.DOMElement;
@@ -133,6 +136,19 @@ export class AuthScene extends Phaser.Scene {
             const list = await charactersAPI.list();
             const max = list.max_characters_per_user ?? 1;
             this.statusText?.setText('');
+            if (list.characters.length === 0) {
+                localStorage.removeItem(FIRST_MAP_ONBOARDING_DONE_KEY);
+                this.scene.start('CharacterCreateScene');
+                return;
+            }
+            saveCurrentCharacter(list.characters[0]);
+
+            const onboardingDone = localStorage.getItem(FIRST_MAP_ONBOARDING_DONE_KEY) === 'true';
+            if (!onboardingDone) {
+                this.scene.start('FirstMapOnboardingScene');
+                return;
+            }
+
             if (list.characters.length >= max) {
                 this.scene.start('MainScene');
             } else {
