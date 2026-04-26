@@ -183,7 +183,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         miniFrame.strokeRoundedRect(mmX - 6, mmY - titleH - 6, mmWidth + 12, mmHeight + titleH + 12, 10);
         miniFrame.setScrollFactor(0).setDepth(200);
 
-        const miniTitle = this.add.text(mmX + mmWidth / 2, mmY - titleH / 2 - 4, 'BẢN ĐỒ', {
+        this.add.text(mmX + mmWidth / 2, mmY - titleH / 2 - 4, 'BẢN ĐỒ', {
             fontSize: '11px',
             fontStyle: 'bold',
             color: '#ffea7a',
@@ -907,7 +907,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         }
     }
 
-    private createMenuPanel(width: number, height: number) {
+    private createMenuPanel(width: number, _height: number) {
         const items: { label: string, action: () => void }[] = [
             { label: 'Túi đồ', action: () => this.statusText?.setText('Mở Túi Đồ (placeholder)').setColor('#ffea7a') },
             { label: 'Nhiệm vụ', action: () => this.statusText?.setText('Mở Nhiệm Vụ (placeholder)').setColor('#ffea7a') },
@@ -1179,17 +1179,6 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     }
 
     private drawMockControls(width: number, height: number) {
-        const g = this.add.graphics();
-        g.setScrollFactor(0); // Fix cứng Graphics vào HUD
-        g.setDepth(100);
-
-        const drawRing = (x: number, y: number, r: number) => {
-            g.fillStyle(0x352313, 0.85);
-            g.fillCircle(x, y, r);
-            g.lineStyle(3, 0xe29e4a, 1);
-            g.strokeCircle(x, y, r);
-        };
-
         // D-PAD: 3 nút di chuyển vẽ bằng Graphics, đồng style bronze rim với attack/HP/MP/menu.
         const cx = 80;
         const cy = height - 70;
