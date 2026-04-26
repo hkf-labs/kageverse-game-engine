@@ -623,21 +623,29 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             strokeThickness: 2,
         }).setOrigin(0.5, 0.5);
 
-        const levelBg = this.add.circle(32, 74, 12, 0x3d2010).setStrokeStyle(2, 0xe29e4a);
-        const levelText = this.add.text(32, 74, '1', {
-            fontSize: '12px',
+        const levelText = this.add.text(45, 38, '1', {
+            fontSize: '26px',
             fontStyle: 'bold',
             color: '#ffea7a',
             fontFamily: 'system-ui, sans-serif',
             stroke: '#000',
-            strokeThickness: 2,
+            strokeThickness: 4,
+        }).setOrigin(0.5, 0.5);
+
+        const expText = this.add.text(45, 62, '20.88%', {
+            fontSize: '11px',
+            fontStyle: 'bold',
+            color: '#ffffff',
+            fontFamily: 'system-ui, sans-serif',
+            stroke: '#000',
+            strokeThickness: 3,
         }).setOrigin(0.5, 0.5);
 
         const bg4 = this.drawRoundedRect(width - 148, 14, 40, 30, 0x4d2d13, 0xd59a48);
         const bg5 = this.drawRoundedRect(width - 100, 14, 40, 30, 0x4d2d13, 0xd59a48);
         const bg6 = this.drawRoundedRect(width - 52, 14, 40, 30, 0x4d2d13, 0xd59a48);
 
-        [topbar, hpBar, mpBar, hpText, mpText, levelBg, levelText, bg4, bg5, bg6].forEach((obj) => {
+        [topbar, hpBar, mpBar, hpText, mpText, levelText, expText, bg4, bg5, bg6].forEach((obj) => {
             if (obj && 'setScrollFactor' in obj) {
                 (obj as Phaser.GameObjects.GameObject & { setScrollFactor: (x: number, y?: number) => void }).setScrollFactor(0);
                 (obj as Phaser.GameObjects.GameObject & { setDepth: (z: number) => void }).setDepth(100);
@@ -645,6 +653,8 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         });
 
         topbar.setDepth(101);
+        levelText.setDepth(102);
+        expText.setDepth(102);
     }
 
     private drawMockControls(width: number, height: number) {
