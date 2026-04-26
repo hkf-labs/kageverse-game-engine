@@ -72,8 +72,11 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         // Draw background first, which calculates bgWidth and bgHeight
         this.drawVillageBackdrop();
 
-        // Xóa Hack PaddingBottom đi vì giờ hệ thống va chạm sẽ chặn đúng đỉnh mỏm đá Tiled! 
+        // Xóa Hack PaddingBottom đi vì giờ hệ thống va chạm sẽ chặn đúng đỉnh mỏm đá Tiled!
         this.physics.world.setBounds(0, 0, this.bgWidth, this.bgHeight);
+        // Tắt va chạm mép TRÊN của world: player đứng/nhảy trên platform cao không còn bị đè đầu vô hình.
+        // Gravity vẫn tự kéo player rớt lại nên không cần "trần" giả.
+        this.physics.world.setBoundsCollision(true, true, false, true);
         this.physics.world.gravity.y = 900;
 
         const grounds = this.drawVillagePlatforms();
@@ -90,6 +93,9 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             // Smoother camera follow, deadzone smaller so player doesn't run off screen
             this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
             this.cameras.main.setDeadzone(width * 0.1, height * 0.2);
+            // Camera bám đúng khung map: chỉ lia tới đâu còn ảnh tới đó. Phần trên cùng map
+            // vẫn vô vụ va chạm (đã tắt setBoundsCollision top), nên player nhảy vượt mép trên
+            // chỉ bị viewport cắt phần đầu, không lộ vùng trống ngoài map.
             this.cameras.main.setBounds(0, 0, this.bgWidth, this.bgHeight);
         }
 
@@ -484,37 +490,57 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             return platforms;
         }
 
-        // Tuyệt đối không dùng source.height từ bức ảnh, vì ảnh Background 1 là bản rút gọi 480px.
-        // Tọa độ JSON Tiled lại trích xuất trên bản vẽ 1440. Phải convert thẳng theo tỷ lệ 1440!
+        // JSON Tiled trích xuất trên bản vẽ gốc 1440px → quy đổi về scale màn hình hiện tại.
         const tiledOriginalHeight = 1440;
         const scale = this.scale.height / tiledOriginalHeight;
+
+        // Đảm bảo độ dày tối thiểu cho platform: chống "lọt" khi rơi nhanh.
+        // Vì one-way platform không kiểm tra mặt đáy, kéo dài xuống dưới là vô hình với người chơi.
+        const MIN_THICKNESS = 80;
+        // Lip 2 bên giúp đáp xuống mép platform mượt hơn, không bị "trượt" ngay sát rìa.
+        const EDGE_LIP = 6;
 
         const objectLayer = mapData.layers.find((l: any) => l.type === 'objectgroup');
         if (objectLayer && objectLayer.objects) {
             objectLayer.objects.forEach((obj: any) => {
                 if (!obj.width || !obj.height) return;
+                if (obj.width < 8 || obj.height < 4) return; // Bỏ qua collider vụn
 
-                // Tọa độ gốc X Y của box trong Tiled tính từ viền mép trên bên trái
-                const x = obj.x * scale;
-                const y = obj.y * scale;
-                const w = obj.width * scale;
-                const h = obj.height * scale;
+                let x = obj.x;
+                const y = obj.y;
+                let w = obj.width;
+                let h = obj.height;
 
-                // Trong Phaser, Create Static block sẽ cắm mốc ở tâm (Center)
-                const centerX = x + (w / 2);
-                const centerY = y + (h / 2);
+                // Sàn nền chính: rộng gần phủ map và đáy chạm sát bottom của bản vẽ Tiled.
+                const isGroundFloor = w >= 4000 && (y + h) >= tiledOriginalHeight - 8;
 
-                // ÉP HIỂN THỊ DEBUG: Nếu alpha = 0, Engine sẽ coi như Vô hình và không vẽ Viền hộp vật lý.
-                // Phải nhồi Alpha = 0.001 vào Rectangle, nó gần như vô hình với mắt người nhưng ép Engine phải soi vạch Tím/Xanh!
-                const block = this.add.rectangle(centerX, centerY, w, h, 0xffffff, 0.001);
-                this.physics.add.existing(block, true); // true = Static Body
+                if (!isGroundFloor) {
+                    x -= EDGE_LIP;
+                    w += EDGE_LIP * 2;
+                    if (h < MIN_THICKNESS) h = MIN_THICKNESS;
+                }
+
+                const sx = x * scale;
+                const sy = y * scale;
+                const sw = w * scale;
+                const sh = h * scale;
+
+                const centerX = sx + sw / 2;
+                const centerY = sy + sh / 2;
+
+                // Alpha 0.001 = gần như tàng hình với mắt người, nhưng vẫn ép Engine vẽ debug overlay khi bật.
+                const block = this.add.rectangle(centerX, centerY, sw, sh, 0xffffff, 0.001);
+                this.physics.add.existing(block, true);
 
                 const body = block.body as Phaser.Physics.Arcade.StaticBody;
 
-                // Luật Nhảy xuyên Kageverse: Mặc định TẤT CẢ nền đất (Platform) đều có thể nhảy xuyên từ dưới lên.
-                body.checkCollision.down = false;
-                body.checkCollision.left = false;
-                body.checkCollision.right = false;
+                if (!isGroundFloor) {
+                    // Luật Nhảy xuyên Kageverse: Platform lửng cho phép nhảy xuyên từ dưới lên.
+                    body.checkCollision.down = false;
+                    body.checkCollision.left = false;
+                    body.checkCollision.right = false;
+                }
+                // Sàn nền chính giữ va chạm 4 hướng → đứng vững, không bao giờ lọt khỏi đáy map.
 
                 platforms.add(block);
             });
