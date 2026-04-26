@@ -40,6 +40,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     // Joystick/Buttons
     private virtualInputs = { left: false, right: false, up: false };
     private switchTargetBtn?: { bg: Phaser.GameObjects.Arc, txt: Phaser.GameObjects.Text };
+    private dirBtns: { g: Phaser.GameObjects.Graphics, dir: 'left' | 'right' | 'up', cx: number, cy: number, r: number }[] = [];
 
     // Chat & Menu
     private chatPanelBg?: Phaser.GameObjects.Container;
@@ -67,7 +68,6 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.load.image('npc_merchant', 'assets/game/npcs/village/merchant.png');
         this.load.image('npc_stash', 'assets/game/npcs/village/stash_keeper.png');
         this.load.image('npc_teleporter', 'assets/game/npcs/village/teleporter.png');
-        this.load.image('btn_dir', 'assets/game/buttons/dir_btn.png');
         this.load.image('btn_attack', 'assets/game/buttons/button-attack.png');
         this.load.image('btn_chat', 'assets/game/buttons/chat.png');
         this.load.image('btn_menu', 'assets/game/buttons/menu.png');
@@ -338,6 +338,9 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     update() {
         if (!this.player || !this.cursors) return;
+
+        // Update visual cho các nút di chuyển dựa vào keyboard + virtual input.
+        this.updateDirBtnVisuals();
 
         // Khi đang gõ chat → khóa di chuyển/tương tác phím (DOM input vẫn nhận key bình thường).
         if (this.isChatFocused()) {
@@ -729,6 +732,54 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     private isChatFocused(): boolean {
         return !!this.chatInputEl && document.activeElement === this.chatInputEl;
+    }
+
+    private redrawDirBtn(btn: { g: Phaser.GameObjects.Graphics, dir: 'left' | 'right' | 'up', cx: number, cy: number, r: number }, active: boolean) {
+        const { g, dir, cx, cy, r } = btn;
+        g.clear();
+        // Vòng nền + viền (style đồng nhất với attack/HP/MP/menu)
+        g.fillStyle(active ? 0x6b3a14 : 0x352313, 0.92);
+        g.fillCircle(cx, cy, r);
+        g.lineStyle(3, active ? 0xffea7a : 0xe29e4a, 1);
+        g.strokeCircle(cx, cy, r);
+
+        // Mũi tên tam giác
+        const arrowColor = active ? 0xffea7a : 0xe29e4a;
+        const arm = r * 0.5;
+        g.fillStyle(arrowColor, 1);
+        g.lineStyle(2, 0x000000, 0.5);
+        g.beginPath();
+        if (dir === 'up') {
+            g.moveTo(cx, cy - arm);
+            g.lineTo(cx + arm * 0.85, cy + arm * 0.55);
+            g.lineTo(cx - arm * 0.85, cy + arm * 0.55);
+        } else if (dir === 'left') {
+            g.moveTo(cx - arm, cy);
+            g.lineTo(cx + arm * 0.55, cy - arm * 0.85);
+            g.lineTo(cx + arm * 0.55, cy + arm * 0.85);
+        } else { // right
+            g.moveTo(cx + arm, cy);
+            g.lineTo(cx - arm * 0.55, cy - arm * 0.85);
+            g.lineTo(cx - arm * 0.55, cy + arm * 0.85);
+        }
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+
+        // Glow nhẹ khi active
+        if (active) {
+            g.lineStyle(2, 0xffea7a, 0.6);
+            g.strokeCircle(cx, cy, r + 3);
+        }
+    }
+
+    private updateDirBtnVisuals() {
+        const cursors = this.cursors;
+        for (const btn of this.dirBtns) {
+            const keyDown = cursors ? !!cursors[btn.dir]?.isDown : false;
+            const active = this.virtualInputs[btn.dir] || keyDown;
+            this.redrawDirBtn(btn, active);
+        }
     }
 
     private createChatMenuButtons(mmX: number, mmY: number, mmWidth: number, mmHeight: number) {
@@ -1139,41 +1190,43 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             g.strokeCircle(x, y, r);
         };
 
-        // Phím ảo trái (D-PAD)
+        // D-PAD: 3 nút di chuyển vẽ bằng Graphics, đồng style bronze rim với attack/HP/MP/menu.
         const cx = 80;
         const cy = height - 70;
-        const btnScale = 0.15;
-        const offset = 54;
+        const dirRadius = 28;
+        const offset = 64;
 
-        const btnUp = this.add.image(cx, cy - offset, 'btn_dir').setScrollFactor(0).setDepth(100).setInteractive({ useHandCursor: true }).setScale(btnScale);
-        const btnLeft = this.add.image(cx - offset, cy, 'btn_dir').setScrollFactor(0).setDepth(100).setInteractive({ useHandCursor: true }).setScale(btnScale).setAngle(-90);
-        const btnRight = this.add.image(cx + offset, cy, 'btn_dir').setScrollFactor(0).setDepth(100).setInteractive({ useHandCursor: true }).setScale(btnScale).setAngle(90);
+        const makeDirBtn = (x: number, y: number, dir: 'left' | 'right' | 'up', onPress?: () => void) => {
+            const dirG = this.add.graphics().setScrollFactor(0).setDepth(100);
+            const hit = this.add.circle(x, y, dirRadius, 0xffffff, 0.001)
+                .setScrollFactor(0).setDepth(101)
+                .setInteractive({ useHandCursor: true });
+            const entry = { g: dirG, dir, cx: x, cy: y, r: dirRadius };
+            this.dirBtns.push(entry);
+            this.redrawDirBtn(entry, false);
 
-        btnUp.on('pointerdown', () => this.virtualInputs.up = true);
-        btnUp.on('pointerup', () => this.virtualInputs.up = false);
-        btnUp.on('pointerout', () => this.virtualInputs.up = false);
+            hit.on('pointerdown', () => {
+                if (onPress) onPress();
+                this.virtualInputs[dir] = true;
+            });
+            hit.on('pointerup', () => { this.virtualInputs[dir] = false; });
+            hit.on('pointerout', () => { this.virtualInputs[dir] = false; });
+            return entry;
+        };
 
-        btnLeft.on('pointerdown', () => {
+        makeDirBtn(cx, cy - offset, 'up');
+        makeDirBtn(cx - offset, cy, 'left', () => {
             if (this.interactingNpc) {
                 this.selectedOptionIndex = Math.max(0, this.selectedOptionIndex - 1);
                 this.updateOptionHighlight();
-            } else {
-                this.virtualInputs.left = true;
             }
         });
-        btnLeft.on('pointerup', () => this.virtualInputs.left = false);
-        btnLeft.on('pointerout', () => this.virtualInputs.left = false);
-
-        btnRight.on('pointerdown', () => {
+        makeDirBtn(cx + offset, cy, 'right', () => {
             if (this.interactingNpc) {
                 this.selectedOptionIndex = Math.min(this.dialogOptions.length - 1, this.selectedOptionIndex + 1);
                 this.updateOptionHighlight();
-            } else {
-                this.virtualInputs.right = true;
             }
         });
-        btnRight.on('pointerup', () => this.virtualInputs.right = false);
-        btnRight.on('pointerout', () => this.virtualInputs.right = false);
 
         // Nút Action chính (Đánh quái / Tương tác NPC) — tương đương phím ENTER, luôn ở góc phải-dưới
         const ATTACK_X = width - 72;
