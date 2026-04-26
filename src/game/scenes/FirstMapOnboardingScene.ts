@@ -1,7 +1,10 @@
 import * as Phaser from 'phaser';
 import { getOnboardingGateway } from '../../features/onboarding';
 import type { OnboardingState } from '../../features/onboarding/types';
-import { charactersAPI, mapsAPI, type MapDetail } from '../../network/api';
+import {
+    charactersAPI,
+    // mapsAPI, type MapDetail
+} from '../../network/api';
 import { getCurrentCharacter, saveCurrentCharacter } from '../playerSession';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
@@ -170,7 +173,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     private async loadInitialState() {
         try {
-            this.mapDetail = await mapsAPI.getDetail('village_001');
+            // this.mapDetail = await mapsAPI.getDetail('village_001');
             this.state = await getOnboardingGateway().getOnboardingState();
             this.renderState();
         } catch (error: unknown) {
