@@ -34,6 +34,9 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     // Joystick/Buttons
     private virtualInputs = { left: false, right: false, up: false };
 
+    private minimap?: Phaser.Cameras.Scene2D.Camera;
+    private uiElements: Phaser.GameObjects.GameObject[] = [];
+
     private bgWidth = 3200;
     private bgHeight = 1080;
 
@@ -133,6 +136,34 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.input.keyboard?.on('keydown-E', () => void this.simulateKill());
         this.input.keyboard?.on('keydown-R', () => void this.turnInQuest());
         this.input.keyboard?.on('keydown-ENTER', () => this.enterMainScene());
+
+        // --- CÀI ĐẶT MINIMAP (GÓC PHẢI TRÊN BÊN TRONG CÙNG) ---
+        const mmWidth = 150;
+        const mmHeight = 100;
+        const mmX = width - mmWidth - 10;
+        const mmY = 10; // Đè cả lên nút Action phía sau nếu chạm
+
+        const miniBorder = this.add.graphics();
+        miniBorder.lineStyle(3, 0xe29e4a, 1);
+        miniBorder.strokeRect(mmX, mmY, mmWidth, mmHeight);
+        miniBorder.setScrollFactor(0).setDepth(200);
+
+        this.minimap = this.cameras.add(mmX, mmY, mmWidth, mmHeight).setZoom(0.08).setName('mini');
+        this.minimap.setBackgroundColor(0x0a1622); // Màu nền tối (Dark Navy) để dễ nhìn
+        
+        if (this.player) {
+            this.minimap.startFollow(this.player, true, 0.1, 0.1);
+            this.minimap.setBounds(0, 0, this.bgWidth, this.bgHeight);
+        }
+
+        // Tự động thu thập TOÀN BỘ các cụm UI (Nút, Text, Joystick...) đang làm HUD và Bịt mắt Minimap lại
+        this.children.each((child: any) => {
+            if (child.scrollFactorX === 0 || child.scrollFactorY === 0) {
+                this.uiElements.push(child);
+            }
+        });
+        this.minimap.ignore(this.uiElements);
+        // ------ KẾT THÚC CÀI ĐẶT MINIMAP ------
 
         void this.syncCharacterInfo();
         void this.loadInitialState();
