@@ -39,6 +39,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     // Joystick/Buttons
     private virtualInputs = { left: false, right: false, up: false };
+    private switchTargetBtn?: { bg: Phaser.GameObjects.Arc, txt: Phaser.GameObjects.Text };
 
     private minimap?: Phaser.Cameras.Scene2D.Camera;
     private uiElements: Phaser.GameObjects.GameObject[] = [];
@@ -61,6 +62,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.load.image('npc_stash', 'assets/game/npcs/village/stash_keeper.png');
         this.load.image('npc_teleporter', 'assets/game/npcs/village/teleporter.png');
         this.load.image('btn_dir', 'assets/game/buttons/dir_btn.png');
+        this.load.image('btn_attack', 'assets/game/buttons/button-attack.png');
         this.load.image('topbar', 'assets/game/ui/topbar.png');
     }
 
@@ -323,6 +325,14 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     update() {
         if (!this.player || !this.cursors) return;
+
+        // Cập nhật trạng thái nút Switch Target: dim khi không thể đổi đối tượng.
+        if (this.switchTargetBtn) {
+            const canSwitch = this.canCycleTarget();
+            this.switchTargetBtn.bg.setAlpha(canSwitch ? 1 : 0.4);
+            this.switchTargetBtn.txt.setAlpha(canSwitch ? 1 : 0.5);
+            (this.switchTargetBtn.bg as any).disabled = !canSwitch;
+        }
 
         if (this.interactingNpc) {
             // Khi đang mở menu NPC: Khóa di chuyển, dùng mũi tên Keyboard để chọn chức năng (Nút UI cũng được nối trực tiếp vào)
@@ -649,6 +659,55 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.selectionIndicator = this.add.graphics().setDepth(9).setVisible(false);
     }
 
+    private useHpPotion() {
+        // Placeholder: gameplay HP regen sẽ nối ở giai đoạn sau.
+        this.statusText?.setText('Đã dùng bình HP! (placeholder)').setColor('#ff8a8a');
+    }
+
+    private useMpPotion() {
+        this.statusText?.setText('Đã dùng bình MP! (placeholder)').setColor('#8aaaff');
+    }
+
+    private getVisibleNpcs(): any[] {
+        // Dùng scrollX + camera.width thay vì worldView để tránh stale data ở frame đầu.
+        // Bỏ Y-check: tất cả NPC đều ở ground level, sprite.y có thể bị đẩy vượt view.bottom
+        // 1 chút do bottomPadPx + PLAYER_VISUAL_SINK → sẽ bị loại oan nếu check Y chặt.
+        const cam = this.cameras.main;
+        const viewLeft = cam.scrollX;
+        const viewRight = cam.scrollX + cam.width;
+        return this.npcList
+            .filter((n) => {
+                const halfW = (n.sprite.displayWidth || 0) / 2;
+                const npcRight = n.sprite.x + halfW;
+                const npcLeft = n.sprite.x - halfW;
+                // Visible nếu sprite chồng lấn với viewport theo trục X.
+                return npcRight >= viewLeft && npcLeft <= viewRight;
+            })
+            .sort((a, b) => String(a.name).localeCompare(String(b.name), 'vi'));
+    }
+
+    private canCycleTarget(): boolean {
+        if (this.interactingNpc) return false;
+        // Chỉ có ý nghĩa khi viewport có ≥2 NPC: 1 NPC thì không có gì để "chuyển đổi" sang.
+        return this.getVisibleNpcs().length >= 2;
+    }
+
+    private cycleSelectedNpc() {
+        if (!this.canCycleTarget()) return;
+        const visible = this.getVisibleNpcs(); // đã sort a-z
+
+        // Chưa chọn ai → chọn người đầu tiên theo alphabet.
+        if (!this.selectedNpc) {
+            this.selectNpc(visible[0]);
+            return;
+        }
+
+        const currentIdx = visible.indexOf(this.selectedNpc);
+        // Selected hiện tại đã ra khỏi viewport → bắt đầu lại từ first.
+        const nextIdx = currentIdx === -1 ? 0 : (currentIdx + 1) % visible.length;
+        this.selectNpc(visible[nextIdx]);
+    }
+
     private selectNpc(npc: any) {
         if (this.interactingNpc) return; // Đang trong dialog thì không cho chọn NPC khác
         // Reset màu name của NPC cũ
@@ -887,13 +946,65 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         btnRight.on('pointerup', () => this.virtualInputs.right = false);
         btnRight.on('pointerout', () => this.virtualInputs.right = false);
 
-        // Bên phải dải phím Action (Đánh/Tương tác vòng bự nhất)
-        drawRing(width - 72, height - 78, 34);
-        const actionBtn = this.add.circle(width - 72, height - 78, 34, 0x000, 0).setScrollFactor(0).setDepth(100).setInteractive({ useHandCursor: true });
-        actionBtn.on('pointerdown', () => this.handleInteractAction());
+        // Nút Action chính (Đánh quái / Tương tác NPC) — tương đương phím ENTER, luôn ở góc phải-dưới
+        const ATTACK_X = width - 72;
+        const ATTACK_Y = height - 78;
+        const attackBtn = this.add.image(ATTACK_X, ATTACK_Y, 'btn_attack')
+            .setScrollFactor(0)
+            .setDepth(100)
+            .setScale(0.7)
+            .setInteractive({ useHandCursor: true });
+        attackBtn.on('pointerdown', () => {
+            attackBtn.setScale(0.66); // hiệu ứng nhấn xuống
+            this.handleInteractAction();
+        });
+        attackBtn.on('pointerup', () => attackBtn.setScale(0.7));
+        attackBtn.on('pointerout', () => attackBtn.setScale(0.7));
 
-        drawRing(width - 130, height - 48, 20);
-        drawRing(width - 28, height - 48, 20);
+        // 3 nút vệ tinh quanh nút Attack: HP (trái), MP (trên-trái), Switch Target (trên)
+        const SAT_RADIUS = 22;
+        const SAT_DISTANCE = 78;
+        const makeSatBtn = (
+            angleDeg: number,
+            fillColor: number,
+            label: string,
+            labelColor: string,
+            onClick: () => void,
+        ) => {
+            const rad = Phaser.Math.DegToRad(angleDeg);
+            const x = ATTACK_X + Math.cos(rad) * SAT_DISTANCE;
+            const y = ATTACK_Y + Math.sin(rad) * SAT_DISTANCE;
+
+            const bg = this.add.circle(x, y, SAT_RADIUS, fillColor, 0.92)
+                .setStrokeStyle(3, 0xe29e4a)
+                .setScrollFactor(0)
+                .setDepth(100)
+                .setInteractive({ useHandCursor: true });
+
+            const txt = this.add.text(x, y, label, {
+                fontSize: '14px',
+                fontStyle: 'bold',
+                color: labelColor,
+                fontFamily: 'system-ui, sans-serif',
+                stroke: '#000',
+                strokeThickness: 3,
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
+
+            bg.on('pointerdown', () => {
+                if ((bg as any).disabled) return;
+                bg.setScale(0.9);
+                onClick();
+            });
+            bg.on('pointerup', () => bg.setScale(1));
+            bg.on('pointerout', () => bg.setScale(1));
+
+            return { bg, txt };
+        };
+
+        // 180° = trái nút Attack, 225° = chéo trên-trái, 270° = ngay phía trên (Phaser y tăng xuống)
+        makeSatBtn(180, 0x7a1a1a, 'HP', '#ffe4e4', () => this.useHpPotion());
+        makeSatBtn(225, 0x163d6e, 'MP', '#dceeff', () => this.useMpPotion());
+        this.switchTargetBtn = makeSatBtn(270, 0x4d2d13, '⇄', '#ffea7a', () => this.cycleSelectedNpc());
 
         // Skill slots placeholders
         const slotY = height - 30;
