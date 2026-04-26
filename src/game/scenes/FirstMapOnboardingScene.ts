@@ -41,6 +41,12 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     private virtualInputs = { left: false, right: false, up: false };
     private switchTargetBtn?: { bg: Phaser.GameObjects.Arc, txt: Phaser.GameObjects.Text };
 
+    // Chat & Menu
+    private chatPanelBg?: Phaser.GameObjects.Container;
+    private chatInputDom?: Phaser.GameObjects.DOMElement;
+    private chatInputEl?: HTMLInputElement;
+    private menuPanel?: Phaser.GameObjects.Container;
+
     private minimap?: Phaser.Cameras.Scene2D.Camera;
     private uiElements: Phaser.GameObjects.GameObject[] = [];
 
@@ -63,6 +69,8 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.load.image('npc_teleporter', 'assets/game/npcs/village/teleporter.png');
         this.load.image('btn_dir', 'assets/game/buttons/dir_btn.png');
         this.load.image('btn_attack', 'assets/game/buttons/button-attack.png');
+        this.load.image('btn_chat', 'assets/game/buttons/chat.png');
+        this.load.image('btn_menu', 'assets/game/buttons/menu.png');
         this.load.image('topbar', 'assets/game/ui/topbar.png');
     }
 
@@ -147,10 +155,10 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             padding: { left: 8, right: 8, top: 4, bottom: 4 },
         }).setOrigin(1, 1).setScrollFactor(0);
 
-        this.input.keyboard?.on('keydown-Q', () => void this.acceptQuest());
-        this.input.keyboard?.on('keydown-E', () => void this.simulateKill());
-        this.input.keyboard?.on('keydown-R', () => void this.turnInQuest());
-        this.input.keyboard?.on('keydown-ENTER', () => this.enterMainScene());
+        this.input.keyboard?.on('keydown-Q', () => { if (!this.isChatFocused()) void this.acceptQuest(); });
+        this.input.keyboard?.on('keydown-E', () => { if (!this.isChatFocused()) void this.simulateKill(); });
+        this.input.keyboard?.on('keydown-R', () => { if (!this.isChatFocused()) void this.turnInQuest(); });
+        this.input.keyboard?.on('keydown-ENTER', () => { if (!this.isChatFocused()) this.enterMainScene(); });
 
         // --- CÀI ĐẶT MINIMAP (GÓC PHẢI TRÊN BÊN TRONG CÙNG) ---
         const mmWidth = 160;
@@ -217,6 +225,11 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             repeat: -1,
             ease: 'Sine.easeInOut',
         });
+
+        // 2 nút Chat / Menu đặt ngay dưới minimap, căn giữa với khung minimap.
+        this.createChatMenuButtons(mmX, mmY, mmWidth, mmHeight);
+        this.createChatPanel(width, height);
+        this.createMenuPanel(width, height);
 
         // Tự động thu thập TOÀN BỘ các cụm UI (Nút, Text, Joystick...) đang làm HUD và Bịt mắt Minimap lại
         this.children.each((child: any) => {
@@ -325,6 +338,12 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     update() {
         if (!this.player || !this.cursors) return;
+
+        // Khi đang gõ chat → khóa di chuyển/tương tác phím (DOM input vẫn nhận key bình thường).
+        if (this.isChatFocused()) {
+            if (this.player.body) this.player.body.setVelocityX(0);
+            return;
+        }
 
         // Cập nhật trạng thái nút Switch Target: dim khi không thể đổi đối tượng.
         if (this.switchTargetBtn) {
@@ -706,6 +725,216 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         // Selected hiện tại đã ra khỏi viewport → bắt đầu lại từ first.
         const nextIdx = currentIdx === -1 ? 0 : (currentIdx + 1) % visible.length;
         this.selectNpc(visible[nextIdx]);
+    }
+
+    private isChatFocused(): boolean {
+        return !!this.chatInputEl && document.activeElement === this.chatInputEl;
+    }
+
+    private createChatMenuButtons(mmX: number, mmY: number, mmWidth: number, mmHeight: number) {
+        // Đặt 2 nút dưới minimap, căn giữa theo trục X của minimap.
+        const cx = mmX + mmWidth / 2;
+        const btnY = mmY + mmHeight + 36;
+        const SPACING = 60;
+        const SCALE = 0.5;
+
+        const makeBtn = (x: number, y: number, key: string, onClick: () => void) => {
+            const btn = this.add.image(x, y, key)
+                .setScrollFactor(0)
+                .setDepth(100)
+                .setScale(SCALE)
+                .setInteractive({ useHandCursor: true });
+            btn.on('pointerdown', () => {
+                btn.setScale(SCALE * 0.94);
+                onClick();
+            });
+            btn.on('pointerup', () => btn.setScale(SCALE));
+            btn.on('pointerout', () => btn.setScale(SCALE));
+            return btn;
+        };
+
+        makeBtn(cx - SPACING / 2, btnY, 'btn_chat', () => this.toggleChatPanel());
+        makeBtn(cx + SPACING / 2, btnY, 'btn_menu', () => this.toggleMenuPanel());
+    }
+
+    private createChatPanel(width: number, height: number) {
+        const panelW = Math.min(700, Math.round(width * 0.7));
+        const panelH = 60;
+        const padding = 12;
+        const sendBtnW = 80;
+        const sendBtnH = 36;
+        const inputW = panelW - sendBtnW - padding * 3;
+        const panelX = width / 2;
+        const panelY = height - 100;
+
+        // Container chứa background + send button (Phaser objects)
+        this.chatPanelBg = this.add.container(panelX, panelY)
+            .setScrollFactor(0).setDepth(150).setVisible(false);
+
+        const bg = this.add.graphics();
+        bg.fillStyle(0x1a1208, 0.95);
+        bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
+        bg.lineStyle(3, 0xe29e4a, 1);
+        bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
+
+        const sendBtnX = panelW / 2 - padding - sendBtnW / 2;
+        const sendBg = this.add.graphics();
+        sendBg.fillStyle(0x6b3a14, 1);
+        sendBg.fillRoundedRect(sendBtnX - sendBtnW / 2, -sendBtnH / 2, sendBtnW, sendBtnH, 8);
+        sendBg.lineStyle(2, 0xe29e4a, 1);
+        sendBg.strokeRoundedRect(sendBtnX - sendBtnW / 2, -sendBtnH / 2, sendBtnW, sendBtnH, 8);
+
+        const sendTxt = this.add.text(sendBtnX, 0, 'Gửi', {
+            fontSize: '16px',
+            fontStyle: 'bold',
+            color: '#ffea7a',
+            fontFamily: 'system-ui, sans-serif',
+        }).setOrigin(0.5);
+
+        const sendHit = this.add.rectangle(sendBtnX, 0, sendBtnW, sendBtnH, 0xffffff, 0.001)
+            .setInteractive({ useHandCursor: true });
+        sendHit.on('pointerdown', () => this.handleSendChat());
+
+        this.chatPanelBg.add([bg, sendBg, sendTxt, sendHit]);
+
+        // HTML input thật để gõ tiếng Việt thoải mái
+        const inputCx = panelX - panelW / 2 + padding + inputW / 2;
+        this.chatInputDom = this.add.dom(inputCx, panelY).createFromHTML(`
+            <input type="text" placeholder="Nhập tin nhắn..." style="
+                width:${inputW}px;
+                height:36px;
+                border-radius:6px;
+                border:2px solid #4d2d13;
+                background:#fff5e0;
+                padding:0 10px;
+                font-family:system-ui,sans-serif;
+                font-size:14px;
+                color:#2a1808;
+                outline:none;
+                box-sizing:border-box;
+            " />
+        `);
+        this.chatInputDom.setScrollFactor(0).setDepth(151).setVisible(false);
+        this.chatInputEl = this.chatInputDom.node as HTMLInputElement;
+
+        this.chatInputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.handleSendChat();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                this.toggleChatPanel();
+            }
+        });
+    }
+
+    private toggleChatPanel() {
+        if (!this.chatPanelBg) return;
+        const willShow = !this.chatPanelBg.visible;
+        this.chatPanelBg.setVisible(willShow);
+        this.chatInputDom?.setVisible(willShow);
+
+        if (willShow && this.menuPanel?.visible) this.menuPanel.setVisible(false);
+
+        if (willShow) {
+            // Defer focus để DOM kịp hiện trước khi focus.
+            setTimeout(() => this.chatInputEl?.focus(), 30);
+        } else {
+            this.chatInputEl?.blur();
+            if (this.chatInputEl) this.chatInputEl.value = '';
+        }
+    }
+
+    private handleSendChat() {
+        const msg = this.chatInputEl?.value.trim();
+        if (!msg) return;
+        // Placeholder: hiện tin nhắn ra status. Sau này nối vào hệ thống chat thật.
+        this.statusText?.setText(`[Bạn]: ${msg}`).setColor('#ffea7a');
+        if (this.chatInputEl) {
+            this.chatInputEl.value = '';
+            this.chatInputEl.focus();
+        }
+    }
+
+    private createMenuPanel(width: number, height: number) {
+        const items: { label: string, action: () => void }[] = [
+            { label: 'Túi đồ', action: () => this.statusText?.setText('Mở Túi Đồ (placeholder)').setColor('#ffea7a') },
+            { label: 'Nhiệm vụ', action: () => this.statusText?.setText('Mở Nhiệm Vụ (placeholder)').setColor('#ffea7a') },
+            { label: 'Kỹ năng', action: () => this.statusText?.setText('Mở Kỹ Năng (placeholder)').setColor('#ffea7a') },
+            { label: 'Cài đặt', action: () => this.statusText?.setText('Cài Đặt (placeholder)').setColor('#ffea7a') },
+            { label: 'Đăng xuất', action: () => this.statusText?.setText('Đăng Xuất (placeholder)').setColor('#ffea7a') },
+        ];
+
+        const panelW = 220;
+        const headerH = 36;
+        const itemH = 38;
+        const itemGap = 4;
+        const panelH = headerH + items.length * (itemH + itemGap) + 12;
+
+        // Anchor góc phải-trên gần nút menu, không che minimap.
+        const panelX = width - 16 - panelW / 2;
+        const panelY = 220 + panelH / 2;
+
+        this.menuPanel = this.add.container(panelX, panelY)
+            .setScrollFactor(0).setDepth(150).setVisible(false);
+
+        const bg = this.add.graphics();
+        bg.fillStyle(0x2a1808, 0.97);
+        bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 14);
+        bg.fillStyle(0x4d2d13, 1);
+        bg.fillRoundedRect(-panelW / 2 + 4, -panelH / 2 + 4, panelW - 8, headerH, 8);
+        bg.lineStyle(3, 0xe29e4a, 1);
+        bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 14);
+
+        const headerTxt = this.add.text(0, -panelH / 2 + headerH / 2 + 4, 'MENU', {
+            fontSize: '15px',
+            fontStyle: 'bold',
+            color: '#ffea7a',
+            fontFamily: 'system-ui, sans-serif',
+            stroke: '#000',
+            strokeThickness: 3,
+        }).setOrigin(0.5);
+
+        this.menuPanel.add([bg, headerTxt]);
+
+        items.forEach((item, idx) => {
+            const itemY = -panelH / 2 + headerH + 8 + idx * (itemH + itemGap) + itemH / 2;
+            const itemBg = this.add.rectangle(0, itemY, panelW - 24, itemH, 0x3a2010, 0.9)
+                .setStrokeStyle(2, 0x8d6e63)
+                .setInteractive({ useHandCursor: true });
+            const itemTxt = this.add.text(0, itemY, item.label, {
+                fontSize: '14px',
+                fontStyle: 'bold',
+                color: '#ffe4c4',
+                fontFamily: 'system-ui, sans-serif',
+            }).setOrigin(0.5);
+
+            itemBg.on('pointerover', () => {
+                itemBg.setFillStyle(0x6b3a14, 0.95);
+                itemTxt.setColor('#ffea7a');
+            });
+            itemBg.on('pointerout', () => {
+                itemBg.setFillStyle(0x3a2010, 0.9);
+                itemTxt.setColor('#ffe4c4');
+            });
+            itemBg.on('pointerdown', () => {
+                item.action();
+                this.toggleMenuPanel();
+            });
+
+            this.menuPanel!.add([itemBg, itemTxt]);
+        });
+    }
+
+    private toggleMenuPanel() {
+        if (!this.menuPanel) return;
+        const willShow = !this.menuPanel.visible;
+        this.menuPanel.setVisible(willShow);
+        if (willShow && this.chatPanelBg?.visible) {
+            this.chatPanelBg.setVisible(false);
+            this.chatInputDom?.setVisible(false);
+            this.chatInputEl?.blur();
+        }
     }
 
     private selectNpc(npc: any) {
