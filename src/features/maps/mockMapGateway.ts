@@ -46,6 +46,14 @@ const MOCK_MAP_DETAILS: Record<string, MapDetail> = {
             allowCombat: false,
             allowMount: false,
         },
+        npcs: [
+            { npcId: 'npc_village_elder_01', templateId: 'village_elder', position: { x: 400, y: 840 }, nameOverride: 'Trưởng Làng Sương Khói' },
+            { npcId: 'npc_blacksmith_01', templateId: 'blacksmith', position: { x: 600, y: 840 } },
+            { npcId: 'npc_merchant_01', templateId: 'merchant', position: { x: 800, y: 840 } },
+            { npcId: 'npc_stash_keeper_01', templateId: 'stash_keeper', position: { x: 1000, y: 840 } },
+            { npcId: 'npc_teleporter_01', templateId: 'teleporter', position: { x: 1200, y: 840 } },
+            { npcId: 'npc_healer_01', templateId: 'healer', position: { x: 1400, y: 840 } },
+        ],
     },
 };
 

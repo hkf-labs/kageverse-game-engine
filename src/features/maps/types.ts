@@ -1,3 +1,5 @@
+import type { MapNpc } from '../npcs/types';
+
 export type Vec2 = { x: number; y: number };
 
 export type MapDetail = {
@@ -33,4 +35,5 @@ export type MapDetail = {
         allowCombat: boolean;
         allowMount: boolean;
     };
+    npcs?: MapNpc[];
 };

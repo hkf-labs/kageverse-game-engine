@@ -59,13 +59,17 @@ export class AuthScene extends Phaser.Scene {
         if (!token) return;
 
         try {
-            this.statusText?.setText('Đang khôi phục phiên đăng nhập...').setColor('#aaaaaa');
+            if (this.statusText?.active) {
+                this.statusText.setText('Đang khôi phục phiên đăng nhập...').setColor('#aaaaaa');
+            }
             await this.goToGameOrCharacterCreate();
         } catch {
-            // Token có thể hết hạn/không hợp lệ: trả về màn login và xóa token cũ.
+            // Token có thể hết hạn/không hợp lệ
             localStorage.removeItem('kageverse_jwt');
             localStorage.removeItem('kageverse_refresh');
-            this.statusText?.setText('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.').setColor('#ff5555');
+            if (this.statusText && this.statusText.active) {
+                this.statusText.setText('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.').setColor('#ff5555');
+            }
         }
     }
 
@@ -132,10 +136,12 @@ export class AuthScene extends Phaser.Scene {
 
     private async goToGameOrCharacterCreate() {
         try {
-            this.statusText?.setText('Đang kiểm tra nhân vật...').setColor('#aaaaaa');
+            if (this.statusText?.active) this.statusText.setText('Đang kiểm tra nhân vật...').setColor('#aaaaaa');
             const list = await charactersAPI.list();
             const max = list.max_characters_per_user ?? 1;
-            this.statusText?.setText('');
+            
+            if (this.statusText?.active) this.statusText.setText('');
+            
             if (list.characters.length === 0) {
                 localStorage.removeItem(FIRST_MAP_ONBOARDING_DONE_KEY);
                 this.scene.start('CharacterCreateScene');
@@ -159,7 +165,9 @@ export class AuthScene extends Phaser.Scene {
             if (msg.includes('auth.error.unauthorized')) {
                 throw error;
             }
-            this.statusText?.setText('Không gọi được API nhân vật — vào game thử (kiểm tra server).').setColor('#ffaa00');
+            if (this.statusText?.active) {
+                this.statusText.setText('Không gọi được API nhân vật — vào game thử (kiểm tra server).').setColor('#ffaa00');
+            }
             this.scene.start('MainScene');
         }
     }
@@ -172,12 +180,12 @@ export class AuthScene extends Phaser.Scene {
         const password = passwordInput?.value;
 
         if (!identifier || !password) {
-            this.statusText?.setText('Nhập đủ username/email và mật khẩu.');
+            if (this.statusText?.active) this.statusText.setText('Nhập đủ username/email và mật khẩu.');
             return;
         }
 
         try {
-            this.statusText?.setText('Đang đăng nhập...').setColor('#aaaaaa');
+            if (this.statusText?.active) this.statusText.setText('Đang đăng nhập...').setColor('#aaaaaa');
             const response = await authAPI.login({ identifier, password });
 
             if (response.access_token) {
@@ -189,7 +197,7 @@ export class AuthScene extends Phaser.Scene {
             }
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : 'Đăng nhập thất bại';
-            this.statusText?.setText(msg).setColor('#ff5555');
+            if (this.statusText?.active) this.statusText.setText(msg).setColor('#ff5555');
         }
     }
 
@@ -205,16 +213,16 @@ export class AuthScene extends Phaser.Scene {
         const country_code = countrySelect?.value?.trim().toUpperCase();
 
         if (!username || !email || !password) {
-            this.statusText?.setText('Điền đủ username, email và mật khẩu.');
+            if (this.statusText?.active) this.statusText.setText('Điền đủ username, email và mật khẩu.');
             return;
         }
         if (!country_code) {
-            this.statusText?.setText('Chọn quốc gia (hoặc đợi tải xong danh sách).');
+            if (this.statusText?.active) this.statusText.setText('Chọn quốc gia (hoặc đợi tải xong danh sách).');
             return;
         }
 
         try {
-            this.statusText?.setText('Đang đăng ký...').setColor('#aaaaaa');
+            if (this.statusText?.active) this.statusText.setText('Đang đăng ký...').setColor('#aaaaaa');
             const response = await authAPI.register({ username, email, password, country_code });
 
             if (response.access_token) {
@@ -226,7 +234,7 @@ export class AuthScene extends Phaser.Scene {
             }
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : 'Đăng ký thất bại';
-            this.statusText?.setText(msg).setColor('#ff5555');
+            if (this.statusText?.active) this.statusText.setText(msg).setColor('#ff5555');
         }
     }
 }

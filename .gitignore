@@ -55,3 +55,6 @@ ehthumbs.db
 # Game engine specific/Misc ignored files
 # raw-assets/    # Bỏ comment nếu có thư mục chứa raw PSD/Aseprite nặng
 # .parcel-cache/
+
+# Antigravity
+.agent

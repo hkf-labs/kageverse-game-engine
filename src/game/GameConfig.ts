@@ -22,7 +22,7 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
             default: 'arcade',
             arcade: {
                 gravity: { x: 0, y: 0 },
-                debug: false
+                debug: true // HIỂN THỊ VIỀN TÍM CỦA HITBOX
             }
         },
         scene: [AuthScene, CharacterCreateScene, FirstMapOnboardingScene, MainScene]
