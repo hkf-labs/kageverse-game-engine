@@ -26,12 +26,16 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     // NPC Interaction State
     private interactingNpc: any | null = null;
+    private selectedNpc: any | null = null;
+    private selectionIndicator?: Phaser.GameObjects.Graphics;
+    private autoMoveTargetX: number | null = null;
     private dialogContainer?: Phaser.GameObjects.Container;
     private dialogOptions: { text: Phaser.GameObjects.Text, bg: Phaser.GameObjects.Graphics, action: () => void }[] = [];
     private selectedOptionIndex: number = 0;
     private npcOptionsTitle?: Phaser.GameObjects.Text;
     private enterKey?: Phaser.Input.Keyboard.Key;
     private npcList: any[] = []; // Chứa danh sách NPC để tính khoảng cách
+    private readonly INTERACT_RANGE = 150;
 
     // Joystick/Buttons
     private virtualInputs = { left: false, right: false, up: false };
@@ -296,20 +300,18 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             return;
         }
 
-        let closestNpc = null;
-        let minDist = Infinity;
+        if (!this.selectedNpc) return;
 
-        this.npcList.forEach(npc => {
-            const dist = Phaser.Math.Distance.Between(this.player!.x, this.player!.y, npc.sprite.x, npc.sprite.y);
-            // Khoảng cách 150px = Cự ly chạm / giao tiếp vừa đủ
-            if (dist <= 150 && dist < minDist) {
-                minDist = dist;
-                closestNpc = npc;
-            }
-        });
+        const dist = Phaser.Math.Distance.Between(
+            this.player.x, this.player.y,
+            this.selectedNpc.sprite.x, this.selectedNpc.sprite.y
+        );
 
-        if (closestNpc) {
-            this.startNpcInteraction(closestNpc);
+        if (dist <= this.INTERACT_RANGE) {
+            this.startNpcInteraction(this.selectedNpc);
+        } else {
+            // Quá xa: tự chạy đến NPC đã chọn
+            this.autoMoveTargetX = this.selectedNpc.sprite.x;
         }
     }
 
@@ -343,7 +345,30 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         const moveRight = this.cursors.right.isDown || this.virtualInputs.right;
         const moveUp = this.cursors.up.isDown || this.virtualInputs.up;
 
-        if (moveLeft) {
+        // Auto-move tới NPC đang chọn (nếu được kích hoạt)
+        if (this.autoMoveTargetX !== null) {
+            // Nếu user đụng phím di chuyển thì hủy auto-move
+            if (moveLeft || moveRight || moveUp) {
+                this.autoMoveTargetX = null;
+            } else if (this.selectedNpc) {
+                const dx = this.autoMoveTargetX - this.player.x;
+                const dist = Phaser.Math.Distance.Between(
+                    this.player.x, this.player.y,
+                    this.selectedNpc.sprite.x, this.selectedNpc.sprite.y
+                );
+                if (dist <= this.INTERACT_RANGE) {
+                    this.player.body.setVelocityX(0);
+                    const target = this.selectedNpc;
+                    this.autoMoveTargetX = null;
+                    this.startNpcInteraction(target);
+                } else {
+                    this.player.body.setVelocityX(dx > 0 ? speed : -speed);
+                    if (this.playerSprite) this.playerSprite.setFlipX(dx < 0);
+                }
+            } else {
+                this.autoMoveTargetX = null;
+            }
+        } else if (moveLeft) {
             this.player.body.setVelocityX(-speed);
             if (this.playerSprite) this.playerSprite.setFlipX(true);
         } else if (moveRight) {
@@ -353,7 +378,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             this.player.body.setVelocityX(0);
         }
 
-        if (moveUp && onGround) {
+        if (moveUp && onGround && this.autoMoveTargetX === null) {
             this.player.body.setVelocityY(-580);
         }
 
@@ -547,8 +572,9 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
             const spr = this.add.sprite(scaledX, baseSurfaceY + npc.offsetY, npc.key).setOrigin(0.5, 1).setDepth(8);
             spr.setScale(0.12);
+            spr.setInteractive({ useHandCursor: true });
 
-            this.add.text(scaledX, baseSurfaceY + npc.offsetY - (spr.height * 0.12) - 10, npc.name, {
+            const nameText = this.add.text(scaledX, baseSurfaceY + npc.offsetY - (spr.height * 0.12) - 10, npc.name, {
                 fontSize: '13px',
                 color: '#ffea7a',
                 fontFamily: 'system-ui, sans-serif',
@@ -556,8 +582,58 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
                 strokeThickness: 3,
             }).setOrigin(0.5).setDepth(9);
 
-            this.npcList.push({ ...npc, sprite: spr });
+            const npcEntry = { ...npc, sprite: spr, nameText };
+            spr.on('pointerdown', () => this.selectNpc(npcEntry));
+            this.npcList.push(npcEntry);
         });
+
+        // Marker hiển thị NPC đang được chọn (mũi tên + ring dưới chân)
+        this.selectionIndicator = this.add.graphics().setDepth(9).setVisible(false);
+    }
+
+    private selectNpc(npc: any) {
+        if (this.interactingNpc) return; // Đang trong dialog thì không cho chọn NPC khác
+        // Reset màu name của NPC cũ
+        if (this.selectedNpc && this.selectedNpc !== npc) {
+            this.selectedNpc.nameText?.setColor('#ffea7a');
+        }
+        this.selectedNpc = npc;
+        npc.nameText?.setColor('#9affb4');
+        this.updateSelectionIndicator();
+    }
+
+    private clearNpcSelection() {
+        if (this.selectedNpc) {
+            this.selectedNpc.nameText?.setColor('#ffea7a');
+        }
+        this.selectedNpc = null;
+        this.autoMoveTargetX = null;
+        this.selectionIndicator?.clear().setVisible(false);
+    }
+
+    private updateSelectionIndicator() {
+        if (!this.selectionIndicator || !this.selectedNpc) return;
+        const npc = this.selectedNpc;
+        const sprH = npc.sprite.height * npc.sprite.scaleY;
+        const x = npc.sprite.x;
+        const topY = npc.sprite.y - sprH - 28;
+        const footY = npc.sprite.y;
+        const g = this.selectionIndicator;
+        g.clear();
+        // Ring dưới chân
+        g.lineStyle(3, 0x9affb4, 1);
+        g.strokeEllipse(x, footY - 4, 50, 14);
+        // Mũi tên trên đầu
+        g.fillStyle(0x9affb4, 1);
+        g.lineStyle(2, 0x000000, 1);
+        g.beginPath();
+        g.moveTo(x - 9, topY);
+        g.lineTo(x + 9, topY);
+        g.lineTo(x, topY + 12);
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+        g.setVisible(true);
     }
 
     private createDialogUI(width: number, height: number) {
@@ -623,6 +699,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     private closeNpcInteraction() {
         this.interactingNpc = null;
         this.dialogContainer?.setVisible(false);
+        this.clearNpcSelection();
     }
 
     private updateOptionHighlight() {
