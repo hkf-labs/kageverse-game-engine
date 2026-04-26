@@ -347,21 +347,23 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.physics.add.existing(hitbox, false); // Dynamic Body!
         this.player = hitbox as any;  // Lừa Typescript để không phải sửa các hàm Collider cũ
 
-        this.player.body.setCollideWorldBounds(true);
-        this.player.body.setBounce(0);
+        if (this.player && this.player.body) {
+            this.player.body.setCollideWorldBounds(true);
+            this.player.body.setBounce(0);
 
-        // NHUỘM VÀNG HITBOX CỦA PLAYER
-        this.player.body.debugShowBody = true;
-        this.player.body.debugBodyColor = 0xffff00;
+            // NHUỘM VÀNG HITBOX CỦA PLAYER
+            this.player.body.debugShowBody = true;
+            this.player.body.debugBodyColor = 0xffff00;
+        }
 
         // TẠO VISUAL SPRITE RIÊNG BIỆT: Sẽ tự động follow theo Hitbox qua hàm `update()`
-        this.playerSprite = this.add.sprite(this.player.x, this.player.y, PLAYER_TEXTURE_KEY);
+        this.playerSprite = this.add.sprite(this.player!.x, this.player!.y, PLAYER_TEXTURE_KEY);
         this.playerSprite.setScale(0.12);
         this.playerSprite.setBlendMode(Phaser.BlendModes.MULTIPLY);
         this.playerSprite.setDepth(10);
 
         const displayName = getCurrentCharacter()?.displayName || 'Ninja';
-        this.playerNameText = this.add.text(this.player.x, this.player.y - 65, displayName, {
+        this.playerNameText = this.add.text(this.player!.x, this.player!.y - 65, displayName, {
             fontSize: '14px',
             color: '#fff',
             fontFamily: 'system-ui, sans-serif',
