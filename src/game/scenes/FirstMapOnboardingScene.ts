@@ -643,6 +643,8 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
                 (obj as Phaser.GameObjects.GameObject & { setDepth: (z: number) => void }).setDepth(100);
             }
         });
+
+        topbar.setDepth(101);
     }
 
     private drawMockControls(width: number, height: number) {
