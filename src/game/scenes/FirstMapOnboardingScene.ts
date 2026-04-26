@@ -141,23 +141,70 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.input.keyboard?.on('keydown-ENTER', () => this.enterMainScene());
 
         // --- CÀI ĐẶT MINIMAP (GÓC PHẢI TRÊN BÊN TRONG CÙNG) ---
-        const mmWidth = 150;
-        const mmHeight = 100;
-        const mmX = width - mmWidth - 10;
-        const mmY = 10; // Đè cả lên nút Action phía sau nếu chạm
+        const mmWidth = 160;
+        const mmHeight = 110;
+        const mmX = width - mmWidth - 16;
+        const mmY = 26;
+        const titleH = 18;
 
-        const miniBorder = this.add.graphics();
-        miniBorder.lineStyle(3, 0xe29e4a, 1);
-        miniBorder.strokeRect(mmX, mmY, mmWidth, mmHeight);
-        miniBorder.setScrollFactor(0).setDepth(200);
+        // Drop shadow
+        const miniShadow = this.add.graphics();
+        miniShadow.fillStyle(0x000000, 0.45);
+        miniShadow.fillRoundedRect(mmX - 4, mmY - titleH - 4 + 4, mmWidth + 12, mmHeight + titleH + 12, 10);
+        miniShadow.setScrollFactor(0).setDepth(199);
 
-        this.minimap = this.cameras.add(mmX, mmY, mmWidth, mmHeight).setZoom(0.08).setName('mini');
+        // Bronze frame backdrop with title bar
+        const miniFrame = this.add.graphics();
+        miniFrame.fillStyle(0x3d2010, 1);
+        miniFrame.fillRoundedRect(mmX - 6, mmY - titleH - 6, mmWidth + 12, mmHeight + titleH + 12, 10);
+        miniFrame.fillStyle(0x4d2d13, 1);
+        miniFrame.fillRoundedRect(mmX - 4, mmY - titleH - 4, mmWidth + 8, titleH, 6);
+        miniFrame.lineStyle(3, 0xe29e4a, 1);
+        miniFrame.strokeRoundedRect(mmX - 6, mmY - titleH - 6, mmWidth + 12, mmHeight + titleH + 12, 10);
+        miniFrame.setScrollFactor(0).setDepth(200);
+
+        const miniTitle = this.add.text(mmX + mmWidth / 2, mmY - titleH / 2 - 4, 'BẢN ĐỒ', {
+            fontSize: '11px',
+            fontStyle: 'bold',
+            color: '#ffea7a',
+            fontFamily: 'system-ui, sans-serif',
+            stroke: '#000',
+            strokeThickness: 2,
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
+
+        // Inner double border
+        const miniInner = this.add.graphics();
+        miniInner.lineStyle(2, 0xd59a48, 1);
+        miniInner.strokeRect(mmX, mmY, mmWidth, mmHeight);
+        miniInner.lineStyle(1, 0xffe2a8, 0.5);
+        miniInner.strokeRect(mmX + 2, mmY + 2, mmWidth - 4, mmHeight - 4);
+        miniInner.setScrollFactor(0).setDepth(202);
+
+        // Zoom = mmHeight / bgHeight để view minimap khớp đúng chiều cao map (không lộ vùng đen)
+        const mmZoom = mmHeight / this.bgHeight;
+        this.minimap = this.cameras.add(mmX, mmY, mmWidth, mmHeight).setZoom(mmZoom).setName('mini');
         this.minimap.setBackgroundColor(0x0a1622); // Màu nền tối (Dark Navy) để dễ nhìn
 
         if (this.player) {
             this.minimap.startFollow(this.player, true, 0.1, 0.1);
             this.minimap.setBounds(0, 0, this.bgWidth, this.bgHeight);
         }
+
+        // Player blip ở giữa minimap (do camera follow nên player luôn ở center)
+        const miniBlip = this.add.circle(mmX + mmWidth / 2, mmY + mmHeight / 2, 4, 0xff5454)
+            .setStrokeStyle(2, 0xffffff);
+        miniBlip.setScrollFactor(0).setDepth(203);
+
+        // Pulse animation cho blip để dễ thấy
+        this.tweens.add({
+            targets: miniBlip,
+            scale: { from: 1, to: 1.6 },
+            alpha: { from: 1, to: 0.6 },
+            duration: 700,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+        });
 
         // Tự động thu thập TOÀN BỘ các cụm UI (Nút, Text, Joystick...) đang làm HUD và Bịt mắt Minimap lại
         this.children.each((child: any) => {
