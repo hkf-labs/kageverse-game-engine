@@ -550,6 +550,31 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         return lowestY === 0 ? this.getGroundY() : lowestY;
     }
 
+    private getTextureBottomPadding(key: string): number {
+        const tex = this.textures.get(key);
+        const src = tex?.getSourceImage() as (HTMLImageElement | HTMLCanvasElement | undefined);
+        if (!src || !('width' in src)) return 0;
+        const w = src.width;
+        const h = src.height;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return 0;
+        try {
+            ctx.drawImage(src as CanvasImageSource, 0, 0);
+            const data = ctx.getImageData(0, 0, w, h).data;
+            for (let y = h - 1; y >= 0; y--) {
+                for (let x = 0; x < w; x++) {
+                    if (data[(y * w + x) * 4 + 3] > 5) return h - 1 - y;
+                }
+            }
+        } catch {
+            return 0;
+        }
+        return 0;
+    }
+
     private drawMockCharacters() {
         // Tọa độ x, y dưới đây là tọa độ chuẩn trên file Tiled gốc (1440px). Hệ thống sẽ tự động Scale.
         // Nếu không điền y (bỏ trống hoặc undefined), NPC sẽ tự động rớt xuống thềm đất gần nhất.
@@ -563,6 +588,9 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         ];
 
         const scaleFactor = this.scale.height / 1440;
+        const SPRITE_SCALE = 0.12;
+        // Player visual chìm khoảng 3-4px dưới mặt platform (do hitbox 110 vs sprite ~117 cao). NPC khớp theo cùng mức.
+        const PLAYER_VISUAL_SINK = 4;
 
         npcs.forEach(npc => {
             const scaledX = npc.x * scaleFactor;
@@ -570,11 +598,15 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
             // Lấy y cụ thể do móm vào, hoặc tự quét ra nền đất cao nhất
             let baseSurfaceY = npc.y !== undefined ? (npc.y * scaleFactor) : this.getPlatformYAtX(scaledX);
 
-            const spr = this.add.sprite(scaledX, baseSurfaceY + npc.offsetY, npc.key).setOrigin(0.5, 1).setDepth(8);
-            spr.setScale(0.12);
+            // Bù khoảng trong suốt phía dưới của ảnh NPC để feet thực sự chạm mặt platform
+            const bottomPadPx = this.getTextureBottomPadding(npc.key) * SPRITE_SCALE;
+            const groundedY = baseSurfaceY + bottomPadPx + PLAYER_VISUAL_SINK + npc.offsetY;
+
+            const spr = this.add.sprite(scaledX, groundedY, npc.key).setOrigin(0.5, 1).setDepth(8);
+            spr.setScale(SPRITE_SCALE);
             spr.setInteractive({ useHandCursor: true });
 
-            const nameText = this.add.text(scaledX, baseSurfaceY + npc.offsetY - (spr.height * 0.12) - 10, npc.name, {
+            const nameText = this.add.text(scaledX, groundedY - (spr.height * SPRITE_SCALE) - 10, npc.name, {
                 fontSize: '13px',
                 color: '#ffea7a',
                 fontFamily: 'system-ui, sans-serif',
