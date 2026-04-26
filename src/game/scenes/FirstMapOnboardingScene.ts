@@ -57,6 +57,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
         this.load.image('npc_stash', 'assets/game/npcs/village/stash_keeper.png');
         this.load.image('npc_teleporter', 'assets/game/npcs/village/teleporter.png');
         this.load.image('btn_dir', 'assets/game/buttons/dir_btn.png');
+        this.load.image('topbar', 'assets/game/ui/topbar.png');
     }
 
     create() {
@@ -598,20 +599,45 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
     private drawMockHUD() {
         const width = this.scale.width;
-        const bg1 = this.drawRoundedRect(14, 14, 186, 48, 0x4d2d13, 0xd59a48);
-        const bg2 = this.drawRoundedRect(20, 20, 140, 14, 0x5d1515, 0xff5454);
-        const bg3 = this.drawRoundedRect(20, 38, 110, 14, 0x10325a, 0x4da4ff);
-        const txt = this.add.text(168, 27, '100%', {
+
+        // Add the topbar image for the health/level area
+        const topbar = this.add.image(0, 0, 'topbar').setOrigin(0, 0);
+        topbar.setScale(0.5);
+
+        const hpBar = this.drawRoundedRect(105, 14, 170, 18, 0x5d1515, 0xff5454);
+        const mpBar = this.drawRoundedRect(98, 46, 125, 15, 0x10325a, 0x4da4ff);
+
+        const hpText = this.add.text(192, 22, '1500 / 1500', {
             fontSize: '10px',
             color: '#fff',
             fontFamily: 'system-ui, sans-serif',
-        }).setOrigin(1, 0.5);
+            stroke: '#000',
+            strokeThickness: 2,
+        }).setOrigin(0.5, 0.5);
+
+        const mpText = this.add.text(165, 53, '800 / 800', {
+            fontSize: '10px',
+            color: '#fff',
+            fontFamily: 'system-ui, sans-serif',
+            stroke: '#000',
+            strokeThickness: 2,
+        }).setOrigin(0.5, 0.5);
+
+        const levelBg = this.add.circle(32, 74, 12, 0x3d2010).setStrokeStyle(2, 0xe29e4a);
+        const levelText = this.add.text(32, 74, '1', {
+            fontSize: '12px',
+            fontStyle: 'bold',
+            color: '#ffea7a',
+            fontFamily: 'system-ui, sans-serif',
+            stroke: '#000',
+            strokeThickness: 2,
+        }).setOrigin(0.5, 0.5);
 
         const bg4 = this.drawRoundedRect(width - 148, 14, 40, 30, 0x4d2d13, 0xd59a48);
         const bg5 = this.drawRoundedRect(width - 100, 14, 40, 30, 0x4d2d13, 0xd59a48);
         const bg6 = this.drawRoundedRect(width - 52, 14, 40, 30, 0x4d2d13, 0xd59a48);
 
-        [bg1, bg2, bg3, txt, bg4, bg5, bg6].forEach((obj) => {
+        [topbar, hpBar, mpBar, hpText, mpText, levelBg, levelText, bg4, bg5, bg6].forEach((obj) => {
             if (obj && 'setScrollFactor' in obj) {
                 (obj as Phaser.GameObjects.GameObject & { setScrollFactor: (x: number, y?: number) => void }).setScrollFactor(0);
                 (obj as Phaser.GameObjects.GameObject & { setDepth: (z: number) => void }).setDepth(100);
