@@ -5,7 +5,6 @@ import { charactersAPI, mapsAPI, type MapDetail } from '../../network/api';
 import { getCurrentCharacter, saveCurrentCharacter } from '../playerSession';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
-const TILE = 8;
 const PLAYER_TEXTURE_KEY = 'player-placeholder-male';
 const VILLAGE_BG_KEY = 'map-bg-village-001';
 
@@ -20,7 +19,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
     private rewardText?: Phaser.GameObjects.Text;
     private actionHintText?: Phaser.GameObjects.Text;
     private state?: OnboardingState;
-    private mapDetail?: MapDetail;
+    // private mapDetail?: MapDetail;
 
     // NPC Interaction State
     private interactingNpc: any | null = null;
@@ -150,7 +149,7 @@ export class FirstMapOnboardingScene extends Phaser.Scene {
 
         this.minimap = this.cameras.add(mmX, mmY, mmWidth, mmHeight).setZoom(0.08).setName('mini');
         this.minimap.setBackgroundColor(0x0a1622); // Màu nền tối (Dark Navy) để dễ nhìn
-        
+
         if (this.player) {
             this.minimap.startFollow(this.player, true, 0.1, 0.1);
             this.minimap.setBounds(0, 0, this.bgWidth, this.bgHeight);
