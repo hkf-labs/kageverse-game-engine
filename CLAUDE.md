@@ -3,73 +3,73 @@
 ## Tech Stack
 - **Framework**: React + TypeScript + Vite
 - **Game Engine**: Phaser 3 (Arcade Physics)
-- **Style**: Inline Phaser graphics + native HTML DOM for overlays (chat panel)
+- **Style**: Phaser graphics inline + native HTML DOM cho overlay (chat panel)
 
-## Architecture
+## Kiến trúc
 
-### Scene System (Composition Pattern)
+### Hệ thống Scene (Composition Pattern)
 
-Scenes use **component composition** — each feature is a self-contained class, scenes only orchestrate them.
+Scene dùng **component composition** — mỗi tính năng là một class tự đóng gói, scene chỉ điều phối.
 
 ```
 src/game/
-  components/          ← Reusable game components
-    types.ts           ← Shared interfaces (GameComponent, NpcEntry, MapConfig, Tiled types)
+  components/          ← Game component tái sử dụng
+    types.ts           ← Interface dùng chung (GameComponent, NpcEntry, MapConfig, Tiled types)
     index.ts           ← Barrel export
-    MapBackground.ts   ← Background image, colliders, platforms from Tiled JSON
-    PlayerController.ts← Player hitbox, sprite, movement, camera follow
-    HUD.ts             ← Top bar (HP/MP/level/EXP), status text
+    MapBackground.ts   ← Ảnh nền, collider, platform từ Tiled JSON
+    PlayerController.ts← Hitbox, sprite, di chuyển, camera follow của player
+    HUD.ts             ← Top bar (HP/MP/level/EXP), text trạng thái
     Minimap.ts         ← Minimap camera, frame, blip, UI ignore
-    ChatPanel.ts       ← Chat overlay (native HTML DOM), tabs, messages, input
-    MenuPanel.ts       ← In-game menu (Phaser container)
-    GameControls.ts    ← D-pad, attack button, potion buttons, skill slots
-    NpcManager.ts      ← NPC rendering, selection, dialog, auto-move
+    ChatPanel.ts       ← Overlay chat (native HTML DOM), tab, messages, input
+    MenuPanel.ts       ← Menu trong game (Phaser container)
+    GameControls.ts    ← D-pad, nút tấn công, nút potion, slot kỹ năng
+    NpcManager.ts      ← Render NPC, chọn, dialog, auto-move
   scenes/
-    BaseMapScene.ts    ← Abstract base: assembles all components, shared update loop
-    VillageScene.ts    ← Village map (extends BaseMapScene): onboarding quest logic
+    BaseMapScene.ts    ← Abstract base: lắp ráp các component, share update loop
+    VillageScene.ts    ← Map làng (extends BaseMapScene): logic quest onboarding
     AuthScene.ts       ← Login/register
     CharacterCreateScene.ts
-    MainScene.ts       ← Post-onboarding placeholder
+    MainScene.ts       ← Placeholder sau onboarding
 ```
 
 ### Component Contract
 
-Every component follows this interface:
+Mọi component tuân theo interface:
 
 ```typescript
 interface GameComponent {
-    create(): void;      // Called once after scene.create()
-    update?(): void;     // Called every frame (optional)
-    destroy?(): void;    // Cleanup (optional)
+    create(): void;      // Gọi 1 lần sau scene.create()
+    update?(): void;     // Gọi mỗi frame (tuỳ chọn)
+    destroy?(): void;    // Cleanup (tuỳ chọn)
 }
 ```
 
-### Adding a New Map
+### Thêm Map mới
 
-1. Create `src/game/scenes/YourMapScene.ts` extending `BaseMapScene`
-2. Implement required abstract methods:
-   - `getMapConfig()` → map ID, asset paths, tiled height
-   - `getNpcConfigs()` → NPC list for this map
-3. Override optional hooks:
-   - `preloadMapAssets()` → load map-specific assets (NPC sprites, etc.)
-   - `getMapDisplayName()` → title shown at top of screen
-   - `onMapReady()` → map-specific logic (quests, spawners, tutorials)
-4. Register scene in `GameConfig.ts`
+1. Tạo `src/game/scenes/YourMapScene.ts` extends `BaseMapScene`
+2. Cài đặt các abstract method bắt buộc:
+   - `getMapConfig()` → map ID, đường dẫn asset, tiled height
+   - `getNpcConfigs()` → danh sách NPC cho map này
+3. Override các hook tuỳ chọn:
+   - `preloadMapAssets()` → load asset riêng cho map (NPC sprite, v.v.)
+   - `getMapDisplayName()` → tiêu đề hiển thị đầu màn hình
+   - `onMapReady()` → logic riêng cho map (quest, spawner, tutorial)
+4. Đăng ký scene vào `GameConfig.ts`
 
-### Adding a New Component
+### Thêm Component mới
 
-1. Create `src/game/components/YourComponent.ts` implementing `GameComponent`
-2. Export from `src/game/components/index.ts`
-3. Wire into `BaseMapScene` (if shared) or specific map scene (if map-specific)
+1. Tạo `src/game/components/YourComponent.ts` implement `GameComponent`
+2. Export từ `src/game/components/index.ts`
+3. Wire vào `BaseMapScene` (nếu dùng chung) hoặc map scene cụ thể (nếu chỉ riêng cho map đó)
 
-## Rules
+## Quy tắc
 
-- **No `any` types** — use proper interfaces. Tiled data uses `TiledMapData/TiledLayer/TiledObject`.
-- **Chat panel uses native HTML DOM**, not Phaser DOMElement (Phaser's DOM system has keyboard capture issues).
-- **Scene keys must match** — `super('SceneKey')` in constructor must match `this.scene.start('SceneKey')` calls from other scenes.
-- **Components own their lifecycle** — don't reach into component internals from scenes; use public API methods.
-- **Phaser keyboard capture** — disable global capture when HTML inputs are focused, re-enable on blur.
+- **Không dùng kiểu `any`** — dùng interface chuẩn. Tiled data dùng `TiledMapData/TiledLayer/TiledObject`.
+- **Chat panel dùng native HTML DOM**, không dùng Phaser DOMElement (DOM system của Phaser có vấn đề với keyboard capture).
+- **Scene key phải khớp** — `super('SceneKey')` trong constructor phải khớp với call `this.scene.start('SceneKey')` từ scene khác.
+- **Component tự quản lý lifecycle** — không reach vào internals của component từ scene; dùng public API method.
+- **Phaser keyboard capture** — disable global capture khi HTML input đang focus, enable lại khi blur.
 
 ## Backend
 
-The backend is a sibling repo at `../kageverse-server/` (Go). Map specs, API contracts, and database schemas are documented there under `docs/`.
+Backend là sibling repo ở `../kageverse-server/` (Go). Map specs, API contract, và database schema được document ở đó dưới `docs/`.
