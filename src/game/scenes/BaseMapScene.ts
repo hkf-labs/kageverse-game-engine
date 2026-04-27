@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import {
-    ChatPanel, GameControls, HUD, MapBackground, MenuPanel, Minimap, NpcManager, PlayerController,
-    type MapConfig, type NpcConfig,
+    ChatPanel, GameControls, HUD, MapBackground, MenuPanel, Minimap, MonsterManager, NpcManager, PlayerController, Portal,
+    type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
 } from '../components';
 
 export abstract class BaseMapScene extends Phaser.Scene {
@@ -13,6 +13,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected menu!: MenuPanel;
     protected controls!: GameControls;
     protected npcs!: NpcManager;
+    protected monsters!: MonsterManager;
+    protected portals: Portal[] = [];
 
     private enterKey?: Phaser.Input.Keyboard.Key;
 
@@ -22,6 +24,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     protected abstract getMapConfig(): MapConfig;
     protected abstract getNpcConfigs(): NpcConfig[];
+    protected getPortalConfigs(): PortalConfig[] { return []; }
+    protected getMonsterConfigs(): MonsterConfig[] { return []; }
     protected getMapDisplayName(): string { return ''; }
     protected onMapReady(): void {}
 
@@ -57,6 +61,19 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.hud.setStatus(text, color);
         });
         this.npcs.create();
+
+        // Portals
+        this.portals = this.getPortalConfigs().map((portalCfg) => {
+            const portal = new Portal(this, portalCfg, this.background, () => {
+                this.scene.start(portalCfg.targetSceneKey);
+            });
+            portal.create();
+            return portal;
+        });
+
+        // Monsters
+        this.monsters = new MonsterManager(this, this.background, this.getMonsterConfigs());
+        this.monsters.create();
 
         // HUD
         this.hud = new HUD(this);
@@ -128,6 +145,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (!player || !cursors) return;
 
         this.controls.updateVisuals(cursors);
+        this.portals.forEach((p) => p.updatePortal(player.x, player.y));
+        this.monsters.update();
 
         if (this.chat.isFocused()) {
             player.body?.setVelocityX(0);
@@ -185,6 +204,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private handleInteract(): void {
         const player = this.playerCtrl.getPlayer();
         if (!player) return;
+
+        const portal = this.portals.find((p) => p.isPlayerInRange());
+        if (portal) {
+            portal.trigger();
+            return;
+        }
+
         this.npcs.handleInteract(player.x, player.y);
     }
 

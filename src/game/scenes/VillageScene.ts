@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { getOnboardingGateway } from '../../features/onboarding';
 import type { OnboardingState } from '../../features/onboarding/types';
-import type { MapConfig, NpcConfig } from '../components';
+import type { MapConfig, NpcConfig, PortalConfig } from '../components';
 import { BaseMapScene } from './BaseMapScene';
 
 export class VillageScene extends BaseMapScene {
@@ -42,13 +42,19 @@ export class VillageScene extends BaseMapScene {
         ];
     }
 
+    protected getPortalConfigs(): PortalConfig[] {
+        return [
+            { x: 180, label: 'Hố Sâu Thời Gian', targetSceneKey: 'CombatFieldScene' },
+        ];
+    }
+
     protected preloadMapAssets(): void {
-        this.load.image('npc_elder', 'assets/game/npcs/village/village_elder.png');
-        this.load.image('npc_blacksmith', 'assets/game/npcs/village/blacksmith.png');
-        this.load.image('npc_healer', 'assets/game/npcs/village/healer.png');
-        this.load.image('npc_merchant', 'assets/game/npcs/village/merchant.png');
-        this.load.image('npc_stash', 'assets/game/npcs/village/stash_keeper.png');
-        this.load.image('npc_teleporter', 'assets/game/npcs/village/teleporter.png');
+        this.load.image('npc_elder', 'assets/maps/village_001/npcs/village_elder.png');
+        this.load.image('npc_blacksmith', 'assets/maps/village_001/npcs/blacksmith.png');
+        this.load.image('npc_healer', 'assets/maps/village_001/npcs/healer.png');
+        this.load.image('npc_merchant', 'assets/maps/village_001/npcs/merchant.png');
+        this.load.image('npc_stash', 'assets/maps/village_001/npcs/stash_keeper.png');
+        this.load.image('npc_teleporter', 'assets/maps/village_001/npcs/teleporter.png');
     }
 
     protected onMapReady(): void {

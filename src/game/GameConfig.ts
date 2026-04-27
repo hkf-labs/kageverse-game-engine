@@ -3,6 +3,7 @@ import { MainScene } from './scenes/MainScene';
 import { AuthScene } from './scenes/AuthScene';
 import { CharacterCreateScene } from './scenes/CharacterCreateScene';
 import { VillageScene } from './scenes/VillageScene';
+import { CombatFieldScene } from './scenes/CombatFieldScene';
 
 export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
     return {
@@ -25,6 +26,6 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
                 debug: true // HIỂN THỊ VIỀN TÍM CỦA HITBOX
             }
         },
-        scene: [AuthScene, CharacterCreateScene, VillageScene, MainScene]
+        scene: [AuthScene, CharacterCreateScene, VillageScene, CombatFieldScene, MainScene]
     };
 };
