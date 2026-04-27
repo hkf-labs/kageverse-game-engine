@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { npcAPI, type NpcActionDTO } from '../../network/api';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { MapBackground } from './MapBackground';
+import type { NpcChatBubble } from './NpcChatBubble';
 import type { ShopModal } from './ShopModal';
 
 interface DialogOption {
@@ -21,6 +22,17 @@ const ACTION_LABEL_VI: Record<string, string> = {
 
 function actionLabel(a: NpcActionDTO): string {
     return ACTION_LABEL_VI[a.action] || a.label_key;
+}
+
+// Map dialogue_key (BE trả về) → text VN client-side. Khi có i18n thật sẽ thay.
+const DIALOGUE_TEXT_VI: Record<string, string> = {
+    'dialogue.ayame.greet':
+        'Chào nhẫn giả trẻ! Ta là Ayame. Cần dược phẩm gì cứ chọn "Mua dược phẩm" nhé.',
+};
+
+function dialogueText(key: string | null | undefined, npcName: string): string {
+    if (key && DIALOGUE_TEXT_VI[key]) return DIALOGUE_TEXT_VI[key];
+    return `${npcName}: Chào nhẫn giả!`;
 }
 
 export class NpcManager implements GameComponent {
@@ -45,7 +57,9 @@ export class NpcManager implements GameComponent {
     private npcConfigs: NpcConfig[];
     private mapId: string;
     private shopModal?: ShopModal;
+    private chatBubble?: NpcChatBubble;
     private onStatusMessage?: (text: string, color: string) => void;
+    private dialogueKeyByTemplate = new Map<string, string | null>();
 
     constructor(
         scene: Phaser.Scene,
@@ -54,6 +68,7 @@ export class NpcManager implements GameComponent {
         deps?: {
             mapId?: string;
             shopModal?: ShopModal;
+            chatBubble?: NpcChatBubble;
             onStatusMessage?: (text: string, color: string) => void;
         },
     ) {
@@ -62,6 +77,7 @@ export class NpcManager implements GameComponent {
         this.npcConfigs = npcConfigs;
         this.mapId = deps?.mapId ?? '';
         this.shopModal = deps?.shopModal;
+        this.chatBubble = deps?.chatBubble;
         this.onStatusMessage = deps?.onStatusMessage;
     }
 
@@ -209,6 +225,9 @@ export class NpcManager implements GameComponent {
             const seq = ++this.fetchSeq;
             void npcAPI.getInteract(this.mapId, npc.templateId)
                 .then((res) => {
+                    if (npc.templateId) {
+                        this.dialogueKeyByTemplate.set(npc.templateId, res.default_dialogue_key);
+                    }
                     if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
                     this.renderActionsFromBE(npc, res.available_actions);
                 })
@@ -290,9 +309,16 @@ export class NpcManager implements GameComponent {
 
     private runAction(npc: NpcEntry, action: string): void {
         switch (action) {
-            case 'talk':
-                this.onStatusMessage?.(`${npc.name}: Chào mừng!`, '#ffea7a');
+            case 'talk': {
+                const targetSprite = npc.sprite;
+                const dialogueKey = npc.templateId
+                    ? this.dialogueKeyByTemplate.get(npc.templateId) ?? null
+                    : null;
+                const text = dialogueText(dialogueKey, npc.name);
+                this.closeInteraction();
+                this.chatBubble?.show(targetSprite, text);
                 break;
+            }
             case 'buy_shop':
                 if (this.shopModal && npc.templateId) {
                     this.closeInteraction();

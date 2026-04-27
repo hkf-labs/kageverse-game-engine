@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { logout } from '../../network/api';
 import {
-    ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcManager, PlayerController, Portal, ShopModal,
+    ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, ShopModal,
     type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
 } from '../components';
 
@@ -14,6 +14,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected menu!: MenuPanel;
     protected inventory!: InventoryModal;
     protected shop!: ShopModal;
+    protected npcChatBubble!: NpcChatBubble;
     protected controls!: GameControls;
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
@@ -63,10 +64,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.shop = new ShopModal(this);
         this.shop.create();
 
+        // Bong bóng thoại NPC (typewriter)
+        this.npcChatBubble = new NpcChatBubble(this);
+        this.npcChatBubble.create();
+
         // NPC
         this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), {
             mapId: cfg.mapId,
             shopModal: this.shop,
+            chatBubble: this.npcChatBubble,
             onStatusMessage: (text, color) => this.hud.setStatus(text, color),
         });
         this.npcs.create();
@@ -162,6 +168,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.controls.updateVisuals(cursors);
         this.portals.forEach((p) => p.updatePortal(player.x, player.y));
         this.monsters.update();
+        this.npcChatBubble.update();
 
         if (this.chat.isFocused() || this.shop?.isOpen()) {
             player.body?.setVelocityX(0);

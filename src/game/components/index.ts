@@ -6,6 +6,7 @@ export { MapBackground } from './MapBackground';
 export { MenuPanel } from './MenuPanel';
 export { Minimap } from './Minimap';
 export { MonsterManager } from './MonsterManager';
+export { NpcChatBubble } from './NpcChatBubble';
 export { NpcManager } from './NpcManager';
 export { PlayerController } from './PlayerController';
 export { Portal } from './Portal';
