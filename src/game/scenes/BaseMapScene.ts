@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { logout } from '../../network/api';
 import {
     ChatPanel, GameControls, HUD, MapBackground, MenuPanel, Minimap, MonsterManager, NpcManager, PlayerController, Portal,
     type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
@@ -116,7 +117,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             { label: 'Nhiệm vụ', action: () => this.hud.setStatus('Mở Nhiệm Vụ (placeholder)', '#ffea7a') },
             { label: 'Kỹ năng', action: () => this.hud.setStatus('Mở Kỹ Năng (placeholder)', '#ffea7a') },
             { label: 'Cài đặt', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },
-            { label: 'Đăng xuất', action: () => this.hud.setStatus('Đăng Xuất (placeholder)', '#ffea7a') },
+            { label: 'Đăng xuất', action: () => this.handleLogout() },
         ]);
         this.menu.create();
 
@@ -199,6 +200,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
 
         this.playerCtrl.update();
+    }
+
+    private handleLogout(): void {
+        logout();
+        this.scene.start('AuthScene');
     }
 
     private handleInteract(): void {
