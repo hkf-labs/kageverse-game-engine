@@ -227,6 +227,13 @@ export type CreateCharacterPayload = {
     costume_primary_color: 'blue' | 'red';
 };
 
+export type WalletDTO = {
+    character_id: string;
+    coin: number;
+    gold: number;
+    gem: number;
+};
+
 export const charactersAPI = {
     async list(): Promise<ListCharactersResponse> {
         const { response, traceId } = await authFetch('/characters');
@@ -248,6 +255,15 @@ export const charactersAPI = {
             throw new Error(`${formatApiError(resData, 'Tạo nhân vật thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as { character: CharacterDTO; max_characters_per_user: number };
+    },
+
+    async getWallet(characterId: string): Promise<WalletDTO> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/wallet`);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được ví tiền')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as WalletDTO;
     },
 };
 
@@ -387,6 +403,12 @@ export const npcAPI = {
 
 export type ShopCurrencyType = 'coin' | 'gold' | 'gem';
 
+export type ShopPriceDTO = {
+    currency_type: ShopCurrencyType;
+    price: number;
+    stock_remaining: number | null;
+};
+
 export type ShopListingDTO = {
     item_template_id: string;
     name_key: string;
@@ -395,9 +417,7 @@ export type ShopListingDTO = {
     sprite_key: string;
     required_level: number;
     max_stack: number;
-    currency_type: ShopCurrencyType;
-    price: number;
-    stock_remaining: number | null;
+    prices: ShopPriceDTO[];
     base_stats: Record<string, number> | null;
 };
 
@@ -413,6 +433,7 @@ export type ShopBuyPayload = {
     map_id: string;
     npc_template_id: string;
     item_template_id: string;
+    currency_type: ShopCurrencyType;
     amount: number;
 };
 

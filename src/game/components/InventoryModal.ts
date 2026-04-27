@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { inventoryAPI, type InventoryItemDTO, type InventoryItemType } from '../../network/api';
+import { charactersAPI, inventoryAPI, type InventoryItemDTO, type InventoryItemType } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import type { GameComponent } from './types';
 
@@ -24,11 +24,11 @@ export interface CharacterCurrencies {
     gem: number;    // Kim Cương / K-Coin — nạp thẻ, không giao dịch.
 }
 
-// Mock đến khi BE có API ví tiền. Replace qua setCurrencies() khi wire API.
-const MOCK_CURRENCIES: CharacterCurrencies = {
-    coin: 1234,
-    gold: 56,
-    gem: 12,
+// Khi chưa fetch xong wallet hoặc lỗi, hiển thị 0.
+const ZERO_CURRENCIES: CharacterCurrencies = {
+    coin: 0,
+    gold: 0,
+    gem: 0,
 };
 
 const COLS = 8;
@@ -98,7 +98,7 @@ export class InventoryModal implements GameComponent {
     private loading = false;
     private errorMessage: string | null = null;
     private actionInFlight = false;
-    private currencies: CharacterCurrencies = { ...MOCK_CURRENCIES };
+    private currencies: CharacterCurrencies = { ...ZERO_CURRENCIES };
     private scene: Phaser.Scene;
 
     constructor(scene: Phaser.Scene) {
@@ -182,7 +182,21 @@ export class InventoryModal implements GameComponent {
             this.selectedSlot = null;
             this.renderTabs();
             void this.loadInventory();
+            void this.loadWallet();
         }
+    }
+
+    private async loadWallet(): Promise<void> {
+        const character = getCurrentCharacter();
+        if (!character) return;
+        try {
+            const w = await charactersAPI.getWallet(character.id);
+            this.currencies = { coin: w.coin, gold: w.gold, gem: w.gem };
+        } catch (err) {
+            this.currencies = { ...ZERO_CURRENCIES };
+            if (err instanceof Error) console.warn('inventory: load wallet failed', err.message);
+        }
+        this.renderCurrencies();
     }
 
     isOpen(): boolean { return this.visible; }

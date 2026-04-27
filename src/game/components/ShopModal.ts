@@ -1,9 +1,12 @@
 import * as Phaser from 'phaser';
 import {
+    charactersAPI,
     shopAPI,
     type InventoryItemType,
     type ShopCurrencyType,
     type ShopListingDTO,
+    type ShopPriceDTO,
+    type WalletDTO,
 } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import type { GameComponent } from './types';
@@ -68,11 +71,13 @@ export class ShopModal implements GameComponent {
     private visible = false;
     private listings: ShopListingDTO[] = [];
     private selectedIdx: number | null = null;
+    private selectedCurrency: ShopCurrencyType | null = null;
     private loading = false;
     private actionInFlight = false;
     private mapId = '';
     private npcTemplateId = '';
     private npcName = '';
+    private wallet: WalletDTO | null = null;
 
     private scene: Phaser.Scene;
 
@@ -144,13 +149,16 @@ export class ShopModal implements GameComponent {
         this.npcTemplateId = params.npcTemplateId;
         this.npcName = params.npcName;
         this.selectedIdx = null;
+        this.selectedCurrency = null;
         this.listings = [];
+        this.wallet = null;
         this.feedbackEl && (this.feedbackEl.textContent = '');
         this.visible = true;
         this.overlay.style.display = 'block';
         this.renderHeader();
         this.renderDetail();
-        void this.loadListings();
+        this.renderBalance();
+        void Promise.all([this.loadListings(), this.loadWallet()]);
     }
 
     close(): void {
@@ -191,6 +199,20 @@ export class ShopModal implements GameComponent {
         if (titleSpan) {
             titleSpan.textContent = `CỬA HÀNG — ${this.npcName.toUpperCase()}`;
         }
+    }
+
+    private async loadWallet(): Promise<void> {
+        const character = getCurrentCharacter();
+        if (!character) return;
+        try {
+            this.wallet = await charactersAPI.getWallet(character.id);
+        } catch (err) {
+            // Lỗi wallet không cản dùng shop — chỉ ẩn balance.
+            this.wallet = null;
+            if (err instanceof Error) console.warn('shop: load wallet failed', err.message);
+        }
+        this.renderBalance();
+        this.renderDetail();
     }
 
     private async loadListings(): Promise<void> {
@@ -234,7 +256,8 @@ export class ShopModal implements GameComponent {
             const borderColor = TYPE_BORDER[item.item_type];
             const bgColor = DEFAULT_BG[item.item_type];
             const icon = (item.sub_type && SUBTYPE_ICON[item.sub_type]) || DEFAULT_ICON[item.item_type];
-            const cur = CURRENCY_META[item.currency_type];
+            const primaryPrice = item.prices[0];
+            const cur = primaryPrice ? CURRENCY_META[primaryPrice.currency_type] : CURRENCY_META.coin;
 
             Object.assign(cell.style, {
                 border: `2px solid ${isSelected ? '#ffea7a' : borderColor}`,
@@ -251,13 +274,23 @@ export class ShopModal implements GameComponent {
                 transition: 'border-color 0.1s, box-shadow 0.1s',
             });
 
+            const priceLine = primaryPrice
+                ? `<div style="font-size:11px;display:flex;align-items:center;gap:3px;">` +
+                    `<span>${cur.icon}</span>` +
+                    `<span style="color:${cur.color};font-weight:bold;">${primaryPrice.price.toLocaleString('en-US')}</span>` +
+                  `</div>`
+                : `<div style="font-size:10px;color:#888;font-style:italic;">N/A</div>`;
+            const multiBadge = item.prices.length > 1
+                ? `<div style="font-size:9px;color:#ffd070;display:flex;gap:2px;align-items:center;">` +
+                    item.prices.slice(1).map((p) => CURRENCY_META[p.currency_type].icon).join('') +
+                  `</div>`
+                : '';
+
             cell.innerHTML = [
                 `<div style="font-size:24px;line-height:1;">${icon}</div>`,
                 `<div style="font-size:10px;color:#ffe4c4;text-align:center;line-height:1.2;height:24px;overflow:hidden;">${item.name_key}</div>`,
-                `<div style="font-size:11px;display:flex;align-items:center;gap:3px;">` +
-                    `<span>${cur.icon}</span>` +
-                    `<span style="color:${cur.color};font-weight:bold;">${item.price.toLocaleString('en-US')}</span>` +
-                `</div>`,
+                priceLine,
+                multiBadge,
             ].join('');
 
             cell.addEventListener('click', () => this.selectListing(idx));
@@ -272,7 +305,14 @@ export class ShopModal implements GameComponent {
     }
 
     private selectListing(idx: number): void {
-        this.selectedIdx = this.selectedIdx === idx ? null : idx;
+        if (this.selectedIdx === idx) {
+            this.selectedIdx = null;
+            this.selectedCurrency = null;
+        } else {
+            this.selectedIdx = idx;
+            const first = this.listings[idx]?.prices[0];
+            this.selectedCurrency = first ? first.currency_type : null;
+        }
         if (this.amountInput) this.amountInput.value = '1';
         this.renderGrid();
         this.renderDetail();
@@ -286,13 +326,26 @@ export class ShopModal implements GameComponent {
             this.setBuyEnabled(false);
             return;
         }
-        const cur = CURRENCY_META[item.currency_type];
+        const selectedPrice = this.findSelectedPrice(item);
+        const cur = selectedPrice ? CURRENCY_META[selectedPrice.currency_type] : CURRENCY_META.coin;
         const amount = this.getAmount();
-        const total = item.price * amount;
+        const total = selectedPrice ? selectedPrice.price * amount : 0;
         const heal = item.base_stats?.heal_hp
             ? `Hồi <b style="color:#ff8a8a;">${item.base_stats.heal_hp}</b> HP`
             : item.base_stats?.heal_mp
             ? `Hồi <b style="color:#8aaaff;">${item.base_stats.heal_mp}</b> MP`
+            : '';
+
+        const currencyChooser = item.prices.length > 1
+            ? this.renderCurrencyChooser(item.prices)
+            : selectedPrice
+                ? `<div style="margin-top:4px;font-size:12px;color:#ffe4c4;">`
+                    + `Đơn giá: <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${selectedPrice.price.toLocaleString('en-US')}</span>`
+                    + `</div>`
+                : '';
+
+        const totalLine = selectedPrice
+            ? `<div style="margin-top:4px;font-size:12px;color:#ffe4c4;">Tổng (x${amount}): <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${total.toLocaleString('en-US')}</span></div>`
             : '';
 
         this.detailEl.innerHTML = [
@@ -302,20 +355,75 @@ export class ShopModal implements GameComponent {
             `  <span style="font-size:11px;color:#aaa;">Yêu cầu Lv ${item.required_level}</span>`,
             `</div>`,
             heal ? `<div style="margin-top:4px;">${heal}</div>` : '',
-            `<div style="margin-top:4px;font-size:12px;color:#ffe4c4;">`,
-            `  Đơn giá: <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${item.price.toLocaleString('en-US')}</span>`,
-            `  &nbsp;|&nbsp; Tổng (x${amount}): <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${total.toLocaleString('en-US')}</span>`,
-            `</div>`,
+            currencyChooser,
+            totalLine,
         ].join('');
-        this.setBuyEnabled(!this.actionInFlight && amount > 0);
+
+        // Wire click handler cho radio currency
+        if (item.prices.length > 1) {
+            this.detailEl.querySelectorAll<HTMLDivElement>('[data-currency]').forEach((el) => {
+                el.addEventListener('click', () => {
+                    const c = el.getAttribute('data-currency') as ShopCurrencyType | null;
+                    if (c) {
+                        this.selectedCurrency = c;
+                        this.renderDetail();
+                    }
+                });
+            });
+        }
+
+        this.setBuyEnabled(!this.actionInFlight && amount > 0 && !!selectedPrice);
+    }
+
+    private renderCurrencyChooser(prices: ShopPriceDTO[]): string {
+        const buttons = prices.map((p) => {
+            const cur = CURRENCY_META[p.currency_type];
+            const active = this.selectedCurrency === p.currency_type;
+            const border = active ? '#ffea7a' : '#4d2d13';
+            const bg = active ? '#6b3a14' : 'rgba(45,26,10,0.5)';
+            return `<div data-currency="${p.currency_type}" style="`
+                + `cursor:pointer;padding:6px 10px;border-radius:6px;`
+                + `border:2px solid ${border};background:${bg};`
+                + `display:flex;align-items:center;gap:4px;font-size:12px;`
+                + `color:${cur.color};font-weight:bold;user-select:none;`
+                + `">`
+                + `<span>${cur.icon}</span>`
+                + `<span>${p.price.toLocaleString('en-US')}</span>`
+                + `<span style="font-size:10px;color:#aaa;font-weight:normal;">${cur.label}</span>`
+                + `</div>`;
+        }).join('');
+        return `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">`
+            + `<span style="font-size:11px;color:#aaa;">Thanh toán:</span>`
+            + buttons
+            + `</div>`;
+    }
+
+    private findSelectedPrice(item: ShopListingDTO): ShopPriceDTO | null {
+        if (item.prices.length === 0) return null;
+        if (this.selectedCurrency) {
+            const match = item.prices.find((p) => p.currency_type === this.selectedCurrency);
+            if (match) return match;
+        }
+        return item.prices[0];
     }
 
     private renderBalance(): void {
         if (!this.balanceEl) return;
-        // MVP: chưa có endpoint trả character currency. Show hint chuẩn về 3 loại tiền.
-        // Khi BE expose GET /characters/:id/wallet (hoặc field trong /characters), update.
+        if (!this.wallet) {
+            this.balanceEl.innerHTML =
+                `<span style="font-size:11px;color:#888;font-style:italic;">Đang tải số dư...</span>`;
+            return;
+        }
+        const fmt = (n: number) => n.toLocaleString('en-US');
+        const item = (icon: string, label: string, value: number, color: string) =>
+            `<div style="display:flex;align-items:center;gap:6px;" title="${label}">` +
+            `  <span style="font-size:16px;">${icon}</span>` +
+            `  <span style="color:${color};font-weight:bold;">${fmt(value)}</span>` +
+            `</div>`;
         this.balanceEl.innerHTML = [
-            `<span style="font-size:11px;color:#888;font-style:italic;">Số dư ví đang tải từ BE — sẽ cập nhật sau khi mua.</span>`,
+            item('🪙', 'Xu', this.wallet.coin, '#ffd070'),
+            item('💰', 'Vàng', this.wallet.gold, '#f0b020'),
+            item('💎', 'Kim Cương', this.wallet.gem, '#6cd0ff'),
         ].join('');
     }
 
@@ -347,6 +455,11 @@ export class ShopModal implements GameComponent {
     private async handleBuy(): Promise<void> {
         const item = this.findSelected();
         if (!item || this.actionInFlight) return;
+        const price = this.findSelectedPrice(item);
+        if (!price) {
+            this.setFeedback('Chưa chọn loại thanh toán.', 'error');
+            return;
+        }
         const character = getCurrentCharacter();
         if (!character) {
             this.setFeedback('Chưa có nhân vật.', 'error');
@@ -361,13 +474,21 @@ export class ShopModal implements GameComponent {
                 map_id: this.mapId,
                 npc_template_id: this.npcTemplateId,
                 item_template_id: item.item_template_id,
+                currency_type: price.currency_type,
                 amount,
             });
             const cur = CURRENCY_META[res.currency.type];
+            // Cập nhật wallet ngay từ response (cho currency vừa tiêu) để UI phản hồi tức thì.
+            if (this.wallet) {
+                this.wallet = { ...this.wallet, [res.currency.type]: res.currency.balance_after };
+                this.renderBalance();
+            }
             this.setFeedback(
                 `Đã mua ${amount} ${item.name_key}. Còn lại ${cur.icon} ${res.currency.balance_after.toLocaleString('en-US')}.`,
                 'ok',
             );
+            // Sync lại 3 loại tiền (đề phòng tickets / quest cùng lúc).
+            void this.loadWallet();
         } catch (err) {
             this.setFeedback(err instanceof Error ? err.message : 'Mua hàng thất bại', 'error');
         } finally {
