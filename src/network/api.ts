@@ -207,6 +207,12 @@ export const authAPI = {
     },
 };
 
+export type ActiveFoodBuffDTO = {
+    item_template_id: string;
+    started_at: string;
+    expires_at: string;
+};
+
 export type CharacterDTO = {
     id: string;
     user_id: string;
@@ -225,6 +231,7 @@ export type CharacterDTO = {
     coin: number;
     gold: number;
     gem: number;
+    active_food_buff: ActiveFoodBuffDTO | null;
     created_at: string;
 };
 
@@ -313,9 +320,25 @@ export type CharacterStatsSnapshot = {
     mp_potion_cd_until: string | null;
 };
 
+export type FoodBuffStartedDTO = {
+    item_template_id: string;
+    started_at: string;
+    expires_at: string;
+    heal_hp_per_sec: number;
+    heal_mp_per_sec: number;
+    previous_buff_overridden: string | null;
+};
+
+export type UseInventoryEffects = {
+    hp_delta?: number;
+    mp_delta?: number;
+    buff_added?: unknown;
+    food_buff_started?: FoodBuffStartedDTO;
+};
+
 export type UseInventoryResponse = {
     user_item: { id: string; slot_index: number | null; amount: number } | null;
-    effects: Record<string, unknown> | null;
+    effects: UseInventoryEffects | null;
     character_stats: CharacterStatsSnapshot | null;
 };
 

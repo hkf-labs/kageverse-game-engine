@@ -50,6 +50,7 @@ const CURRENCY_META: Record<ShopCurrencyType, { icon: string; label: string; col
 const SUBTYPE_ICON: Record<string, string> = {
     hp_potion: '🍙',
     mp_potion: '🍵',
+    food_buff: '🍜',
 };
 
 interface OpenParams {
@@ -330,7 +331,16 @@ export class ShopModal implements GameComponent {
         const cur = selectedPrice ? CURRENCY_META[selectedPrice.currency_type] : CURRENCY_META.coin;
         const amount = this.getAmount();
         const total = selectedPrice ? selectedPrice.price * amount : 0;
-        const heal = item.base_stats?.heal_hp
+        const isFoodBuff = item.sub_type === 'food_buff';
+        const heal = isFoodBuff
+            ? (() => {
+                const hpRate = item.base_stats?.heal_hp_per_sec ?? 0;
+                const mpRate = item.base_stats?.heal_mp_per_sec ?? 0;
+                const dur = Math.round((item.base_stats?.duration_sec ?? 0) / 60);
+                return `Mỗi giây hồi <b style="color:#ff8a8a;">${hpRate}</b> HP + <b style="color:#8aaaff;">${mpRate}</b> MP — kéo dài <b style="color:#ffea7a;">${dur} phút</b>.`
+                    + `<br/><span style="color:#aaa;font-size:11px;">Dùng món mới sẽ thay thế buff hiện tại.</span>`;
+            })()
+            : item.base_stats?.heal_hp
             ? `Hồi <b style="color:#ff8a8a;">${item.base_stats.heal_hp}</b> HP`
             : item.base_stats?.heal_mp
             ? `Hồi <b style="color:#8aaaff;">${item.base_stats.heal_mp}</b> MP`

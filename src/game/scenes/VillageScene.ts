@@ -35,6 +35,7 @@ export class VillageScene extends BaseMapScene {
         return [
             { key: 'npc_blacksmith', name: 'Thợ Rèn', x: 740, y: undefined, offsetY: 0 },
             { key: 'npc_healer', name: 'Y Sĩ Ayame', x: 1400, y: undefined, offsetY: 0, templateId: 'npc_healer_ayame' },
+            { key: 'npc_chef', name: 'Bếp Trưởng Kuma', x: 2000, y: undefined, offsetY: 0, templateId: 'npc_chef_kuma' },
             { key: 'npc_merchant', name: 'Thương Gia', x: 2600, y: undefined, offsetY: 0 },
             { key: 'npc_stash', name: 'Rương Đồ', x: 3800, y: undefined, offsetY: 0 },
             { key: 'npc_teleporter', name: 'Dịch Chuyển', x: 5000, y: undefined, offsetY: 0 },
@@ -52,6 +53,7 @@ export class VillageScene extends BaseMapScene {
         this.load.image('npc_elder', 'assets/maps/village_001/npcs/village_elder.png');
         this.load.image('npc_blacksmith', 'assets/maps/village_001/npcs/blacksmith.png');
         this.load.image('npc_healer', 'assets/maps/village_001/npcs/healer.png');
+        this.load.image('npc_chef', 'assets/maps/village_001/npcs/merchant.png');
         this.load.image('npc_merchant', 'assets/maps/village_001/npcs/merchant.png');
         this.load.image('npc_stash', 'assets/maps/village_001/npcs/stash_keeper.png');
         this.load.image('npc_teleporter', 'assets/maps/village_001/npcs/teleporter.png');

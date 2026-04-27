@@ -62,6 +62,12 @@ const DEFAULT_ICON: Record<InventoryItemType, string> = {
     quest: '📜',
 };
 
+const SUBTYPE_ICON: Record<string, string> = {
+    hp_potion: '🍙',
+    mp_potion: '🍵',
+    food_buff: '🍜',
+};
+
 const DEFAULT_BG: Record<InventoryItemType, string> = {
     equipment: '#2a3a3a',
     consumable: '#3a2a1a',
@@ -78,7 +84,7 @@ function mapBeItem(dto: InventoryItemDTO): InventoryItem | null {
         name: dto.name_key,
         type: dto.item_type,
         iconBg: DEFAULT_BG[dto.item_type],
-        iconText: DEFAULT_ICON[dto.item_type],
+        iconText: (dto.sub_type && SUBTYPE_ICON[dto.sub_type]) || DEFAULT_ICON[dto.item_type],
         amount: dto.amount,
         maxStack: dto.max_stack,
         upgradeLevel: dto.upgrade_level,

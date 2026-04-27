@@ -28,6 +28,8 @@ function actionLabel(a: NpcActionDTO): string {
 const DIALOGUE_TEXT_VI: Record<string, string> = {
     'dialogue.ayame.greet':
         'Chào nhẫn giả trẻ! Ta là Ayame. Cần dược phẩm gì cứ chọn "Mua dược phẩm" nhé.',
+    'dialogue.kuma.greet':
+        'Đói chưa nhẫn giả? Một bát mì Kuma là đi quái cả buổi không nghỉ!',
 };
 
 function dialogueText(key: string | null | undefined, npcName: string): string {
