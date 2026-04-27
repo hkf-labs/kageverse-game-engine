@@ -1,0 +1,477 @@
+import * as Phaser from 'phaser';
+import { inventoryAPI, type InventoryItemDTO, type InventoryItemType } from '../../network/api';
+import { getCurrentCharacter } from '../playerSession';
+import type { GameComponent } from './types';
+
+interface InventoryItem {
+    page: number;
+    slot: number;
+    userItemId: string;
+    name: string;
+    type: InventoryItemType;
+    iconBg: string;
+    iconText: string;
+    amount: number;
+    maxStack: number;
+    upgradeLevel: number;
+    isBound: boolean;
+    description: string;
+}
+
+export interface CharacterCurrencies {
+    coin: number;   // Xu — farm từ quái / nhiệm vụ, không giao dịch.
+    gold: number;   // Vàng / Lượng — cao cấp, giao dịch được.
+    gem: number;    // Kim Cương / K-Coin — nạp thẻ, không giao dịch.
+}
+
+// Mock đến khi BE có API ví tiền. Replace qua setCurrencies() khi wire API.
+const MOCK_CURRENCIES: CharacterCurrencies = {
+    coin: 1234,
+    gold: 56,
+    gem: 12,
+};
+
+const COLS = 8;
+const PAGES_COUNT = 4;
+const DATA_PAGE = 1; // BE inventory dùng trang 1; trang 2-4 là placeholder cho túi mở rộng tương lai.
+
+const TYPE_BORDER: Record<InventoryItemType, string> = {
+    equipment: '#d4af37',
+    consumable: '#6dbf5a',
+    material: '#b88848',
+    quest: '#a050d0',
+};
+
+const TYPE_LABEL: Record<InventoryItemType, string> = {
+    equipment: 'Trang bị',
+    consumable: 'Tiêu hao',
+    material: 'Nguyên liệu',
+    quest: 'Nhiệm vụ',
+};
+
+const DEFAULT_ICON: Record<InventoryItemType, string> = {
+    equipment: '⚔️',
+    consumable: '🧪',
+    material: '🪨',
+    quest: '📜',
+};
+
+const DEFAULT_BG: Record<InventoryItemType, string> = {
+    equipment: '#2a3a3a',
+    consumable: '#3a2a1a',
+    material: '#3a2a1a',
+    quest: '#3a1a4a',
+};
+
+function mapBeItem(dto: InventoryItemDTO): InventoryItem | null {
+    if (dto.slot_index === null || dto.slot_index === undefined) return null;
+    return {
+        page: DATA_PAGE,
+        slot: dto.slot_index,
+        userItemId: dto.id,
+        name: dto.name_key,
+        type: dto.item_type,
+        iconBg: DEFAULT_BG[dto.item_type],
+        iconText: DEFAULT_ICON[dto.item_type],
+        amount: dto.amount,
+        maxStack: dto.max_stack,
+        upgradeLevel: dto.upgrade_level,
+        isBound: dto.is_bound,
+        description: dto.sub_type ? `${dto.item_template_id} (${dto.sub_type})` : dto.item_template_id,
+    };
+}
+
+export class InventoryModal implements GameComponent {
+    private overlay?: HTMLDivElement;
+    private gridEl?: HTMLDivElement;
+    private tabsEl?: HTMLDivElement;
+    private counterEl?: HTMLDivElement;
+    private detailEl?: HTMLDivElement;
+    private currenciesEl?: HTMLDivElement;
+    private useBtn?: HTMLButtonElement;
+    private dropBtn?: HTMLButtonElement;
+    private visible = false;
+    private currentPage = 1;
+    private selectedSlot: number | null = null;
+    private items: InventoryItem[] = [];
+    private maxSlots = 40;
+    private loading = false;
+    private errorMessage: string | null = null;
+    private actionInFlight = false;
+    private currencies: CharacterCurrencies = { ...MOCK_CURRENCIES };
+    private scene: Phaser.Scene;
+
+    constructor(scene: Phaser.Scene) {
+        this.scene = scene;
+    }
+
+    create(): void {
+        const parent = this.scene.game.canvas.parentElement;
+        if (!parent) return;
+
+        this.overlay = document.createElement('div');
+        Object.assign(this.overlay.style, {
+            position: 'absolute', inset: '0',
+            background: 'rgba(0,0,0,0.55)',
+            zIndex: '110', display: 'none',
+        });
+        this.overlay.addEventListener('click', (e) => {
+            if (e.target === this.overlay) this.toggle();
+        });
+        parent.style.position = 'relative';
+        parent.appendChild(this.overlay);
+
+        const root = document.createElement('div');
+        Object.assign(root.style, {
+            position: 'absolute',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%,-50%)',
+            width: 'min(560px, 88vw)',
+            maxHeight: '92vh',
+            background: 'linear-gradient(180deg, #2a1808 0%, #1a0f04 100%)',
+            border: '3px solid #e29e4a',
+            borderRadius: '14px',
+            display: 'flex',
+            flexDirection: 'column',
+            fontFamily: 'system-ui, sans-serif',
+            overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            color: '#ffe4c4',
+        });
+
+        root.innerHTML = this.buildHTML();
+        this.overlay.appendChild(root);
+
+        this.gridEl = root.querySelector('#inv-grid') as HTMLDivElement;
+        this.tabsEl = root.querySelector('#inv-tabs') as HTMLDivElement;
+        this.counterEl = root.querySelector('#inv-counter') as HTMLDivElement;
+        this.detailEl = root.querySelector('#inv-detail') as HTMLDivElement;
+        this.currenciesEl = root.querySelector('#inv-currencies') as HTMLDivElement;
+        this.useBtn = root.querySelector('#inv-use') as HTMLButtonElement;
+        this.dropBtn = root.querySelector('#inv-drop') as HTMLButtonElement;
+        const closeBtn = root.querySelector('#inv-close') as HTMLDivElement;
+
+        closeBtn.addEventListener('click', () => this.toggle());
+        this.useBtn.addEventListener('click', () => void this.handleUse());
+        this.dropBtn.addEventListener('click', () => void this.handleDrop());
+
+        this.renderTabs();
+        this.renderGrid();
+        this.renderDetail();
+        this.renderCounter();
+        this.renderCurrencies();
+    }
+
+    destroy(): void {
+        this.overlay?.remove();
+        this.overlay = undefined;
+        this.gridEl = undefined;
+        this.tabsEl = undefined;
+        this.counterEl = undefined;
+        this.detailEl = undefined;
+        this.currenciesEl = undefined;
+    }
+
+    toggle(): void {
+        if (!this.overlay) return;
+        this.visible = !this.visible;
+        this.overlay.style.display = this.visible ? 'block' : 'none';
+
+        if (this.visible) {
+            this.currentPage = DATA_PAGE;
+            this.selectedSlot = null;
+            this.renderTabs();
+            void this.loadInventory();
+        }
+    }
+
+    isOpen(): boolean { return this.visible; }
+
+    private buildHTML(): string {
+        return [
+            // Header
+            `<div style="display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;">`,
+            `  <div style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">TÚI ĐỒ</div>`,
+            `  <div id="inv-counter" style="padding:10px 12px;font-size:12px;color:#ffe4c4;"></div>`,
+            `  <div id="inv-close" style="width:40px;text-align:center;cursor:pointer;font-size:18px;font-weight:bold;color:#ff8a8a;padding:10px 0;flex-shrink:0;">&#10005;</div>`,
+            `</div>`,
+            // Tabs (trang 1 / 2 / ...)
+            `<div id="inv-tabs" style="display:flex;gap:4px;padding:8px 14px 0 14px;background:rgba(0,0,0,0.3);"></div>`,
+            // Grid
+            `<div style="padding:10px 14px 14px 14px;background:rgba(0,0,0,0.25);">`,
+            `  <div id="inv-grid" style="display:grid;grid-template-columns:repeat(${COLS}, 56px);gap:6px;justify-content:center;"></div>`,
+            `</div>`,
+            // Detail
+            `<div id="inv-detail" style="padding:12px 16px;border-top:2px solid #4d2d13;background:rgba(45,26,10,0.6);min-height:64px;font-size:13px;line-height:1.5;flex-shrink:0;"></div>`,
+            // Currencies bar (Xu / Vàng / Kim Cương)
+            `<div id="inv-currencies" style="display:flex;justify-content:space-around;align-items:center;padding:8px 14px;border-top:2px solid #4d2d13;background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;"></div>`,
+            // Footer buttons
+            `<div style="display:flex;gap:8px;padding:10px 14px;border-top:2px solid #4d2d13;background:#1a0f04;flex-shrink:0;">`,
+            `  <button id="inv-use" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">Sử dụng</button>`,
+            `  <button id="inv-drop" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a3a3a;background:#4a1a1a;color:#f0a0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">Vứt</button>`,
+            `</div>`,
+        ].join('');
+    }
+
+    private async loadInventory(): Promise<void> {
+        const character = getCurrentCharacter();
+        if (!character) {
+            this.errorMessage = 'Chưa có nhân vật. Vui lòng tạo nhân vật trước.';
+            this.items = [];
+            this.renderGrid();
+            this.renderDetail();
+            this.renderCounter();
+            return;
+        }
+
+        this.loading = true;
+        this.errorMessage = null;
+        this.renderDetail();
+        this.renderCounter();
+
+        try {
+            const res = await inventoryAPI.list(character.id);
+            this.maxSlots = res.max_slots;
+            this.items = res.items
+                .map(mapBeItem)
+                .filter((it): it is InventoryItem => it !== null);
+        } catch (err) {
+            this.errorMessage = err instanceof Error ? err.message : 'Không tải được túi đồ';
+            this.items = [];
+        } finally {
+            this.loading = false;
+            this.renderGrid();
+            this.renderDetail();
+            this.renderCounter();
+        }
+    }
+
+    private renderGrid(): void {
+        if (!this.gridEl) return;
+        const itemBySlot = new Map<number, InventoryItem>();
+        for (const it of this.items) {
+            if (it.page === this.currentPage) itemBySlot.set(it.slot, it);
+        }
+
+        this.gridEl.innerHTML = '';
+        for (let i = 0; i < this.maxSlots; i++) {
+            const item = itemBySlot.get(i);
+            const cell = document.createElement('div');
+            const isSelected = this.selectedSlot === i;
+            const borderColor = item ? TYPE_BORDER[item.type] : '#3a2a1a';
+            const bgColor = item ? item.iconBg : 'rgba(20,12,4,0.6)';
+            Object.assign(cell.style, {
+                width: '56px', height: '56px',
+                border: `2px solid ${isSelected ? '#ffea7a' : borderColor}`,
+                borderRadius: '6px',
+                background: bgColor,
+                position: 'relative',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                userSelect: 'none',
+                boxShadow: isSelected ? '0 0 8px rgba(255,234,122,0.6)' : 'none',
+                transition: 'border-color 0.1s, box-shadow 0.1s',
+            });
+
+            if (item) {
+                cell.innerHTML = [
+                    `<div style="font-size:24px;">${item.iconText}</div>`,
+                    item.amount > 1
+                        ? `<div style="position:absolute;right:2px;bottom:0;font-size:11px;font-weight:bold;color:#fff;text-shadow:0 0 3px #000,1px 1px 0 #000;">${item.amount}</div>`
+                        : '',
+                    item.upgradeLevel > 0
+                        ? `<div style="position:absolute;left:2px;top:0;font-size:10px;font-weight:bold;color:#ffea7a;text-shadow:0 0 3px #000,1px 1px 0 #000;">+${item.upgradeLevel}</div>`
+                        : '',
+                    item.isBound
+                        ? `<div style="position:absolute;right:2px;top:0;font-size:9px;color:#ff8a8a;text-shadow:0 0 3px #000;">🔒</div>`
+                        : '',
+                ].join('');
+            }
+
+            cell.addEventListener('click', () => this.selectSlot(i));
+            cell.addEventListener('mouseenter', () => {
+                if (this.selectedSlot !== i) cell.style.borderColor = '#ffd070';
+            });
+            cell.addEventListener('mouseleave', () => {
+                if (this.selectedSlot !== i) cell.style.borderColor = borderColor;
+            });
+            this.gridEl.appendChild(cell);
+        }
+    }
+
+    private selectSlot(slot: number): void {
+        this.selectedSlot = this.selectedSlot === slot ? null : slot;
+        this.renderGrid();
+        this.renderDetail();
+    }
+
+    private renderDetail(): void {
+        if (!this.detailEl) return;
+        if (this.loading) {
+            this.detailEl.innerHTML = `<div style="color:#aaa;font-style:italic;">Đang tải túi đồ...</div>`;
+            this.setButtonsEnabled(false, false);
+            return;
+        }
+        if (this.errorMessage) {
+            this.detailEl.innerHTML = `<div style="color:#ff8a8a;">⚠ ${this.errorMessage}</div>`;
+            this.setButtonsEnabled(false, false);
+            return;
+        }
+        if (this.currentPage !== DATA_PAGE) {
+            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">Túi mở rộng — sắp ra mắt.</div>`;
+            this.setButtonsEnabled(false, false);
+            return;
+        }
+
+        const item = this.findSelectedItem();
+        if (!item) {
+            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">Chọn một vật phẩm để xem chi tiết.</div>`;
+            this.setButtonsEnabled(false, false);
+            return;
+        }
+        const lockBadge = item.isBound ? `<span style="margin-left:6px;color:#ff8a8a;font-size:11px;">🔒 Khóa</span>` : '';
+        const upgradeBadge = item.upgradeLevel > 0 ? `<span style="margin-left:6px;color:#ffea7a;">+${item.upgradeLevel}</span>` : '';
+        this.detailEl.innerHTML = [
+            `<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">`,
+            `  <span style="font-size:14px;font-weight:bold;color:#ffea7a;">${item.name}</span>`,
+            upgradeBadge,
+            `  <span style="font-size:11px;color:${TYPE_BORDER[item.type]};">[${TYPE_LABEL[item.type]}]</span>`,
+            lockBadge,
+            `</div>`,
+            `<div style="margin-top:4px;color:#ffe4c4;">${item.description}</div>`,
+            `<div style="margin-top:4px;color:#aaa;font-size:11px;">Số lượng: ${item.amount} / ${item.maxStack}</div>`,
+        ].join('');
+
+        const canUse = !this.actionInFlight && item.type === 'consumable';
+        const canDrop = !this.actionInFlight && !item.isBound;
+        this.setButtonsEnabled(canUse, canDrop);
+    }
+
+    private renderCounter(): void {
+        if (!this.counterEl) return;
+        if (this.currentPage !== DATA_PAGE) {
+            this.counterEl.textContent = `Trang ${this.currentPage}: chưa mở khóa`;
+            return;
+        }
+        const usedThisPage = this.items.filter((it) => it.page === this.currentPage).length;
+        this.counterEl.textContent = `Trang ${this.currentPage}: ${usedThisPage} / ${this.maxSlots}`;
+    }
+
+    private setButtonsEnabled(use: boolean, drop: boolean): void {
+        if (this.useBtn) {
+            this.useBtn.disabled = !use;
+            this.useBtn.style.opacity = use ? '1' : '0.5';
+            this.useBtn.style.cursor = use ? 'pointer' : 'not-allowed';
+        }
+        if (this.dropBtn) {
+            this.dropBtn.disabled = !drop;
+            this.dropBtn.style.opacity = drop ? '1' : '0.5';
+            this.dropBtn.style.cursor = drop ? 'pointer' : 'not-allowed';
+        }
+    }
+
+    private findSelectedItem(): InventoryItem | undefined {
+        if (this.selectedSlot === null) return undefined;
+        return this.items.find((it) => it.page === this.currentPage && it.slot === this.selectedSlot);
+    }
+
+    private renderTabs(): void {
+        if (!this.tabsEl) return;
+        this.tabsEl.innerHTML = '';
+        for (let p = 1; p <= PAGES_COUNT; p++) {
+            const tab = document.createElement('div');
+            const active = p === this.currentPage;
+            Object.assign(tab.style, {
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                color: active ? '#ffea7a' : '#ffe4c4',
+                background: active ? '#6b3a14' : 'rgba(45,26,10,0.5)',
+                border: `2px solid ${active ? '#ffea7a' : '#4d2d13'}`,
+                borderBottom: 'none',
+                borderTopLeftRadius: '6px',
+                borderTopRightRadius: '6px',
+                userSelect: 'none',
+            });
+            tab.textContent = `Trang ${p}`;
+            tab.addEventListener('click', () => this.setPage(p));
+            this.tabsEl.appendChild(tab);
+        }
+    }
+
+    private renderCurrencies(): void {
+        if (!this.currenciesEl) return;
+        const fmt = (n: number) => n.toLocaleString('en-US');
+        const item = (icon: string, label: string, value: number, color: string) =>
+            `<div style="display:flex;align-items:center;gap:6px;" title="${label}">` +
+            `  <span style="font-size:16px;">${icon}</span>` +
+            `  <span style="color:${color};font-weight:bold;">${fmt(value)}</span>` +
+            `</div>`;
+        this.currenciesEl.innerHTML = [
+            item('🪙', 'Xu', this.currencies.coin, '#ffd070'),
+            item('💰', 'Vàng', this.currencies.gold, '#f0b020'),
+            item('💎', 'Kim Cương', this.currencies.gem, '#6cd0ff'),
+        ].join('');
+    }
+
+    /**
+     * Cập nhật ví tiền hiển thị. Tạm dùng để inject mock; sẽ wire vào API sau.
+     */
+    setCurrencies(currencies: CharacterCurrencies): void {
+        this.currencies = { ...currencies };
+        this.renderCurrencies();
+    }
+
+    private setPage(page: number): void {
+        if (page < 1 || page > PAGES_COUNT || page === this.currentPage) return;
+        this.currentPage = page;
+        this.selectedSlot = null;
+        this.renderTabs();
+        this.renderGrid();
+        this.renderDetail();
+        this.renderCounter();
+    }
+
+    private async handleUse(): Promise<void> {
+        const item = this.findSelectedItem();
+        if (!item || item.type !== 'consumable' || this.actionInFlight) return;
+        const character = getCurrentCharacter();
+        if (!character) return;
+
+        this.actionInFlight = true;
+        this.setButtonsEnabled(false, false);
+        try {
+            await inventoryAPI.use(character.id, item.userItemId, 1);
+            await this.loadInventory();
+        } catch (err) {
+            this.errorMessage = err instanceof Error ? err.message : 'Sử dụng vật phẩm thất bại';
+            this.renderDetail();
+        } finally {
+            this.actionInFlight = false;
+        }
+    }
+
+    private async handleDrop(): Promise<void> {
+        const item = this.findSelectedItem();
+        if (!item || item.isBound || this.actionInFlight) return;
+        const character = getCurrentCharacter();
+        if (!character) return;
+
+        this.actionInFlight = true;
+        this.setButtonsEnabled(false, false);
+        try {
+            await inventoryAPI.drop(character.id, item.userItemId);
+            this.selectedSlot = null;
+            await this.loadInventory();
+        } catch (err) {
+            this.errorMessage = err instanceof Error ? err.message : 'Vứt vật phẩm thất bại';
+            this.renderDetail();
+        } finally {
+            this.actionInFlight = false;
+        }
+    }
+}

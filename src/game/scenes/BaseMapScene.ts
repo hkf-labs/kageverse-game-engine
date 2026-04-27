@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { logout } from '../../network/api';
 import {
-    ChatPanel, GameControls, HUD, MapBackground, MenuPanel, Minimap, MonsterManager, NpcManager, PlayerController, Portal,
+    ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcManager, PlayerController, Portal,
     type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
 } from '../components';
 
@@ -12,6 +12,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected minimap!: Minimap;
     protected chat!: ChatPanel;
     protected menu!: MenuPanel;
+    protected inventory!: InventoryModal;
     protected controls!: GameControls;
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
@@ -111,9 +112,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.chat = new ChatPanel(this);
         this.chat.create();
 
+        // Inventory modal (HTML DOM overlay)
+        this.inventory = new InventoryModal(this);
+        this.inventory.create();
+
         // Menu
         this.menu = new MenuPanel(this, [
-            { label: 'Túi đồ', action: () => this.hud.setStatus('Mở Túi Đồ (placeholder)', '#ffea7a') },
+            { label: 'Túi đồ', action: () => this.inventory.toggle() },
             { label: 'Nhiệm vụ', action: () => this.hud.setStatus('Mở Nhiệm Vụ (placeholder)', '#ffea7a') },
             { label: 'Kỹ năng', action: () => this.hud.setStatus('Mở Kỹ Năng (placeholder)', '#ffea7a') },
             { label: 'Cài đặt', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },

@@ -1,6 +1,7 @@
 export { ChatPanel } from './ChatPanel';
 export { GameControls } from './GameControls';
 export { HUD } from './HUD';
+export { InventoryModal } from './InventoryModal';
 export { MapBackground } from './MapBackground';
 export { MenuPanel } from './MenuPanel';
 export { Minimap } from './Minimap';

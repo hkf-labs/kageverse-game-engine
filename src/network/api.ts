@@ -251,6 +251,100 @@ export const charactersAPI = {
     },
 };
 
+export type InventoryItemType = 'equipment' | 'consumable' | 'material' | 'quest';
+
+export type InventoryItemDTO = {
+    id: string;
+    slot_index: number | null;
+    item_template_id: string;
+    name_key: string;
+    item_type: InventoryItemType;
+    sub_type: string | null;
+    sprite_key: string;
+    amount: number;
+    max_stack: number;
+    upgrade_level: number;
+    durability: number | null;
+    is_bound: boolean;
+    expires_at: string | null;
+};
+
+export type ListInventoryResponse = {
+    character_id: string;
+    max_slots: number;
+    used_slots: number;
+    items: InventoryItemDTO[];
+};
+
+export type UseInventoryResponse = {
+    user_item: { id: string; slot_index: number | null; amount: number } | null;
+    effects: Record<string, unknown> | null;
+    character_stats: Record<string, unknown> | null;
+};
+
+export type DropInventoryResponse = {
+    dropped: { user_item_id: string; amount: number };
+    remaining_amount: number;
+};
+
+export type MoveInventoryResponse = {
+    merged: boolean;
+    from: { slot_index: number; user_item_id: string | null; amount?: number };
+    to: { slot_index: number; user_item_id: string | null; amount?: number };
+};
+
+export const inventoryAPI = {
+    async list(characterId: string): Promise<ListInventoryResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory`);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được túi đồ')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as ListInventoryResponse;
+    },
+
+    async use(characterId: string, userItemId: string, amount = 1): Promise<UseInventoryResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory/use`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_item_id: userItemId, amount }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Sử dụng vật phẩm thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as UseInventoryResponse;
+    },
+
+    async drop(characterId: string, userItemId: string, amount?: number): Promise<DropInventoryResponse> {
+        const body: Record<string, unknown> = { user_item_id: userItemId };
+        if (typeof amount === 'number') body.amount = amount;
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory/drop`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Vứt vật phẩm thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as DropInventoryResponse;
+    },
+
+    async move(characterId: string, fromSlot: number, toSlot: number, mergeWhenPossible = true): Promise<MoveInventoryResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory/move`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from_slot: fromSlot, to_slot: toSlot, merge_when_possible: mergeWhenPossible }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Sắp xếp slot thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as MoveInventoryResponse;
+    },
+};
+
 export const mapsAPI = {
     async getDetail(mapId: string): Promise<MapDetail> {
         return getMockMapDetail(mapId);
