@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { logout } from '../../network/api';
 import {
-    ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcManager, PlayerController, Portal,
+    ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcManager, PlayerController, Portal, ShopModal,
     type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
 } from '../components';
 
@@ -13,6 +13,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected chat!: ChatPanel;
     protected menu!: MenuPanel;
     protected inventory!: InventoryModal;
+    protected shop!: ShopModal;
     protected controls!: GameControls;
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
@@ -58,9 +59,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.playerCtrl = new PlayerController(this, cfg, this.background);
         this.playerCtrl.create();
 
+        // Shop modal — phải tạo trước NpcManager để NPC dialog gọi được.
+        this.shop = new ShopModal(this);
+        this.shop.create();
+
         // NPC
-        this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), (text, color) => {
-            this.hud.setStatus(text, color);
+        this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), {
+            mapId: cfg.mapId,
+            shopModal: this.shop,
+            onStatusMessage: (text, color) => this.hud.setStatus(text, color),
         });
         this.npcs.create();
 
@@ -139,7 +146,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
 
         this.input.keyboard?.on('keydown-ENTER', () => {
-            if (!this.chat.isFocused()) this.handleInteract();
+            if (this.chat.isFocused()) return;
+            if (this.shop?.isOpen()) return;
+            this.handleInteract();
         });
 
         this.onMapReady();
@@ -154,7 +163,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.portals.forEach((p) => p.updatePortal(player.x, player.y));
         this.monsters.update();
 
-        if (this.chat.isFocused()) {
+        if (this.chat.isFocused() || this.shop?.isOpen()) {
             player.body?.setVelocityX(0);
             return;
         }

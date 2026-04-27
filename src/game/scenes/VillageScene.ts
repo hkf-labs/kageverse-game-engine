@@ -34,7 +34,7 @@ export class VillageScene extends BaseMapScene {
     protected getNpcConfigs(): NpcConfig[] {
         return [
             { key: 'npc_blacksmith', name: 'Thợ Rèn', x: 740, y: undefined, offsetY: 0 },
-            { key: 'npc_healer', name: 'Y Sĩ', x: 1400, y: undefined, offsetY: 0 },
+            { key: 'npc_healer', name: 'Y Sĩ Ayame', x: 1400, y: undefined, offsetY: 0, templateId: 'npc_healer_ayame' },
             { key: 'npc_merchant', name: 'Thương Gia', x: 2600, y: undefined, offsetY: 0 },
             { key: 'npc_stash', name: 'Rương Đồ', x: 3800, y: undefined, offsetY: 0 },
             { key: 'npc_teleporter', name: 'Dịch Chuyển', x: 5000, y: undefined, offsetY: 0 },

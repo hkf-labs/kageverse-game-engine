@@ -1,6 +1,27 @@
 import * as Phaser from 'phaser';
+import { npcAPI, type NpcActionDTO } from '../../network/api';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { MapBackground } from './MapBackground';
+import type { ShopModal } from './ShopModal';
+
+interface DialogOption {
+    text: Phaser.GameObjects.Text;
+    bg: Phaser.GameObjects.Graphics;
+    action: () => void;
+}
+
+const ACTION_LABEL_VI: Record<string, string> = {
+    talk: 'Trò chuyện',
+    buy_shop: 'Mua dược phẩm',
+    upgrade_equipment: 'Nâng cấp đồ',
+    view_quests: 'Nhiệm vụ',
+    open_stash: 'Mở rương',
+    teleport: 'Dịch chuyển',
+};
+
+function actionLabel(a: NpcActionDTO): string {
+    return ACTION_LABEL_VI[a.action] || a.label_key;
+}
 
 export class NpcManager implements GameComponent {
     private npcList: NpcEntry[] = [];
@@ -10,9 +31,10 @@ export class NpcManager implements GameComponent {
     private autoMoveTargetX: number | null = null;
 
     private dialogContainer?: Phaser.GameObjects.Container;
-    private dialogOptions: { text: Phaser.GameObjects.Text; bg: Phaser.GameObjects.Graphics; action: () => void }[] = [];
+    private dialogOptions: DialogOption[] = [];
     private selectedOptionIndex = 0;
     private npcOptionsTitle?: Phaser.GameObjects.Text;
+    private fetchSeq = 0;
 
     private readonly INTERACT_RANGE = 150;
     private readonly SPRITE_SCALE = 0.12;
@@ -21,18 +43,26 @@ export class NpcManager implements GameComponent {
     private scene: Phaser.Scene;
     private background: MapBackground;
     private npcConfigs: NpcConfig[];
+    private mapId: string;
+    private shopModal?: ShopModal;
     private onStatusMessage?: (text: string, color: string) => void;
 
     constructor(
         scene: Phaser.Scene,
         background: MapBackground,
         npcConfigs: NpcConfig[],
-        onStatusMessage?: (text: string, color: string) => void,
+        deps?: {
+            mapId?: string;
+            shopModal?: ShopModal;
+            onStatusMessage?: (text: string, color: string) => void;
+        },
     ) {
         this.scene = scene;
         this.background = background;
         this.npcConfigs = npcConfigs;
-        this.onStatusMessage = onStatusMessage;
+        this.mapId = deps?.mapId ?? '';
+        this.shopModal = deps?.shopModal;
+        this.onStatusMessage = deps?.onStatusMessage;
     }
 
     create(): void {
@@ -168,19 +198,77 @@ export class NpcManager implements GameComponent {
         this.dialogContainer.setVisible(true);
         this.npcOptionsTitle?.setText(`[ ${npc.name} ]`);
 
+        // Reset cũ
         this.dialogOptions.forEach(opt => { opt.bg.destroy(); opt.text.destroy(); });
         this.dialogOptions = [];
         this.selectedOptionIndex = 0;
 
-        const options = [
+        if (npc.templateId && this.mapId) {
+            // BE-driven menu. Show loading, fetch async, render khi xong.
+            this.renderLoadingPlaceholder();
+            const seq = ++this.fetchSeq;
+            void npcAPI.getInteract(this.mapId, npc.templateId)
+                .then((res) => {
+                    if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
+                    this.renderActionsFromBE(npc, res.available_actions);
+                })
+                .catch((err) => {
+                    if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
+                    const msg = err instanceof Error ? err.message : 'Không tải được menu NPC';
+                    this.onStatusMessage?.(msg, '#ff8a8a');
+                    this.renderMockOptions(npc);
+                });
+        } else {
+            // Fallback mock dialog cho NPC chưa wire BE.
+            this.renderMockOptions(npc);
+        }
+    }
+
+    private renderLoadingPlaceholder(): void {
+        if (!this.dialogContainer) return;
+        const txt = this.scene.add.text(-280 + 20, 0, 'Đang tải...', {
+            fontSize: '16px', color: '#aaaaaa', fontStyle: 'italic', fontFamily: 'system-ui, sans-serif'
+        });
+        const bg = this.scene.add.graphics();
+        this.dialogContainer.add([bg, txt]);
+        this.dialogOptions.push({ text: txt, bg, action: () => {} });
+    }
+
+    private renderActionsFromBE(npc: NpcEntry, actions: NpcActionDTO[]): void {
+        if (!this.dialogContainer) return;
+        // Xóa placeholder
+        this.dialogOptions.forEach(opt => { opt.bg.destroy(); opt.text.destroy(); });
+        this.dialogOptions = [];
+        this.selectedOptionIndex = 0;
+
+        const builders = actions.map((a) => ({
+            label: actionLabel(a),
+            action: () => this.runAction(npc, a.action),
+        }));
+        // Luôn có "Rời đi" cuối
+        builders.push({ label: 'Rời đi', action: () => this.closeInteraction() });
+        this.layoutOptions(builders);
+    }
+
+    private renderMockOptions(npc: NpcEntry): void {
+        // Xóa placeholder loading nếu còn
+        this.dialogOptions.forEach(opt => { opt.bg.destroy(); opt.text.destroy(); });
+        this.dialogOptions = [];
+        this.selectedOptionIndex = 0;
+
+        const builders = [
             { label: 'Trò chuyện', action: () => this.onStatusMessage?.(`${npc.name}: Chào mừng đến với Kageverse!`, '#fff') },
             { label: 'Nhận Nhiệm vụ', action: () => this.closeInteraction() },
-            { label: 'Giao dịch', action: () => this.onStatusMessage?.('Chức năng Cửa Hàng đang nâng cấp!', '#aaaaaa') },
+            { label: 'Giao dịch', action: () => this.onStatusMessage?.('NPC này chưa có cửa hàng.', '#aaaaaa') },
             { label: 'Rời đi', action: () => this.closeInteraction() },
         ];
+        this.layoutOptions(builders);
+    }
 
+    private layoutOptions(items: Array<{ label: string; action: () => void }>): void {
+        if (!this.dialogContainer) return;
         let startX = -280;
-        options.forEach((opt, idx) => {
+        items.forEach((opt, idx) => {
             const bg = this.scene.add.graphics();
             const txt = this.scene.add.text(startX + 20, 0, opt.label, {
                 fontSize: '16px', color: '#fff', fontFamily: 'system-ui, sans-serif'
@@ -198,6 +286,34 @@ export class NpcManager implements GameComponent {
         });
 
         this.updateOptionHighlight();
+    }
+
+    private runAction(npc: NpcEntry, action: string): void {
+        switch (action) {
+            case 'talk':
+                this.onStatusMessage?.(`${npc.name}: Chào mừng!`, '#ffea7a');
+                break;
+            case 'buy_shop':
+                if (this.shopModal && npc.templateId) {
+                    this.closeInteraction();
+                    this.shopModal.open({
+                        mapId: this.mapId,
+                        npcTemplateId: npc.templateId,
+                        npcName: npc.name,
+                    });
+                } else {
+                    this.onStatusMessage?.('Cửa hàng chưa sẵn sàng.', '#aaaaaa');
+                }
+                break;
+            case 'view_quests':
+            case 'upgrade_equipment':
+            case 'open_stash':
+            case 'teleport':
+                this.onStatusMessage?.(`Chức năng "${ACTION_LABEL_VI[action] || action}" sắp ra mắt.`, '#aaaaaa');
+                break;
+            default:
+                this.onStatusMessage?.(`Hành động "${action}" chưa hỗ trợ.`, '#aaaaaa');
+        }
     }
 
     private closeInteraction(): void {

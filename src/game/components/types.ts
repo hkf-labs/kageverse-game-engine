@@ -12,6 +12,7 @@ export interface NpcEntry {
     x: number;
     y?: number;
     offsetY: number;
+    templateId?: string;
     sprite: Phaser.GameObjects.Sprite;
     nameText: Phaser.GameObjects.Text;
 }
@@ -22,6 +23,11 @@ export interface NpcConfig {
     x: number;
     y?: number;
     offsetY: number;
+    /**
+     * BE npc_template_id (vd "npc_healer_ayame"). Có thì NPC fetch menu từ BE
+     * và bật shop. Không có → fallback dialog mock cũ.
+     */
+    templateId?: string;
 }
 
 export interface TiledObject {

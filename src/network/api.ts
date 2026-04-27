@@ -350,3 +350,107 @@ export const mapsAPI = {
         return getMockMapDetail(mapId);
     },
 };
+
+// ----- NPC Interaction -----
+
+export type NpcActionDTO = {
+    action: string;
+    label_key: string;
+};
+
+export type NpcInteractResponse = {
+    map_id: string;
+    npc_template_id: string;
+    npc_type: string;
+    display_name_key: string;
+    sprite_key: string;
+    scope: string;
+    default_dialogue_key: string | null;
+    position: { x: number; y: number };
+    is_hidden: boolean;
+    available_actions: NpcActionDTO[];
+};
+
+export const npcAPI = {
+    async getInteract(mapId: string, npcTemplateId: string): Promise<NpcInteractResponse> {
+        const path = `/maps/${encodeURIComponent(mapId)}/npcs/${encodeURIComponent(npcTemplateId)}`;
+        const { response, traceId } = await authFetch(path);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được NPC')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as NpcInteractResponse;
+    },
+};
+
+// ----- Shop -----
+
+export type ShopCurrencyType = 'coin' | 'gold' | 'gem';
+
+export type ShopListingDTO = {
+    item_template_id: string;
+    name_key: string;
+    item_type: InventoryItemType;
+    sub_type: string | null;
+    sprite_key: string;
+    required_level: number;
+    max_stack: number;
+    currency_type: ShopCurrencyType;
+    price: number;
+    stock_remaining: number | null;
+    base_stats: Record<string, number> | null;
+};
+
+export type ShopListResponse = {
+    map_id: string;
+    npc_template_id: string;
+    npc_type: string;
+    display_name_key: string;
+    items: ShopListingDTO[];
+};
+
+export type ShopBuyPayload = {
+    map_id: string;
+    npc_template_id: string;
+    item_template_id: string;
+    amount: number;
+};
+
+export type ShopBuyResponse = {
+    purchased: {
+        item_template_id: string;
+        amount: number;
+        user_item_id: string;
+    };
+    currency: {
+        type: ShopCurrencyType;
+        spent: number;
+        balance_after: number;
+    };
+    stock_remaining: number | null;
+};
+
+export const shopAPI = {
+    async list(mapId: string, npcTemplateId: string): Promise<ShopListResponse> {
+        const path = `/maps/${encodeURIComponent(mapId)}/npcs/${encodeURIComponent(npcTemplateId)}/shop`;
+        const { response, traceId } = await authFetch(path);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được shop')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as ShopListResponse;
+    },
+
+    async buy(characterId: string, payload: ShopBuyPayload): Promise<ShopBuyResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/shop/buy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Mua hàng thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as ShopBuyResponse;
+    },
+};
