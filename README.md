@@ -12,7 +12,7 @@ Kageverse là một **Web3 MMORPG 2D Game Engine** được xây dựng và lấ
 
 ## ⚔️ Gameplay & nền kinh tế
 
-1. **Hệ thống Ngũ Hành:** Khắc chế Kim — Mộc — Thuỷ — Hoả — Thổ. Kỹ năng thi triển *realtime* qua WebSocket (kết nối song song với Golang server).
+1. **Hệ thống Trường Phái Vũ Khí:** 3 trường × 2 phái cùng hệ Kage — Mikazuki (Kiếm + Phi Tiêu), Hayabusa (Kunai + Cung), Akatsuki (Đao + Quạt). **MVP đầu mở 2 trường**, mỗi trường 1 phái: Kiếm (Mikazuki) + Cung (Hayabusa) tới level 20. Kỹ năng thi triển *realtime* qua WebSocket (kết nối song song với Golang server).
 2. **Kinh tế 3 tầng luỹ tiến:**
    - **Yên (off-chain):** Miễn phí, dành cho sinh hoạt cơ bản (máu, mana).
    - **Xu (off-chain):** Cày cuốc từ nhiệm vụ khó, khoá một chiều để nâng cấp trang bị (giữ giá trị).
