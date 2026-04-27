@@ -213,6 +213,18 @@ export type CharacterDTO = {
     display_name: string;
     gender: string;
     costume_primary_color: string;
+    level: number;
+    class: string;
+    current_hp: number;
+    max_hp: number;
+    current_mp: number;
+    max_mp: number;
+    min_attack: number;
+    max_attack: number;
+    defense: number;
+    coin: number;
+    gold: number;
+    gem: number;
     created_at: string;
 };
 
