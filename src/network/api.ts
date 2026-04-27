@@ -232,6 +232,7 @@ export type CharacterDTO = {
     gold: number;
     gem: number;
     active_food_buff: ActiveFoodBuffDTO | null;
+    last_seen_at: string;
     created_at: string;
 };
 
