@@ -5,8 +5,25 @@ export type { MapDetail, Vec2 } from '../features/maps';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 const TRACE_ID_HEADER = 'X-Trace-Id';
 
-function getAccessToken(): string | null {
-    return localStorage.getItem('kageverse_jwt');
+const ACCESS_TOKEN_KEY = 'kageverse_jwt';
+const REFRESH_TOKEN_KEY = 'kageverse_refresh';
+
+export function getAccessToken(): string | null {
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+function getRefreshToken(): string | null {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setTokens(accessToken: string, refreshToken?: string): void {
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+}
+
+export function clearTokens(): void {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 function createTraceId(): string {
@@ -58,6 +75,81 @@ export function formatApiError(resData: unknown, fallback: string): string {
         if (typeof fe.field === 'string' && typeof fe.code === 'string') return `${fe.field}: ${fe.code}`;
     }
     return fallback;
+}
+
+let refreshInFlight: Promise<string> | null = null;
+
+async function refreshAccessToken(): Promise<string> {
+    if (refreshInFlight) return refreshInFlight;
+
+    refreshInFlight = (async () => {
+        const refresh = getRefreshToken();
+        if (!refresh) throw new Error('auth.error.no_refresh_token');
+
+        const headers = buildHeaders({ 'Content-Type': 'application/json' });
+        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ refresh_token: refresh }),
+        });
+
+        if (!response.ok) {
+            throw new Error('auth.error.refresh_failed');
+        }
+
+        const data = (await parseJsonSafe(response)) as { access_token?: string; refresh_token?: string };
+        if (!data.access_token) throw new Error('auth.error.refresh_failed');
+        setTokens(data.access_token, data.refresh_token);
+        return data.access_token;
+    })();
+
+    try {
+        return await refreshInFlight;
+    } finally {
+        refreshInFlight = null;
+    }
+}
+
+async function authFetch(
+    path: string,
+    init: { method?: string; body?: BodyInit | null; headers?: Record<string, string> } = {},
+): Promise<{ response: Response; traceId: string }> {
+    const token = getAccessToken();
+    if (!token) throw new Error('Chưa đăng nhập');
+
+    const doFetch = async (accessToken: string) => {
+        const headers = buildHeaders({
+            ...(init.headers || {}),
+            Authorization: `Bearer ${accessToken}`,
+        });
+        const response = await fetch(`${API_BASE_URL}${path}`, {
+            method: init.method,
+            headers,
+            body: init.body,
+        });
+        return { response, headers };
+    };
+
+    let result = await doFetch(token);
+
+    if (result.response.status === 401) {
+        try {
+            const newToken = await refreshAccessToken();
+            result = await doFetch(newToken);
+        } catch {
+            clearTokens();
+            throw new Error('auth.error.unauthorized');
+        }
+    }
+
+    return {
+        response: result.response,
+        traceId: extractTraceId(result.response, result.headers),
+    };
+}
+
+export function logout(): void {
+    clearTokens();
 }
 
 export type SupportedCountry = { country_code: string; preferred_language: string };
@@ -137,14 +229,8 @@ export type CreateCharacterPayload = {
 
 export const charactersAPI = {
     async list(): Promise<ListCharactersResponse> {
-        const token = getAccessToken();
-        if (!token) throw new Error('Chưa đăng nhập');
-        const headers = buildHeaders({ Authorization: `Bearer ${token}` });
-        const response = await fetch(`${API_BASE_URL}/characters`, {
-            headers,
-        });
+        const { response, traceId } = await authFetch('/characters');
         const resData = await parseJsonSafe(response);
-        const traceId = extractTraceId(response, headers);
         if (!response.ok) {
             throw new Error(`${formatApiError(resData, 'Không tải được nhân vật')} (trace_id=${traceId || 'n/a'})`);
         }
@@ -152,19 +238,12 @@ export const charactersAPI = {
     },
 
     async create(payload: CreateCharacterPayload): Promise<{ character: CharacterDTO; max_characters_per_user: number }> {
-        const token = getAccessToken();
-        if (!token) throw new Error('Chưa đăng nhập');
-        const headers = buildHeaders({
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-        });
-        const response = await fetch(`${API_BASE_URL}/characters`, {
+        const { response, traceId } = await authFetch('/characters', {
             method: 'POST',
-            headers,
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
         const resData = await parseJsonSafe(response);
-        const traceId = extractTraceId(response, headers);
         if (!response.ok) {
             throw new Error(`${formatApiError(resData, 'Tạo nhân vật thất bại')} (trace_id=${traceId || 'n/a'})`);
         }

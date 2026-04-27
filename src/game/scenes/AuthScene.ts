@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { authAPI, charactersAPI } from '../../network/api';
+import { authAPI, charactersAPI, clearTokens, getAccessToken, setTokens } from '../../network/api';
 import { saveCurrentCharacter } from '../playerSession';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
@@ -21,7 +21,7 @@ export class AuthScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor('#1a1a2e');
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
-        const hasSession = Boolean(localStorage.getItem('kageverse_jwt'));
+        const hasSession = Boolean(getAccessToken());
 
         this.statusText = this.add.text(centerX, centerY - 200, '', {
             fontSize: '14px',
@@ -55,8 +55,7 @@ export class AuthScene extends Phaser.Scene {
     }
 
     private async bootstrapSession() {
-        const token = localStorage.getItem('kageverse_jwt');
-        if (!token) return;
+        if (!getAccessToken()) return;
 
         try {
             if (this.statusText?.active) {
@@ -64,9 +63,7 @@ export class AuthScene extends Phaser.Scene {
             }
             await this.goToGameOrCharacterCreate();
         } catch {
-            // Token có thể hết hạn/không hợp lệ
-            localStorage.removeItem('kageverse_jwt');
-            localStorage.removeItem('kageverse_refresh');
+            clearTokens();
             if (this.statusText && this.statusText.active) {
                 this.statusText.setText('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.').setColor('#ff5555');
             }
@@ -189,10 +186,7 @@ export class AuthScene extends Phaser.Scene {
             const response = await authAPI.login({ identifier, password });
 
             if (response.access_token) {
-                localStorage.setItem('kageverse_jwt', response.access_token);
-                if (response.refresh_token) {
-                    localStorage.setItem('kageverse_refresh', response.refresh_token);
-                }
+                setTokens(response.access_token, response.refresh_token);
                 await this.goToGameOrCharacterCreate();
             }
         } catch (error: unknown) {
@@ -226,10 +220,7 @@ export class AuthScene extends Phaser.Scene {
             const response = await authAPI.register({ username, email, password, country_code });
 
             if (response.access_token) {
-                localStorage.setItem('kageverse_jwt', response.access_token);
-                if (response.refresh_token) {
-                    localStorage.setItem('kageverse_refresh', response.refresh_token);
-                }
+                setTokens(response.access_token, response.refresh_token);
                 await this.goToGameOrCharacterCreate();
             }
         } catch (error: unknown) {
