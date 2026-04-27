@@ -25,6 +25,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     private enterKey?: Phaser.Input.Keyboard.Key;
     private lastKnownLevel = 1;
+    private positionSaveTimer?: number;
+    private beforeUnloadHandler?: () => void;
+    private readonly POSITION_SAVE_INTERVAL_MS = 30_000;
 
     constructor(sceneKey: string) {
         super(sceneKey);
@@ -184,8 +187,56 @@ export abstract class BaseMapScene extends Phaser.Scene {
         });
 
         void this.loadInitialCharacterState();
+        this.startPositionAutosave();
 
         this.onMapReady();
+    }
+
+    private startPositionAutosave(): void {
+        // Periodic save every 30s — phòng trường hợp beforeunload fail (mobile / crash).
+        this.positionSaveTimer = window.setInterval(() => {
+            this.savePositionFireAndForget(false);
+        }, this.POSITION_SAVE_INTERVAL_MS);
+
+        // beforeunload: F5 / close tab / navigate away. fetch keepalive cho phép request
+        // sống tiếp ngay cả khi tab đã đóng.
+        this.beforeUnloadHandler = () => {
+            this.savePositionFireAndForget(true);
+        };
+        window.addEventListener('beforeunload', this.beforeUnloadHandler);
+
+        // Khi scene chuyển (vd portal sang map khác) → save trước rồi cleanup.
+        this.events.once('shutdown', () => {
+            this.savePositionFireAndForget(false);
+            this.cleanupPositionAutosave();
+        });
+    }
+
+    private cleanupPositionAutosave(): void {
+        if (this.positionSaveTimer !== undefined) {
+            window.clearInterval(this.positionSaveTimer);
+            this.positionSaveTimer = undefined;
+        }
+        if (this.beforeUnloadHandler) {
+            window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+            this.beforeUnloadHandler = undefined;
+        }
+    }
+
+    private savePositionFireAndForget(keepalive: boolean): void {
+        const character = getCurrentCharacter();
+        if (!character) return;
+        const player = this.playerCtrl?.getPlayer();
+        if (!player) return;
+        const cfg = this.getMapConfig();
+        // KHÔNG await — fire-and-forget.
+        void charactersAPI.savePosition(
+            character.id,
+            { map_id: cfg.mapId, x: player.x, y: player.y },
+            { keepalive },
+        ).catch((err) => {
+            if (err instanceof Error) console.warn('scene: save position failed', err.message);
+        });
     }
 
     private async loadInitialCharacterState(): Promise<void> {
@@ -212,6 +263,19 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 });
             } else {
                 this.buffIndicator.removeBuff('food_buff');
+            }
+
+            // Restore tọa độ nếu nhân vật từng lưu trên đúng map này.
+            const cfg = this.getMapConfig();
+            if (
+                c.last_map_id === cfg.mapId
+                && c.last_pos_x !== null && c.last_pos_x !== undefined
+                && c.last_pos_y !== null && c.last_pos_y !== undefined
+            ) {
+                const player = this.playerCtrl.getPlayer();
+                if (player) {
+                    player.setPosition(c.last_pos_x, c.last_pos_y);
+                }
             }
         } catch (err) {
             if (err instanceof Error) console.warn('scene: load character state failed', err.message);

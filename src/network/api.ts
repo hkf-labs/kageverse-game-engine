@@ -232,6 +232,9 @@ export type CharacterDTO = {
     gold: number;
     gem: number;
     active_food_buff: ActiveFoodBuffDTO | null;
+    last_map_id: string | null;
+    last_pos_x: number | null;
+    last_pos_y: number | null;
     last_seen_at: string;
     created_at: string;
 };
@@ -284,6 +287,32 @@ export const charactersAPI = {
             throw new Error(`${formatApiError(resData, 'Không tải được ví tiền')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as WalletDTO;
+    },
+
+    /**
+     * Lưu tọa độ + map cuối cùng. `keepalive=true` cho phép request sống tiếp khi
+     * tab bị F5 / đóng — dùng cho beforeunload listener.
+     * Trả 204 No Content khi thành công.
+     */
+    async savePosition(
+        characterId: string,
+        payload: { map_id: string; x: number; y: number },
+        opts?: { keepalive?: boolean },
+    ): Promise<void> {
+        const token = getAccessToken();
+        if (!token) return; // chưa login → bỏ qua, không throw để không cản unload.
+        const url = `${API_BASE_URL}/characters/${encodeURIComponent(characterId)}/position`;
+        const headers = buildHeaders({
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        });
+        await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+            keepalive: opts?.keepalive ?? false,
+        });
+        // Không parse response — fire-and-forget. Lỗi network sẽ được throw bên dưới.
     },
 };
 
