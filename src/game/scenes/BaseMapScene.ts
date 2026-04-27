@@ -2,7 +2,8 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, ShopModal,
+    BuffIndicator, ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, ShopModal,
+    categoryForTemplate, iconForTemplate,
     type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
 } from '../components';
 
@@ -16,6 +17,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected inventory!: InventoryModal;
     protected shop!: ShopModal;
     protected npcChatBubble!: NpcChatBubble;
+    protected buffIndicator!: BuffIndicator;
     protected controls!: GameControls;
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
@@ -127,15 +129,29 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.chat = new ChatPanel(this);
         this.chat.create();
 
-        // Inventory modal (HTML DOM overlay) — gắn callback cập nhật HUD khi dùng potion.
-        this.inventory = new InventoryModal(this, (stats) => {
-            this.hud.setStats({
-                current_hp: stats.current_hp,
-                max_hp: stats.max_hp,
-                current_mp: stats.current_mp,
-                max_mp: stats.max_mp,
-                level: this.lastKnownLevel,
-            });
+        // Buff indicator (food buff icon + countdown).
+        this.buffIndicator = new BuffIndicator(this);
+        this.buffIndicator.create();
+
+        // Inventory modal (HTML DOM overlay) — callback HUD + buff indicator khi dùng item.
+        this.inventory = new InventoryModal(this, {
+            onStatsChanged: (stats) => {
+                this.hud.setStats({
+                    current_hp: stats.current_hp,
+                    max_hp: stats.max_hp,
+                    current_mp: stats.current_mp,
+                    max_mp: stats.max_mp,
+                    level: this.lastKnownLevel,
+                });
+            },
+            onFoodBuffStarted: (buff) => {
+                this.buffIndicator.setBuff({
+                    key: categoryForTemplate(buff.item_template_id),
+                    expiresAt: new Date(buff.expires_at),
+                    icon: iconForTemplate(buff.item_template_id),
+                    label: buff.item_template_id,
+                });
+            },
         });
         this.inventory.create();
 
@@ -187,6 +203,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 max_mp: c.max_mp,
                 level: c.level,
             });
+            if (c.active_food_buff) {
+                this.buffIndicator.setBuff({
+                    key: categoryForTemplate(c.active_food_buff.item_template_id),
+                    expiresAt: new Date(c.active_food_buff.expires_at),
+                    icon: iconForTemplate(c.active_food_buff.item_template_id),
+                    label: c.active_food_buff.item_template_id,
+                });
+            } else {
+                this.buffIndicator.removeBuff('food_buff');
+            }
         } catch (err) {
             if (err instanceof Error) console.warn('scene: load character state failed', err.message);
         }
@@ -201,6 +227,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.portals.forEach((p) => p.updatePortal(player.x, player.y));
         this.monsters.update();
         this.npcChatBubble.update();
+        this.buffIndicator.update();
 
         if (this.chat.isFocused() || this.shop?.isOpen()) {
             player.body?.setVelocityX(0);

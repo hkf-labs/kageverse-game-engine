@@ -1,3 +1,5 @@
+export { BuffIndicator, iconForTemplate, categoryForTemplate } from './BuffIndicator';
+export type { ActiveBuff } from './BuffIndicator';
 export { ChatPanel } from './ChatPanel';
 export { GameControls } from './GameControls';
 export { HUD } from './HUD';

@@ -3,6 +3,7 @@ import {
     charactersAPI,
     inventoryAPI,
     type CharacterStatsSnapshot,
+    type FoodBuffStartedDTO,
     type InventoryItemDTO,
     type InventoryItemType,
 } from '../../network/api';
@@ -113,10 +114,18 @@ export class InventoryModal implements GameComponent {
     private currencies: CharacterCurrencies = { ...ZERO_CURRENCIES };
     private scene: Phaser.Scene;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
+    private onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
 
-    constructor(scene: Phaser.Scene, onStatsChanged?: (stats: CharacterStatsSnapshot) => void) {
+    constructor(
+        scene: Phaser.Scene,
+        callbacks?: {
+            onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
+            onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
+        },
+    ) {
         this.scene = scene;
-        this.onStatsChanged = onStatsChanged;
+        this.onStatsChanged = callbacks?.onStatsChanged;
+        this.onFoodBuffStarted = callbacks?.onFoodBuffStarted;
     }
 
     create(): void {
@@ -476,6 +485,9 @@ export class InventoryModal implements GameComponent {
             const res = await inventoryAPI.use(character.id, item.userItemId, 1);
             if (res.character_stats && this.onStatsChanged) {
                 this.onStatsChanged(res.character_stats);
+            }
+            if (res.effects?.food_buff_started && this.onFoodBuffStarted) {
+                this.onFoodBuffStarted(res.effects.food_buff_started);
             }
             await this.loadInventory();
         } catch (err) {
