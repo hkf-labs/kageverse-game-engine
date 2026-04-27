@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { authAPI, charactersAPI, clearTokens, getAccessToken, setTokens } from '../../network/api';
+import { validateLoginIdentifier, validateUsername } from '../../lib/validation';
 import { saveCurrentCharacter } from '../playerSession';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
@@ -180,6 +181,11 @@ export class AuthScene extends Phaser.Scene {
             if (this.statusText?.active) this.statusText.setText('Nhập đủ username/email và mật khẩu.');
             return;
         }
+        const identifierError = validateLoginIdentifier(identifier);
+        if (identifierError) {
+            if (this.statusText?.active) this.statusText.setText(identifierError).setColor('#ff5555');
+            return;
+        }
 
         try {
             if (this.statusText?.active) this.statusText.setText('Đang đăng nhập...').setColor('#aaaaaa');
@@ -208,6 +214,11 @@ export class AuthScene extends Phaser.Scene {
 
         if (!username || !email || !password) {
             if (this.statusText?.active) this.statusText.setText('Điền đủ username, email và mật khẩu.');
+            return;
+        }
+        const usernameError = validateUsername(username);
+        if (usernameError) {
+            if (this.statusText?.active) this.statusText.setText(usernameError).setColor('#ff5555');
             return;
         }
         if (!country_code) {

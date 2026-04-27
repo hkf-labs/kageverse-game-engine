@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { charactersAPI } from '../../network/api';
+import { validateDisplayName } from '../../lib/validation';
 import { saveCurrentCharacter } from '../playerSession';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
@@ -99,8 +100,9 @@ export class CharacterCreateScene extends Phaser.Scene {
     private async submit() {
         const input = this.domElement?.getChildByName('char-display-name') as HTMLInputElement;
         const displayName = (input?.value || '').trim();
-        if (displayName.length < 2) {
-            this.statusText?.setText('Tên hiển thị cần ít nhất 2 ký tự.');
+        const displayNameError = validateDisplayName(displayName);
+        if (displayNameError) {
+            this.statusText?.setText(displayNameError).setColor('#ff6b6b');
             return;
         }
 
