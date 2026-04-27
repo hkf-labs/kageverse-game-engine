@@ -151,7 +151,7 @@ export class AuthScene extends Phaser.Scene {
 
             const onboardingDone = localStorage.getItem(FIRST_MAP_ONBOARDING_DONE_KEY) === 'true';
             if (!onboardingDone) {
-                this.scene.start('FirstMapOnboardingScene');
+                this.scene.start('VillageScene');
                 return;
             }
 

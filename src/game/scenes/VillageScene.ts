@@ -12,7 +12,7 @@ export class VillageScene extends BaseMapScene {
     private actionHintText?: Phaser.GameObjects.Text;
 
     constructor() {
-        super('FirstMapOnboardingScene');
+        super('VillageScene');
     }
 
     protected getMapConfig(): MapConfig {

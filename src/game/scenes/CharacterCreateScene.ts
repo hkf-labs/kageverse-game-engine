@@ -114,7 +114,7 @@ export class CharacterCreateScene extends Phaser.Scene {
             saveCurrentCharacter(created.character);
             localStorage.setItem(FIRST_MAP_ONBOARDING_DONE_KEY, 'false');
             this.statusText?.setText('');
-            this.scene.start('FirstMapOnboardingScene');
+            this.scene.start('VillageScene');
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Tạo nhân vật thất bại';
             this.statusText?.setText(msg).setColor('#ff6b6b');

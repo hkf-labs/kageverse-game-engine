@@ -38,7 +38,7 @@ export class CombatFieldScene extends BaseMapScene {
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180, label: 'Quay Về Làng', targetSceneKey: 'FirstMapOnboardingScene' },
+            { x: 180, label: 'Quay Về Làng', targetSceneKey: 'VillageScene' },
         ];
     }
 }
