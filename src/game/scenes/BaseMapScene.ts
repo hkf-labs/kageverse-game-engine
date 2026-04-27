@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
-import { logout } from '../../network/api';
+import { charactersAPI, logout } from '../../network/api';
+import { getCurrentCharacter } from '../playerSession';
 import {
     ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, ShopModal,
     type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
@@ -21,6 +22,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected portals: Portal[] = [];
 
     private enterKey?: Phaser.Input.Keyboard.Key;
+    private lastKnownLevel = 1;
 
     constructor(sceneKey: string) {
         super(sceneKey);
@@ -125,8 +127,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.chat = new ChatPanel(this);
         this.chat.create();
 
-        // Inventory modal (HTML DOM overlay)
-        this.inventory = new InventoryModal(this);
+        // Inventory modal (HTML DOM overlay) — gắn callback cập nhật HUD khi dùng potion.
+        this.inventory = new InventoryModal(this, (stats) => {
+            this.hud.setStats({
+                current_hp: stats.current_hp,
+                max_hp: stats.max_hp,
+                current_mp: stats.current_mp,
+                max_mp: stats.max_mp,
+                level: this.lastKnownLevel,
+            });
+        });
         this.inventory.create();
 
         // Menu
@@ -157,7 +167,29 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.handleInteract();
         });
 
+        void this.loadInitialCharacterState();
+
         this.onMapReady();
+    }
+
+    private async loadInitialCharacterState(): Promise<void> {
+        const current = getCurrentCharacter();
+        if (!current) return;
+        try {
+            const list = await charactersAPI.list();
+            const c = list.characters.find((it) => it.id === current.id) ?? list.characters[0];
+            if (!c) return;
+            this.lastKnownLevel = c.level;
+            this.hud.setStats({
+                current_hp: c.current_hp,
+                max_hp: c.max_hp,
+                current_mp: c.current_mp,
+                max_mp: c.max_mp,
+                level: c.level,
+            });
+        } catch (err) {
+            if (err instanceof Error) console.warn('scene: load character state failed', err.message);
+        }
     }
 
     update(): void {

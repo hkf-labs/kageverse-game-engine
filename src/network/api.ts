@@ -304,10 +304,19 @@ export type ListInventoryResponse = {
     items: InventoryItemDTO[];
 };
 
+export type CharacterStatsSnapshot = {
+    current_hp: number;
+    max_hp: number;
+    current_mp: number;
+    max_mp: number;
+    hp_potion_cd_until: string | null;
+    mp_potion_cd_until: string | null;
+};
+
 export type UseInventoryResponse = {
     user_item: { id: string; slot_index: number | null; amount: number } | null;
     effects: Record<string, unknown> | null;
-    character_stats: Record<string, unknown> | null;
+    character_stats: CharacterStatsSnapshot | null;
 };
 
 export type DropInventoryResponse = {

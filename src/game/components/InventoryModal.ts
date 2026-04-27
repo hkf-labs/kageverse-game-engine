@@ -1,5 +1,11 @@
 import * as Phaser from 'phaser';
-import { charactersAPI, inventoryAPI, type InventoryItemDTO, type InventoryItemType } from '../../network/api';
+import {
+    charactersAPI,
+    inventoryAPI,
+    type CharacterStatsSnapshot,
+    type InventoryItemDTO,
+    type InventoryItemType,
+} from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import type { GameComponent } from './types';
 
@@ -100,9 +106,11 @@ export class InventoryModal implements GameComponent {
     private actionInFlight = false;
     private currencies: CharacterCurrencies = { ...ZERO_CURRENCIES };
     private scene: Phaser.Scene;
+    private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
 
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, onStatsChanged?: (stats: CharacterStatsSnapshot) => void) {
         this.scene = scene;
+        this.onStatsChanged = onStatsChanged;
     }
 
     create(): void {
@@ -459,7 +467,10 @@ export class InventoryModal implements GameComponent {
         this.actionInFlight = true;
         this.setButtonsEnabled(false, false);
         try {
-            await inventoryAPI.use(character.id, item.userItemId, 1);
+            const res = await inventoryAPI.use(character.id, item.userItemId, 1);
+            if (res.character_stats && this.onStatsChanged) {
+                this.onStatsChanged(res.character_stats);
+            }
             await this.loadInventory();
         } catch (err) {
             this.errorMessage = err instanceof Error ? err.message : 'Sử dụng vật phẩm thất bại';
