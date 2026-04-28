@@ -5,6 +5,8 @@ import { CharacterCreateScene } from './scenes/CharacterCreateScene';
 import { VillageScene } from './scenes/VillageScene';
 import { CombatFieldScene } from './scenes/CombatFieldScene';
 import { SwordSchoolScene } from './scenes/SwordSchoolScene';
+import { BambooForestScene } from './scenes/BambooForestScene';
+import { RockyHillScene } from './scenes/RockyHillScene';
 
 export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
     return {
@@ -27,6 +29,6 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
                 debug: true // HIỂN THỊ VIỀN TÍM CỦA HITBOX
             }
         },
-        scene: [AuthScene, CharacterCreateScene, VillageScene, CombatFieldScene, SwordSchoolScene, MainScene]
+        scene: [AuthScene, CharacterCreateScene, VillageScene, CombatFieldScene, SwordSchoolScene, BambooForestScene, RockyHillScene, MainScene]
     };
 };

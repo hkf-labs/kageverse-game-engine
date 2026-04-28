@@ -46,6 +46,13 @@ export class CombatFieldScene extends BaseMapScene {
                 locked: true,
                 lockedMessage: 'Cần hoàn thành nhiệm vụ Nhập Phái để mở khoá Trường Mikazuki.',
             },
+            {
+                x: 5500,
+                label: 'Rừng Tre Yatomi',
+                targetSceneKey: 'BambooForestScene',
+                locked: true,
+                lockedMessage: 'Cần hoàn thành nhiệm vụ Vào Rừng Tre (lv 8) để mở khoá.',
+            },
         ];
     }
 }

@@ -9,9 +9,11 @@ export interface MapRegistryEntry {
 }
 
 export const MAP_REGISTRY: Record<string, MapRegistryEntry> = {
-    village_001:      { sceneKey: 'VillageScene',     displayName: 'Làng Sương Khói' },
-    sword_school_001: { sceneKey: 'SwordSchoolScene', displayName: 'Trường Mikazuki — Phái Kiếm' },
-    combat_field_001: { sceneKey: 'CombatFieldScene', displayName: 'Hố Sâu Thời Gian' },
+    village_001:          { sceneKey: 'VillageScene',      displayName: 'Làng Sương Khói' },
+    sword_school_001:     { sceneKey: 'SwordSchoolScene',  displayName: 'Trường Mikazuki — Phái Kiếm' },
+    combat_field_001:     { sceneKey: 'CombatFieldScene',  displayName: 'Đồng Cỏ Săn Quái' },
+    bamboo_forest_yatomi: { sceneKey: 'BambooForestScene', displayName: 'Rừng Tre Yatomi' },
+    rocky_hill_iwagumo:   { sceneKey: 'RockyHillScene',    displayName: 'Đồi Đá Iwagumo' },
 };
 
 export function resolveSceneKeyForMap(mapId: string | null | undefined): string {
