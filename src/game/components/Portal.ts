@@ -70,6 +70,12 @@ export class Portal implements GameComponent {
 
     isLocked(): boolean { return this.locked; }
     getLockedMessage(): string | undefined { return this.config.lockedMessage; }
+    getTargetSceneKey(): string { return this.config.targetSceneKey; }
+
+    /** Override lockedMessage runtime — dùng khi gating thay đổi (vd map chưa unlock theo quest). */
+    setLockedMessage(msg: string): void {
+        this.config.lockedMessage = msg;
+    }
 
     setLocked(locked: boolean): void {
         this.locked = locked;

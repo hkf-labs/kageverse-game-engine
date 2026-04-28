@@ -14,5 +14,5 @@ export { NpcManager } from './NpcManager';
 export { PlayerController } from './PlayerController';
 export { Portal } from './Portal';
 export { ShopModal } from './ShopModal';
-export type { GameComponent, MapConfig, MonsterConfig, MonsterLevel, NpcConfig, NpcEntry, PortalConfig, TiledMapData, TiledLayer, TiledObject } from './types';
+export type { GameComponent, MapConfig, NpcConfig, NpcEntry, PortalConfig, TiledMapData, TiledLayer, TiledObject } from './types';
 export type { ControlCallbacks } from './GameControls';

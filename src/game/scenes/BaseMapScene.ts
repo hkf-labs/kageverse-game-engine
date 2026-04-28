@@ -4,7 +4,7 @@ import { getCurrentCharacter } from '../playerSession';
 import {
     ActionMenu, BuffIndicator, ChatPanel, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, ShopModal,
     categoryForTemplate, iconForTemplate,
-    type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
+    type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
 
 export abstract class BaseMapScene extends Phaser.Scene {
@@ -26,6 +26,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private enterKey?: Phaser.Input.Keyboard.Key;
     private escKey?: Phaser.Input.Keyboard.Key;
     private lastKnownLevel = 1;
+    private lastKnownStats = { max_hp: 100, max_mp: 50 };
     private positionSaveTimer?: number;
     private beforeUnloadHandler?: () => void;
     private readonly POSITION_SAVE_INTERVAL_MS = 30_000;
@@ -37,7 +38,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected abstract getMapConfig(): MapConfig;
     protected abstract getNpcConfigs(): NpcConfig[];
     protected getPortalConfigs(): PortalConfig[] { return []; }
-    protected getMonsterConfigs(): MonsterConfig[] { return []; }
     protected getMapDisplayName(): string { return ''; }
     protected onMapReady(): void {}
 
@@ -99,9 +99,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return portal;
         });
 
-        // Monsters
-        this.monsters = new MonsterManager(this, this.background, this.getMonsterConfigs());
+        // Monsters — BE-driven (data từ /maps/:id/monsters per character).
+        this.monsters = new MonsterManager(this, this.background, cfg.mapId, {
+            onAttackResult: (res) => this.handleAttackResult(res),
+            onError: (msg) => this.hud.setStatus(msg, '#ff8a8a'),
+        });
         this.monsters.create();
+        this.monsters.setPlayerPositionGetter(() => {
+            const p = this.playerCtrl.getPlayer();
+            return p ? { x: p.x, y: p.y } : null;
+        });
 
         // HUD
         this.hud = new HUD(this);
@@ -238,6 +245,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
             const c = list.characters.find((it) => it.id === current.id) ?? list.characters[0];
             if (!c) return;
             this.lastKnownLevel = c.level;
+            this.lastKnownStats.max_hp = c.max_hp;
+            this.lastKnownStats.max_mp = c.max_mp;
             this.hud.setStats({
                 current_hp: c.current_hp,
                 max_hp: c.max_hp,
@@ -269,7 +278,18 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 }
             }
 
-            // QA bypass: mở khoá toàn bộ portal đang locked.
+            // Portal lock theo unlocked_maps: portal đến map chưa unlock thì lock.
+            // Áp dụng SAU portal config gốc (config gốc lock vẫn giữ — vd Sword School cần Bái Sư).
+            const { mapIdForSceneKey } = await import('../maps/registry');
+            this.portals.forEach((p) => {
+                const targetMapId = mapIdForSceneKey(p.getTargetSceneKey());
+                if (targetMapId && !c.unlocked_maps.includes(targetMapId)) {
+                    p.setLocked(true);
+                    p.setLockedMessage('Map này chưa mở khoá. Tiếp tục nhiệm vụ chính tuyến để mở.');
+                }
+            });
+
+            // QA bypass: mở khoá toàn bộ portal đang locked (trump cả unlocked_maps gating).
             if (c.unlock_all_maps) {
                 this.portals.forEach((p) => p.setLocked(false));
             }
@@ -365,7 +385,96 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        this.npcs.handleInteract(player.x, player.y);
+        if (this.npcs.getSelectedNpc()) {
+            this.npcs.handleInteract(player.x, player.y);
+            return;
+        }
+
+        // Không có portal/NPC → swing vào quái gần nhất.
+        void this.monsters.attackNearest();
+    }
+
+    private handleAttackResult(res: import('../../network/api').AttackResponse): void {
+        // Update HUD HP/MP/Level + XP bar.
+        this.hud.setStats({
+            current_hp: res.character_current_hp,
+            max_hp: res.level_up?.new_max_hp ?? this.lastKnownStats.max_hp,
+            current_mp: res.character_current_mp,
+            max_mp: res.level_up?.new_max_mp ?? this.lastKnownStats.max_mp,
+            level: res.character_level,
+        });
+        this.lastKnownLevel = res.character_level;
+        if (res.level_up) {
+            this.lastKnownStats.max_hp = res.level_up.new_max_hp;
+            this.lastKnownStats.max_mp = res.level_up.new_max_mp;
+            this.showLevelUpBanner(res.level_up.from_level, res.level_up.to_level);
+        }
+        if (res.xp_gained > 0) this.showXPFloater(res.xp_gained);
+        // Death check.
+        if (res.character_current_hp <= 0) {
+            void this.handleDeath();
+        }
+    }
+
+    private showXPFloater(amount: number): void {
+        const player = this.playerCtrl.getPlayer();
+        if (!player) return;
+        const txt = this.add.text(player.x, player.y - 100, `+${amount} XP`, {
+            fontSize: '14px', fontStyle: 'bold', color: '#bdf0a0',
+            fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(60);
+        this.tweens.add({
+            targets: txt, y: txt.y - 50, alpha: 0,
+            duration: 900, ease: 'Cubic.easeOut',
+            onComplete: () => txt.destroy(),
+        });
+    }
+
+    private showLevelUpBanner(from: number, to: number): void {
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const banner = this.add.text(w / 2, h / 2 - 60, `LV ${from} → ${to}!`, {
+            fontSize: '36px', fontStyle: 'bold', color: '#ffea7a',
+            fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 6,
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
+        this.tweens.add({
+            targets: banner,
+            y: banner.y - 80, alpha: 0,
+            duration: 1800, ease: 'Cubic.easeOut',
+            onComplete: () => banner.destroy(),
+        });
+    }
+
+    private async handleDeath(): Promise<void> {
+        const character = getCurrentCharacter();
+        if (!character) return;
+        const overlay = this.add.rectangle(this.scale.width / 2, this.scale.height / 2,
+            this.scale.width, this.scale.height, 0x000000, 0.6)
+            .setScrollFactor(0).setDepth(250);
+        const txt = this.add.text(this.scale.width / 2, this.scale.height / 2, 'BẠN ĐÃ GỤC...\nĐang hồi sinh ở Làng', {
+            fontSize: '24px', color: '#ff8a8a', align: 'center',
+            fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 4,
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(251);
+
+        await new Promise((r) => setTimeout(r, 3000));
+        try {
+            const { combatAPI } = await import('../../network/api');
+            const res = await combatAPI.respawn(character.id);
+            this.hud.setStats({
+                current_hp: res.current_hp,
+                max_hp: res.current_hp,
+                current_mp: res.current_mp,
+                max_mp: res.current_mp,
+                level: this.lastKnownLevel,
+            });
+            this.scene.start('VillageScene');
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Hồi sinh thất bại';
+            this.hud.setStatus(msg, '#ff8a8a');
+        } finally {
+            overlay.destroy();
+            txt.destroy();
+        }
     }
 
     private createChatMenuButtons(mmX: number, mmY: number, mmWidth: number, mmHeight: number): void {

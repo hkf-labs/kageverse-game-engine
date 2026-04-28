@@ -24,3 +24,11 @@ export function resolveSceneKeyForMap(mapId: string | null | undefined): string 
 export function mapDisplayName(mapId: string): string {
     return MAP_REGISTRY[mapId]?.displayName ?? mapId;
 }
+
+/** Reverse lookup scene key → map_id. Trả undefined nếu không tìm thấy. */
+export function mapIdForSceneKey(sceneKey: string): string | undefined {
+    for (const [mapId, entry] of Object.entries(MAP_REGISTRY)) {
+        if (entry.sceneKey === sceneKey) return mapId;
+    }
+    return undefined;
+}

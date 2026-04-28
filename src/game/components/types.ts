@@ -60,15 +60,6 @@ export interface PortalConfig {
     lockedMessage?: string;
 }
 
-export type MonsterLevel = 1 | 3 | 5;
-
-export interface MonsterConfig {
-    name: string;
-    level: MonsterLevel;
-    x: number;
-    y?: number;
-}
-
 export interface MapConfig {
     mapId: string;
     displayName: string;

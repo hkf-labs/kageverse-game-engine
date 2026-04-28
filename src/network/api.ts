@@ -240,6 +240,12 @@ export type CharacterDTO = {
      * điều kiện mở khoá portal (quest, level, ...) — flip thủ công ở DB.
      */
     unlock_all_maps: boolean;
+    /**
+     * Danh sách map_id character đã unlock thật (theo quest progress).
+     * Default chỉ ['village_001']. Q1 on_accept thêm 'combat_field_001';
+     * Q9 thêm 'bamboo_forest_yatomi'. FE dùng để lock portal đến map chưa unlock.
+     */
+    unlocked_maps: string[];
     last_seen_at: string;
     created_at: string;
 };
@@ -483,6 +489,99 @@ export const npcAPI = {
             throw new Error(`${formatApiError(resData, 'Không tải được NPC')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as NpcInteractResponse;
+    },
+};
+
+// ----- Combat -----
+
+export type MonsterInstanceDTO = {
+    instance_id: string;
+    template_id: string;
+    name_key: string;
+    level: number;
+    affinity?: string;
+    movement_type: 'ground' | 'flying';
+    sprite_key: string;
+    grade: 'normal' | 'elite' | 'leader' | 'world_boss';
+    max_hp: number;
+    current_hp: number;
+    pos_x: number;
+    pos_y: number;
+    state: 'alive' | 'dead';
+    respawn_in_sec?: number;
+};
+
+export type ListMonstersResponse = {
+    map_id: string;
+    monsters: MonsterInstanceDTO[];
+    server_now: string;
+};
+
+export type AttackRequest = {
+    instance_id: string;
+    map_id: string;
+};
+
+export type LevelUpDTO = {
+    from_level: number;
+    to_level: number;
+    new_max_hp: number;
+    new_max_mp: number;
+    new_min_attack: number;
+    new_max_attack: number;
+    new_defense: number;
+};
+
+export type AttackResponse = {
+    damage_dealt: number;
+    is_crit: boolean;
+    monster_hp_remaining: number;
+    monster_dead: boolean;
+    xp_gained: number;
+    level_up?: LevelUpDTO;
+    character_current_hp: number;
+    character_current_mp: number;
+    character_level: number;
+    character_exp: number;
+};
+
+export type RespawnResponse = {
+    current_hp: number;
+    current_mp: number;
+    map_id: string;
+};
+
+export const combatAPI = {
+    async listMonsters(mapId: string, characterId: string): Promise<ListMonstersResponse> {
+        const path = `/maps/${encodeURIComponent(mapId)}/monsters?character_id=${encodeURIComponent(characterId)}`;
+        const { response, traceId } = await authFetch(path);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được danh sách quái')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as ListMonstersResponse;
+    },
+    async attack(characterId: string, req: AttackRequest): Promise<AttackResponse> {
+        const path = `/characters/${encodeURIComponent(characterId)}/attack`;
+        const { response, traceId } = await authFetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Tấn công thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as AttackResponse;
+    },
+    async respawn(characterId: string): Promise<RespawnResponse> {
+        const path = `/characters/${encodeURIComponent(characterId)}/respawn`;
+        const { response, traceId } = await authFetch(path, { method: 'POST' });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Hồi sinh thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as RespawnResponse;
     },
 };
 

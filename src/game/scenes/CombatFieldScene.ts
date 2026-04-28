@@ -1,4 +1,4 @@
-import type { MapConfig, MonsterConfig, NpcConfig, PortalConfig } from '../components';
+import type { MapConfig, NpcConfig, PortalConfig } from '../components';
 import { BaseMapScene } from './BaseMapScene';
 
 export class CombatFieldScene extends BaseMapScene {
@@ -24,16 +24,6 @@ export class CombatFieldScene extends BaseMapScene {
 
     protected getNpcConfigs(): NpcConfig[] {
         return [];
-    }
-
-    protected getMonsterConfigs(): MonsterConfig[] {
-        return [
-            { name: 'Slime', level: 1, x: 380 },
-            { name: 'Slime', level: 1, x: 190, y: 1240 },
-            { name: 'Goblin', level: 3, x: 550, y: 960 },
-            { name: 'Orc', level: 5, x: 920, y: 680 },
-            { name: 'Goblin', level: 3, x: 1130, y: 820 },
-        ];
     }
 
     protected getPortalConfigs(): PortalConfig[] {
