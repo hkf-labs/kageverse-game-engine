@@ -1,15 +1,10 @@
 import * as Phaser from 'phaser';
 import { npcAPI, type NpcActionDTO } from '../../network/api';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
+import type { ActionMenu, ActionMenuItem } from './ActionMenu';
 import type { MapBackground } from './MapBackground';
 import type { NpcChatBubble } from './NpcChatBubble';
 import type { ShopModal } from './ShopModal';
-
-interface DialogOption {
-    text: Phaser.GameObjects.Text;
-    bg: Phaser.GameObjects.Graphics;
-    action: () => void;
-}
 
 const ACTION_LABEL_VI: Record<string, string> = {
     talk: 'Trò chuyện',
@@ -18,6 +13,15 @@ const ACTION_LABEL_VI: Record<string, string> = {
     view_quests: 'Nhiệm vụ',
     open_stash: 'Mở rương',
     teleport: 'Dịch chuyển',
+};
+
+const ACTION_ICON: Record<string, string> = {
+    talk: '💬',
+    buy_shop: '🛒',
+    upgrade_equipment: '⚒️',
+    view_quests: '📜',
+    open_stash: '📦',
+    teleport: '✨',
 };
 
 function actionLabel(a: NpcActionDTO): string {
@@ -43,11 +47,6 @@ export class NpcManager implements GameComponent {
     private selectedNpc: NpcEntry | null = null;
     private selectionIndicator?: Phaser.GameObjects.Graphics;
     private autoMoveTargetX: number | null = null;
-
-    private dialogContainer?: Phaser.GameObjects.Container;
-    private dialogOptions: DialogOption[] = [];
-    private selectedOptionIndex = 0;
-    private npcOptionsTitle?: Phaser.GameObjects.Text;
     private fetchSeq = 0;
 
     private readonly INTERACT_RANGE = 150;
@@ -58,6 +57,7 @@ export class NpcManager implements GameComponent {
     private background: MapBackground;
     private npcConfigs: NpcConfig[];
     private mapId: string;
+    private actionMenu?: ActionMenu;
     private shopModal?: ShopModal;
     private chatBubble?: NpcChatBubble;
     private onStatusMessage?: (text: string, color: string) => void;
@@ -69,6 +69,7 @@ export class NpcManager implements GameComponent {
         npcConfigs: NpcConfig[],
         deps?: {
             mapId?: string;
+            actionMenu?: ActionMenu;
             shopModal?: ShopModal;
             chatBubble?: NpcChatBubble;
             onStatusMessage?: (text: string, color: string) => void;
@@ -78,6 +79,7 @@ export class NpcManager implements GameComponent {
         this.background = background;
         this.npcConfigs = npcConfigs;
         this.mapId = deps?.mapId ?? '';
+        this.actionMenu = deps?.actionMenu;
         this.shopModal = deps?.shopModal;
         this.chatBubble = deps?.chatBubble;
         this.onStatusMessage = deps?.onStatusMessage;
@@ -107,19 +109,6 @@ export class NpcManager implements GameComponent {
         });
 
         this.selectionIndicator = this.scene.add.graphics().setDepth(9).setVisible(false);
-
-        const width = this.scene.scale.width;
-        const height = this.scene.scale.height;
-        this.dialogContainer = this.scene.add.container(width / 2, height - 100).setScrollFactor(0).setDepth(100).setVisible(false);
-        const panel = this.scene.add.graphics();
-        panel.fillStyle(0x3e2723, 0.95);
-        panel.fillRoundedRect(-300, -60, 600, 100, 16);
-        panel.lineStyle(4, 0x8d6e63, 1);
-        panel.strokeRoundedRect(-300, -60, 600, 100, 16);
-        this.npcOptionsTitle = this.scene.add.text(-280, -45, '', {
-            fontSize: '18px', color: '#ffea7a', stroke: '#000', strokeThickness: 4, fontFamily: 'system-ui, sans-serif'
-        });
-        this.dialogContainer.add([panel, this.npcOptionsTitle]);
     }
 
     getInteractingNpc(): NpcEntry | null { return this.interactingNpc; }
@@ -128,10 +117,7 @@ export class NpcManager implements GameComponent {
     clearAutoMove(): void { this.autoMoveTargetX = null; }
 
     handleInteract(playerX: number, playerY: number): void {
-        if (this.interactingNpc) {
-            this.executeOption();
-            return;
-        }
+        if (this.interactingNpc) return; // dialog đang mở qua ActionMenu
         if (!this.selectedNpc) return;
 
         const dist = Phaser.Math.Distance.Between(playerX, playerY, this.selectedNpc.sprite.x, this.selectedNpc.sprite.y);
@@ -152,15 +138,6 @@ export class NpcManager implements GameComponent {
             return true;
         }
         return false;
-    }
-
-    navigateOption(direction: 'left' | 'right'): void {
-        if (direction === 'left') {
-            this.selectedOptionIndex = Math.max(0, this.selectedOptionIndex - 1);
-        } else {
-            this.selectedOptionIndex = Math.min(this.dialogOptions.length - 1, this.selectedOptionIndex + 1);
-        }
-        this.updateOptionHighlight();
     }
 
     canCycleTarget(): boolean {
@@ -211,19 +188,19 @@ export class NpcManager implements GameComponent {
     }
 
     private startInteraction(npc: NpcEntry): void {
-        if (!this.dialogContainer || this.interactingNpc) return;
+        if (this.interactingNpc || !this.actionMenu) return;
         this.interactingNpc = npc;
-        this.dialogContainer.setVisible(true);
-        this.npcOptionsTitle?.setText(`[ ${npc.name} ]`);
 
-        // Reset cũ
-        this.dialogOptions.forEach(opt => { opt.bg.destroy(); opt.text.destroy(); });
-        this.dialogOptions = [];
-        this.selectedOptionIndex = 0;
+        const showLoading = () => {
+            this.actionMenu?.open({
+                title: npc.name,
+                items: [{ key: 'loading', label: 'Đang tải...', disabled: true, action: () => {} }],
+                onClose: () => this.handleMenuClosed(),
+            });
+        };
 
         if (npc.templateId && this.mapId) {
-            // BE-driven menu. Show loading, fetch async, render khi xong.
-            this.renderLoadingPlaceholder();
+            showLoading();
             const seq = ++this.fetchSeq;
             void npcAPI.getInteract(this.mapId, npc.templateId)
                 .then((res) => {
@@ -231,99 +208,69 @@ export class NpcManager implements GameComponent {
                         this.dialogueKeyByTemplate.set(npc.templateId, res.default_dialogue_key);
                     }
                     if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
-                    this.renderActionsFromBE(npc, res.available_actions);
+                    this.openMenuFromBE(npc, res.available_actions);
                 })
                 .catch((err) => {
                     if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
                     const msg = err instanceof Error ? err.message : 'Không tải được menu NPC';
                     this.onStatusMessage?.(msg, '#ff8a8a');
-                    this.renderMockOptions(npc);
+                    this.openMenuMock(npc);
                 });
         } else {
-            // Fallback mock dialog cho NPC chưa wire BE.
-            this.renderMockOptions(npc);
+            this.openMenuMock(npc);
         }
     }
 
-    private renderLoadingPlaceholder(): void {
-        if (!this.dialogContainer) return;
-        const txt = this.scene.add.text(-280 + 20, 0, 'Đang tải...', {
-            fontSize: '16px', color: '#aaaaaa', fontStyle: 'italic', fontFamily: 'system-ui, sans-serif'
-        });
-        const bg = this.scene.add.graphics();
-        this.dialogContainer.add([bg, txt]);
-        this.dialogOptions.push({ text: txt, bg, action: () => {} });
-    }
-
-    private renderActionsFromBE(npc: NpcEntry, actions: NpcActionDTO[]): void {
-        if (!this.dialogContainer) return;
-        // Xóa placeholder
-        this.dialogOptions.forEach(opt => { opt.bg.destroy(); opt.text.destroy(); });
-        this.dialogOptions = [];
-        this.selectedOptionIndex = 0;
-
-        const builders = actions.map((a) => ({
+    private openMenuFromBE(npc: NpcEntry, actions: NpcActionDTO[]): void {
+        if (!this.actionMenu) return;
+        const items: ActionMenuItem[] = actions.map((a) => ({
+            key: a.action,
             label: actionLabel(a),
+            icon: ACTION_ICON[a.action],
             action: () => this.runAction(npc, a.action),
         }));
-        // Luôn có "Rời đi" cuối
-        builders.push({ label: 'Rời đi', action: () => this.closeInteraction() });
-        this.layoutOptions(builders);
-    }
-
-    private renderMockOptions(npc: NpcEntry): void {
-        // Xóa placeholder loading nếu còn
-        this.dialogOptions.forEach(opt => { opt.bg.destroy(); opt.text.destroy(); });
-        this.dialogOptions = [];
-        this.selectedOptionIndex = 0;
-
-        const builders = [
-            { label: 'Trò chuyện', action: () => this.onStatusMessage?.(`${npc.name}: Chào mừng đến với Kageverse!`, '#fff') },
-            { label: 'Nhận Nhiệm vụ', action: () => this.closeInteraction() },
-            { label: 'Giao dịch', action: () => this.onStatusMessage?.('NPC này chưa có cửa hàng.', '#aaaaaa') },
-            { label: 'Rời đi', action: () => this.closeInteraction() },
-        ];
-        this.layoutOptions(builders);
-    }
-
-    private layoutOptions(items: Array<{ label: string; action: () => void }>): void {
-        if (!this.dialogContainer) return;
-        let startX = -280;
-        items.forEach((opt, idx) => {
-            const bg = this.scene.add.graphics();
-            const txt = this.scene.add.text(startX + 20, 0, opt.label, {
-                fontSize: '16px', color: '#fff', fontFamily: 'system-ui, sans-serif'
-            }).setInteractive({ useHandCursor: true });
-
-            txt.on('pointerdown', () => {
-                this.selectedOptionIndex = idx;
-                this.updateOptionHighlight();
-                this.executeOption();
-            });
-
-            this.dialogContainer!.add([bg, txt]);
-            this.dialogOptions.push({ text: txt, bg, action: opt.action });
-            startX += txt.width + 40;
+        items.push({ key: 'leave', label: 'Rời đi', icon: '🚪', action: () => {} });
+        this.actionMenu.open({
+            title: npc.name,
+            items,
+            onClose: () => this.handleMenuClosed(),
         });
+    }
 
-        this.updateOptionHighlight();
+    private openMenuMock(npc: NpcEntry): void {
+        if (!this.actionMenu) return;
+        this.actionMenu.open({
+            title: npc.name,
+            items: [
+                {
+                    key: 'talk', label: 'Trò chuyện', icon: ACTION_ICON.talk,
+                    action: () => this.onStatusMessage?.(`${npc.name}: Chào mừng đến với Kageverse!`, '#fff'),
+                },
+                {
+                    key: 'view_quests', label: 'Nhiệm vụ', icon: ACTION_ICON.view_quests,
+                    action: () => this.onStatusMessage?.('Chưa có nhiệm vụ.', '#aaaaaa'),
+                },
+                {
+                    key: 'buy_shop', label: 'Giao dịch', icon: ACTION_ICON.buy_shop,
+                    action: () => this.onStatusMessage?.('NPC này chưa có cửa hàng.', '#aaaaaa'),
+                },
+                { key: 'leave', label: 'Rời đi', icon: '🚪', action: () => {} },
+            ],
+            onClose: () => this.handleMenuClosed(),
+        });
     }
 
     private runAction(npc: NpcEntry, action: string): void {
         switch (action) {
             case 'talk': {
-                const targetSprite = npc.sprite;
                 const dialogueKey = npc.templateId
                     ? this.dialogueKeyByTemplate.get(npc.templateId) ?? null
                     : null;
-                const text = dialogueText(dialogueKey, npc.name);
-                this.closeInteraction();
-                this.chatBubble?.show(targetSprite, text);
+                this.chatBubble?.show(npc.sprite, dialogueText(dialogueKey, npc.name));
                 break;
             }
             case 'buy_shop':
                 if (this.shopModal && npc.templateId) {
-                    this.closeInteraction();
                     this.shopModal.open({
                         mapId: this.mapId,
                         npcTemplateId: npc.templateId,
@@ -344,28 +291,10 @@ export class NpcManager implements GameComponent {
         }
     }
 
-    private closeInteraction(): void {
+    /** ActionMenu đóng (item action / click ngoài / ESC) → clear NPC state. */
+    private handleMenuClosed(): void {
         this.interactingNpc = null;
-        this.dialogContainer?.setVisible(false);
         this.clearNpcSelection();
-    }
-
-    private updateOptionHighlight(): void {
-        this.dialogOptions.forEach((opt, idx) => {
-            opt.bg.clear();
-            if (idx === this.selectedOptionIndex) {
-                opt.bg.fillStyle(0x8d6e63, 1);
-                opt.bg.fillRoundedRect(opt.text.x - 10, -5, opt.text.width + 20, 26, 4);
-                opt.text.setColor('#ffea7a');
-            } else {
-                opt.text.setColor('#ffffff');
-            }
-        });
-    }
-
-    private executeOption(): void {
-        const opt = this.dialogOptions[this.selectedOptionIndex];
-        if (opt) opt.action();
     }
 
     private getVisibleNpcs(): NpcEntry[] {

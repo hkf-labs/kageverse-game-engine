@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    BuffIndicator, ChatPanel, GameControls, HUD, InventoryModal, MapBackground, MenuPanel, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, ShopModal,
+    ActionMenu, BuffIndicator, ChatPanel, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, ShopModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type MonsterConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -13,7 +13,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected hud!: HUD;
     protected minimap!: Minimap;
     protected chat!: ChatPanel;
-    protected menu!: MenuPanel;
+    protected actionMenu!: ActionMenu;
     protected inventory!: InventoryModal;
     protected shop!: ShopModal;
     protected npcChatBubble!: NpcChatBubble;
@@ -24,6 +24,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected portals: Portal[] = [];
 
     private enterKey?: Phaser.Input.Keyboard.Key;
+    private escKey?: Phaser.Input.Keyboard.Key;
     private lastKnownLevel = 1;
     private positionSaveTimer?: number;
     private beforeUnloadHandler?: () => void;
@@ -75,9 +76,14 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.npcChatBubble = new NpcChatBubble(this);
         this.npcChatBubble.create();
 
+        // ActionMenu — phải tạo trước NpcManager vì NPC dialog ủy quyền cho nó.
+        this.actionMenu = new ActionMenu(this);
+        this.actionMenu.create();
+
         // NPC
         this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), {
             mapId: cfg.mapId,
+            actionMenu: this.actionMenu,
             shopModal: this.shop,
             chatBubble: this.npcChatBubble,
             onStatusMessage: (text, color) => this.hud.setStatus(text, color),
@@ -108,15 +114,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onMpPotion: () => this.hud.setStatus('Đã dùng bình MP! (placeholder)', '#8aaaff'),
             onCycleTarget: () => this.npcs.cycleSelectedNpc(),
             onDirLeft: () => {
-                if (this.npcs.getInteractingNpc()) this.npcs.navigateOption('left');
+                if (this.actionMenu.isOpen()) this.actionMenu.navigate('left');
             },
             onDirRight: () => {
-                if (this.npcs.getInteractingNpc()) this.npcs.navigateOption('right');
+                if (this.actionMenu.isOpen()) this.actionMenu.navigate('right');
             },
         });
         this.controls.create();
 
         this.enterKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+        this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
         // Minimap
         this.minimap = new Minimap(this, this.background.getBgWidth(), this.background.getBgHeight());
@@ -158,16 +165,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
         });
         this.inventory.create();
 
-        // Menu
-        this.menu = new MenuPanel(this, [
-            { label: 'Túi đồ', action: () => this.inventory.toggle() },
-            { label: 'Nhiệm vụ', action: () => this.hud.setStatus('Mở Nhiệm Vụ (placeholder)', '#ffea7a') },
-            { label: 'Kỹ năng', action: () => this.hud.setStatus('Mở Kỹ Năng (placeholder)', '#ffea7a') },
-            { label: 'Cài đặt', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },
-            { label: 'Đăng xuất', action: () => this.handleLogout() },
-        ]);
-        this.menu.create();
-
         // Minimap ignore UI
         this.minimap.ignoreUIElements();
 
@@ -179,12 +176,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 backgroundColor: '#c7edff', padding: { left: 8, right: 8, top: 4, bottom: 4 },
             }).setOrigin(0.5).setScrollFactor(0);
         }
-
-        this.input.keyboard?.on('keydown-ENTER', () => {
-            if (this.chat.isFocused()) return;
-            if (this.shop?.isOpen()) return;
-            this.handleInteract();
-        });
 
         void this.loadInitialCharacterState();
         this.startPositionAutosave();
@@ -305,11 +296,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         this.controls.updateSwitchTarget(this.npcs.canCycleTarget());
 
-        // NPC dialog navigation
-        if (this.npcs.getInteractingNpc()) {
-            if (Phaser.Input.Keyboard.JustDown(cursors.left)) this.npcs.navigateOption('left');
-            else if (Phaser.Input.Keyboard.JustDown(cursors.right)) this.npcs.navigateOption('right');
-            else if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) this.handleInteract();
+        // ActionMenu mở → cướp keys (←/→ chọn, Enter confirm, ESC đóng).
+        // Không touch velocity → trạng thái nhân vật giữ nguyên (có thể đang drift).
+        if (this.actionMenu.isOpen()) {
+            if (Phaser.Input.Keyboard.JustDown(cursors.left)) this.actionMenu.navigate('left');
+            else if (Phaser.Input.Keyboard.JustDown(cursors.right)) this.actionMenu.navigate('right');
+            else if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) this.actionMenu.confirm();
+            else if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.actionMenu.close();
             return;
         }
 
@@ -357,6 +350,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     private handleInteract(): void {
+        if (this.actionMenu.isOpen()) return;
         const player = this.playerCtrl.getPlayer();
         if (!player) return;
 
@@ -390,12 +384,29 @@ export abstract class BaseMapScene extends Phaser.Scene {
         };
 
         makeBtn(cx - SPACING / 2, btnY, 'btn_chat', () => {
-            if (this.menu.isOpen()) this.menu.hide();
+            if (this.actionMenu.isOpen()) this.actionMenu.close();
             this.chat.toggle();
         });
         makeBtn(cx + SPACING / 2, btnY, 'btn_menu', () => {
             if (this.chat.isOpen()) this.chat.toggle();
-            this.menu.toggle();
+            if (this.actionMenu.isOpen()) {
+                this.actionMenu.close();
+                return;
+            }
+            this.openMainMenu();
+        });
+    }
+
+    private openMainMenu(): void {
+        this.actionMenu.open({
+            title: 'Menu',
+            items: [
+                { key: 'inventory', label: 'Túi đồ', icon: '🎒', action: () => this.inventory.toggle() },
+                { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.hud.setStatus('Mở Nhiệm Vụ (placeholder)', '#ffea7a') },
+                { key: 'skills', label: 'Kỹ năng', icon: '⚡', action: () => this.hud.setStatus('Mở Kỹ Năng (placeholder)', '#ffea7a') },
+                { key: 'settings', label: 'Cài đặt', icon: '⚙️', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },
+                { key: 'logout', label: 'Đăng xuất', icon: '🚪', action: () => this.handleLogout() },
+            ],
         });
     }
 }
