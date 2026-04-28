@@ -40,7 +40,7 @@ export class CombatFieldScene extends BaseMapScene {
         return [
             { x: 180, label: 'Quay Về Làng', targetSceneKey: 'VillageScene' },
             {
-                x: 3800,
+                x: 800,
                 label: 'Trường Mikazuki — Phái Kiếm',
                 targetSceneKey: 'SwordSchoolScene',
                 locked: true,
