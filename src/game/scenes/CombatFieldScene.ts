@@ -39,6 +39,13 @@ export class CombatFieldScene extends BaseMapScene {
     protected getPortalConfigs(): PortalConfig[] {
         return [
             { x: 180, label: 'Quay Về Làng', targetSceneKey: 'VillageScene' },
+            {
+                x: 3800,
+                label: 'Trường Mikazuki — Phái Kiếm',
+                targetSceneKey: 'SwordSchoolScene',
+                locked: true,
+                lockedMessage: 'Cần hoàn thành nhiệm vụ Nhập Phái để mở khoá Trường Mikazuki.',
+            },
         ];
     }
 }

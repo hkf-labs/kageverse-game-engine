@@ -235,6 +235,11 @@ export type CharacterDTO = {
     last_map_id: string | null;
     last_pos_x: number | null;
     last_pos_y: number | null;
+    /**
+     * Cờ bypass map gating cho tài khoản test/QA. Khi true, FE bỏ qua mọi
+     * điều kiện mở khoá portal (quest, level, ...) — flip thủ công ở DB.
+     */
+    unlock_all_maps: boolean;
     last_seen_at: string;
     created_at: string;
 };

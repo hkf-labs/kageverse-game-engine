@@ -277,6 +277,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     player.setPosition(c.last_pos_x, c.last_pos_y);
                 }
             }
+
+            // QA bypass: mở khoá toàn bộ portal đang locked.
+            if (c.unlock_all_maps) {
+                this.portals.forEach((p) => p.setLocked(false));
+            }
         } catch (err) {
             if (err instanceof Error) console.warn('scene: load character state failed', err.message);
         }
@@ -357,6 +362,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         const portal = this.portals.find((p) => p.isPlayerInRange());
         if (portal) {
+            if (portal.isLocked()) {
+                const msg = portal.getLockedMessage() ?? 'Cổng đang khoá. Bạn cần hoàn thành nhiệm vụ để mở.';
+                this.hud.setStatus(msg, '#ff8a8a');
+                return;
+            }
             portal.trigger();
             return;
         }

@@ -50,6 +50,14 @@ export interface PortalConfig {
     x: number;
     label: string;
     targetSceneKey: string;
+    /**
+     * Cổng bị khoá — không cho dịch chuyển khi tương tác. Mặc định false.
+     * Có thể được FE override sang false runtime nếu nhân vật có cờ
+     * unlock_all_maps (xem BaseMapScene.loadInitialCharacterState).
+     */
+    locked?: boolean;
+    /** Hiển thị khi player tương tác với portal đang khoá. */
+    lockedMessage?: string;
 }
 
 export type MonsterLevel = 1 | 3 | 5;

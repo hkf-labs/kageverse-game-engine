@@ -17,6 +17,7 @@ export class Portal implements GameComponent {
     private radiusY = 80;
     private inRange = false;
     private triggered = false;
+    private locked = false;
 
     constructor(
         scene: Phaser.Scene,
@@ -28,6 +29,7 @@ export class Portal implements GameComponent {
         this.config = config;
         this.background = background;
         this.onEnter = onEnter;
+        this.locked = config.locked === true;
     }
 
     create(): void {
@@ -56,7 +58,7 @@ export class Portal implements GameComponent {
         this.hint = this.scene.add.text(
             this.centerX,
             this.centerY + this.radiusY + 14,
-            '↵ Bước vào',
+            this.locked ? '↵ (Đã khoá)' : '↵ Bước vào',
             {
                 fontSize: '12px', color: '#ffffff',
                 fontFamily: 'system-ui, sans-serif',
@@ -64,6 +66,14 @@ export class Portal implements GameComponent {
                 padding: { left: 6, right: 6, top: 2, bottom: 2 },
             },
         ).setOrigin(0.5).setDepth(8).setVisible(false);
+    }
+
+    isLocked(): boolean { return this.locked; }
+    getLockedMessage(): string | undefined { return this.config.lockedMessage; }
+
+    setLocked(locked: boolean): void {
+        this.locked = locked;
+        this.hint?.setText(locked ? '↵ (Đã khoá)' : '↵ Bước vào');
     }
 
     updatePortal(playerX: number, playerY: number): void {
@@ -83,7 +93,7 @@ export class Portal implements GameComponent {
     }
 
     trigger(): void {
-        if (this.triggered) return;
+        if (this.triggered || this.locked) return;
         this.triggered = true;
         this.hint?.setVisible(false);
 
@@ -112,10 +122,12 @@ export class Portal implements GameComponent {
 
         const pulse = 1 + Math.sin(t * 2.4) * 0.04;
 
-        g.fillStyle(0x6a1da8, 0.18);
+        const haloColor = this.locked ? 0x444444 : 0x6a1da8;
+        const coreColor = this.locked ? 0x1a1a1a : 0x2a0d4a;
+        g.fillStyle(haloColor, 0.18);
         g.fillEllipse(cx, cy, (rx + 18) * 2 * pulse, (ry + 18) * 2 * pulse);
 
-        g.fillStyle(0x2a0d4a, 0.92);
+        g.fillStyle(coreColor, 0.92);
         g.fillEllipse(cx, cy, rx * 2, ry * 2);
 
         const rings = 4;
@@ -124,7 +136,9 @@ export class Portal implements GameComponent {
             const ringRx = rx * (0.42 + i * 0.18);
             const ringRy = ry * (0.42 + i * 0.18);
             const alpha = 0.6 - i * 0.1;
-            const color = i % 2 === 0 ? 0xa56cff : 0x6cd0ff;
+            const color = this.locked
+                ? (i % 2 === 0 ? 0x888888 : 0xaaaaaa)
+                : (i % 2 === 0 ? 0xa56cff : 0x6cd0ff);
 
             g.lineStyle(3, color, alpha);
             g.beginPath();
