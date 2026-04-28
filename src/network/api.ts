@@ -453,6 +453,13 @@ export type NpcActionDTO = {
     label_key: string;
 };
 
+export type TeleportDestinationDTO = {
+    map_id: string;
+    display_name_key: string;
+    category: string;
+    is_current: boolean;
+};
+
 export type NpcInteractResponse = {
     map_id: string;
     npc_template_id: string;
@@ -464,6 +471,7 @@ export type NpcInteractResponse = {
     position: { x: number; y: number };
     is_hidden: boolean;
     available_actions: NpcActionDTO[];
+    teleport_destinations?: TeleportDestinationDTO[];
 };
 
 export const npcAPI = {

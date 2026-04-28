@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
-import { npcAPI, type NpcActionDTO } from '../../network/api';
+import { npcAPI, type NpcActionDTO, type TeleportDestinationDTO } from '../../network/api';
+import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
 import type { MapBackground } from './MapBackground';
@@ -62,6 +63,7 @@ export class NpcManager implements GameComponent {
     private chatBubble?: NpcChatBubble;
     private onStatusMessage?: (text: string, color: string) => void;
     private dialogueKeyByTemplate = new Map<string, string | null>();
+    private teleportDestinations: TeleportDestinationDTO[] = [];
 
     constructor(
         scene: Phaser.Scene,
@@ -208,6 +210,7 @@ export class NpcManager implements GameComponent {
                         this.dialogueKeyByTemplate.set(npc.templateId, res.default_dialogue_key);
                     }
                     if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
+                    this.teleportDestinations = res.teleport_destinations ?? [];
                     this.openMenuFromBE(npc, res.available_actions);
                 })
                 .catch((err) => {
@@ -280,15 +283,38 @@ export class NpcManager implements GameComponent {
                     this.onStatusMessage?.('Cửa hàng chưa sẵn sàng.', '#aaaaaa');
                 }
                 break;
+            case 'teleport':
+                this.openTeleportMenu();
+                break;
             case 'view_quests':
             case 'upgrade_equipment':
             case 'open_stash':
-            case 'teleport':
                 this.onStatusMessage?.(`Chức năng "${ACTION_LABEL_VI[action] || action}" sắp ra mắt.`, '#aaaaaa');
                 break;
             default:
                 this.onStatusMessage?.(`Hành động "${action}" chưa hỗ trợ.`, '#aaaaaa');
         }
+    }
+
+    private openTeleportMenu(): void {
+        if (!this.actionMenu) return;
+        const dests = this.teleportDestinations;
+        if (dests.length === 0) {
+            this.onStatusMessage?.('Hiện chưa có nơi nào để dịch chuyển.', '#aaaaaa');
+            return;
+        }
+        const items: ActionMenuItem[] = dests.map((d) => ({
+            key: `teleport_${d.map_id}`,
+            label: d.is_current ? `${mapDisplayName(d.map_id)} (đang ở đây)` : mapDisplayName(d.map_id),
+            icon: '🗺️',
+            disabled: d.is_current,
+            action: () => this.scene.scene.start(resolveSceneKeyForMap(d.map_id)),
+        }));
+        items.push({ key: 'cancel', label: 'Huỷ', icon: '↩️', action: () => {} });
+        this.actionMenu.open({
+            title: 'Dịch Chuyển',
+            items,
+        });
     }
 
     /** ActionMenu đóng (item action / click ngoài / ESC) → clear NPC state. */

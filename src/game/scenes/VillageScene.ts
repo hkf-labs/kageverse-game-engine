@@ -38,7 +38,7 @@ export class VillageScene extends BaseMapScene {
             { key: 'npc_chef', name: 'Bếp Trưởng Kuma', x: 2000, y: undefined, offsetY: 0, templateId: 'npc_chef_kuma' },
             { key: 'npc_merchant', name: 'Thương Gia', x: 2600, y: undefined, offsetY: 0 },
             { key: 'npc_stash', name: 'Rương Đồ', x: 3800, y: undefined, offsetY: 0 },
-            { key: 'npc_teleporter', name: 'Dịch Chuyển', x: 5000, y: undefined, offsetY: 0 },
+            { key: 'npc_teleporter', name: 'Người Dịch Chuyển', x: 5000, y: undefined, offsetY: 0, templateId: 'npc_teleporter' },
             { key: 'npc_elder', name: 'Trưởng Làng', x: 400, y: undefined, offsetY: 0 },
         ];
     }

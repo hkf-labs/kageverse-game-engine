@@ -1,21 +1,10 @@
 import * as Phaser from 'phaser';
 import { authAPI, charactersAPI, clearTokens, getAccessToken, setTokens } from '../../network/api';
 import { validateLoginIdentifier, validateUsername } from '../../lib/validation';
+import { resolveSceneKeyForMap } from '../maps/registry';
 import { saveCurrentCharacter } from '../playerSession';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
-
-function resolveSceneKeyForMap(mapId: string | null): string {
-    switch (mapId) {
-        case 'combat_field_001':
-            return 'CombatFieldScene';
-        case 'sword_school_001':
-            return 'SwordSchoolScene';
-        case 'village_001':
-        default:
-            return 'VillageScene';
-    }
-}
 
 export class AuthScene extends Phaser.Scene {
     private domElement?: Phaser.GameObjects.DOMElement;

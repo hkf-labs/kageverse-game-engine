@@ -23,12 +23,19 @@ export class SwordSchoolScene extends BaseMapScene {
     protected getMapDisplayName(): string { return 'TRƯỜNG MIKAZUKI — PHÁI KIẾM'; }
 
     protected getNpcConfigs(): NpcConfig[] {
-        return [];
+        return [
+            { key: 'npc_teleporter', name: 'Người Dịch Chuyển', x: 1000, y: undefined, offsetY: 0, templateId: 'npc_teleporter' },
+        ];
     }
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
             { x: 180, label: 'Quay Về Đồng Cỏ', targetSceneKey: 'CombatFieldScene' },
         ];
+    }
+
+    protected preloadMapAssets(): void {
+        // Sprite teleporter dùng chung từ village_001 — chưa có asset riêng cho trường.
+        this.load.image('npc_teleporter', 'assets/maps/village_001/npcs/teleporter.png');
     }
 }
