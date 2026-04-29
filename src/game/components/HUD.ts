@@ -105,7 +105,7 @@ export class HUD implements GameComponent {
 
     setExpPercent(percent: number): void {
         const p = clamp(percent, 0, 100);
-        this.expText?.setText(`${p.toFixed(p >= 10 ? 0 : 1)}%`);
+        this.expText?.setText(`${p.toFixed(2)}%`);
     }
 
     getStatusText(): Phaser.GameObjects.Text | undefined { return this.statusText; }
