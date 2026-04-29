@@ -718,7 +718,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
      */
     private async handleSuicide(): Promise<void> {
         if (this.deathState !== 'alive') return; // đang chết rồi thì menu Kiệt sức lo.
-        if (!window.confirm('Tự sát để quay về Làng?\nNhân vật sẽ hồi đầy HP/MP và teleport về Làng Sương Khói.')) return;
         const character = getCurrentCharacter();
         if (!character) return;
         try {
