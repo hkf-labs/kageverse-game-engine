@@ -151,6 +151,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onTargetSelected: (m) => this.targetFrame?.setTarget(m),
             onTargetCleared: () => this.targetFrame?.clear(),
             onRetaliation: (r) => this.showRetaliationFloater(r.damage),
+            onTickResult: (hp, dead) => this.handleTickResult(hp, dead),
         });
         this.monsters.create();
         this.monsters.setPlayerPositionGetter(() => {
@@ -582,6 +583,14 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
     }
 
+    private handleTickResult(currentHP: number, dead: boolean): void {
+        // Tick chỉ update HP — MP/level/XP do Attack tick / loadInitialState lo.
+        this.hud.setHP(currentHP, this.lastKnownStats.max_hp);
+        if (dead || currentHP <= 0) {
+            this.handleDeath();
+        }
+    }
+
     private showRetaliationFloater(damage: number): void {
         const player = this.playerCtrl.getPlayer();
         if (!player) return;
@@ -667,6 +676,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private handleDeath(): void {
         if (this.deathState !== 'alive') return;
         this.deathState = 'dead';
+        // Pause combat tick — BE đã skip, FE cũng nên dừng poll.
+        this.monsters?.setTickPaused(true);
         // Clear target frame + select.
         this.monsters?.clearSelection();
         this.targetFrame?.clear();
@@ -690,6 +701,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                         level: this.lastKnownLevel,
                     });
                     this.deathState = 'alive';
+                    this.monsters?.setTickPaused(false);
                     this.deathMenu.hide();
                     this.scene.start('VillageScene');
                 } catch (err) {

@@ -103,6 +103,13 @@ export class HUD implements GameComponent {
         this.levelText?.setText(String(stats.level));
     }
 
+    /** Chỉ update HP bar — dùng cho retaliation tick không đụng MP. */
+    setHP(currentHP: number, maxHP: number): void {
+        const ratio = maxHP > 0 ? clamp(currentHP / maxHP, 0, 1) : 0;
+        if (this.hpFill) this.redrawFill(this.hpFill, HP_BAR, ratio, 0xff5454);
+        this.hpText?.setText(`${formatBig(currentHP)} / ${formatBig(maxHP)}`);
+    }
+
     setExpPercent(percent: number): void {
         const p = clamp(percent, 0, 100);
         this.expText?.setText(`${p.toFixed(2)}%`);

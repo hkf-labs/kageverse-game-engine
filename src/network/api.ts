@@ -775,6 +775,19 @@ export type SetDeathStateResponse = {
     death_state: 'alive' | 'dead' | 'spectating';
 };
 
+export type CombatTickRequest = {
+    map_id: string;
+    player_x: number;
+    player_y: number;
+};
+
+export type CombatTickResponse = {
+    retaliations: RetaliationDTO[];
+    character_current_hp: number;
+    character_current_mp: number;
+    character_dead: boolean;
+};
+
 export const combatAPI = {
     async listMonsters(mapId: string, characterId: string): Promise<ListMonstersResponse> {
         const path = `/maps/${encodeURIComponent(mapId)}/monsters?character_id=${encodeURIComponent(characterId)}`;
@@ -806,6 +819,19 @@ export const combatAPI = {
             throw new Error(`${formatApiError(resData, 'Hồi sinh thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as RespawnResponse;
+    },
+    async tick(characterId: string, req: CombatTickRequest): Promise<CombatTickResponse> {
+        const path = `/characters/${encodeURIComponent(characterId)}/combat-tick`;
+        const { response, traceId } = await authFetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Tick combat thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as CombatTickResponse;
     },
     async setDeathState(characterId: string, action: 'spectate'): Promise<SetDeathStateResponse> {
         const path = `/characters/${encodeURIComponent(characterId)}/death-state`;

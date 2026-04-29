@@ -39,13 +39,15 @@ export interface MonsterManagerCallbacks {
     onTargetSelected?: (m: MonsterInstanceDTO) => void;
     onTargetCleared?: () => void;
     onRetaliation?: (r: RetaliationDTO) => void;
+    onTickResult?: (charHP: number, charDead: boolean) => void;
 }
 
 // Player base attack range — Phase 1.5 hardcode khớp BE skillRegistry. Đơn vị
 // RAW game coords (Tiled-space). Phase 2 đọc từ skill_templates per skill_id.
 const PLAYER_ATTACK_RANGE_RAW_PX = 120;
 const ATTACK_NEAREST_SCAN_RADIUS_PX = 400; // bán kính render-space tìm nearest khi auto-target
-const POLL_INTERVAL_MS = 8000;
+const LIST_POLL_INTERVAL_MS = 8000;        // poll list quái để sync respawn / new spawn
+const COMBAT_TICK_INTERVAL_MS = 700;       // poll retaliation từ BE — match BE monster cooldown 1500ms
 const DEFAULT_SKILL_ID = 'none.basic_swing';
 
 export class MonsterManager implements GameComponent {
@@ -55,6 +57,9 @@ export class MonsterManager implements GameComponent {
     private callbacks: MonsterManagerCallbacks;
     private monsters: MonsterEntry[] = [];
     private pollTimer?: number;
+    private tickTimer?: number;
+    private tickInFlight = false;
+    private tickPaused = false;
     private inFlightAttack = false;
     private getPlayerPos: () => { x: number; y: number } | null = () => null;
     private selectedInstanceId: string | null = null;
@@ -76,9 +81,42 @@ export class MonsterManager implements GameComponent {
         void this.refreshFromBE();
         this.pollTimer = window.setInterval(() => {
             void this.refreshFromBE();
-        }, POLL_INTERVAL_MS);
+        }, LIST_POLL_INTERVAL_MS);
+        // Combat tick — luồng quái phản đòn độc lập.
+        this.tickTimer = window.setInterval(() => {
+            void this.combatTick();
+        }, COMBAT_TICK_INTERVAL_MS);
         this.scene.events.once('shutdown', () => this.cleanup());
         this.scene.events.once('destroy', () => this.cleanup());
+    }
+
+    /** Pause/resume combat tick (vd khi player chết / Đóng menu). */
+    setTickPaused(paused: boolean): void { this.tickPaused = paused; }
+
+    private async combatTick(): Promise<void> {
+        if (this.tickPaused || this.tickInFlight) return;
+        const character = getCurrentCharacter();
+        if (!character) return;
+        const pos = this.getPlayerPos();
+        if (!pos) return;
+        this.tickInFlight = true;
+        try {
+            const scaleFactor = this.scene.scale.height / 1440;
+            const res = await combatAPI.tick(character.id, {
+                map_id: this.mapId,
+                player_x: pos.x / scaleFactor,
+                player_y: pos.y / scaleFactor,
+            });
+            for (const ret of res.retaliations) {
+                this.callbacks.onRetaliation?.(ret);
+            }
+            this.callbacks.onTickResult?.(res.character_current_hp, res.character_dead);
+        } catch (err) {
+            // Silent — tick fail không quan trọng UX.
+            if (err instanceof Error) console.warn('combat: tick failed', err.message);
+        } finally {
+            this.tickInFlight = false;
+        }
     }
 
     update(): void {
@@ -393,6 +431,10 @@ export class MonsterManager implements GameComponent {
         if (this.pollTimer !== undefined) {
             window.clearInterval(this.pollTimer);
             this.pollTimer = undefined;
+        }
+        if (this.tickTimer !== undefined) {
+            window.clearInterval(this.tickTimer);
+            this.tickTimer = undefined;
         }
         for (const m of this.monsters) this.destroyEntry(m);
         this.monsters = [];
