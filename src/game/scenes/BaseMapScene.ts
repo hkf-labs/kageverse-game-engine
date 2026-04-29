@@ -117,6 +117,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             chatBubble: this.npcChatBubble,
             questLog: this.questLog,
             onStatusMessage: (text, color) => this.hud.setStatus(text, color),
+            onQuestRewarded: (questName, rewards) => this.showQuestRewardFloater(questName, rewards),
         });
         this.npcs.create();
 
@@ -530,6 +531,37 @@ export abstract class BaseMapScene extends Phaser.Scene {
             targets: txt, y: txt.y - 50, alpha: 0,
             duration: 900, ease: 'Cubic.easeOut',
             onComplete: () => txt.destroy(),
+        });
+    }
+
+    private showQuestRewardFloater(questName: string, rewards: import('../../network/api').QuestRewardsDTO): void {
+        const player = this.playerCtrl.getPlayer();
+        if (!player) return;
+        // Stack: tên quest + từng dòng reward, mỗi dòng cách 18px. Float lên cao
+        // hơn XP floater thường (-120 vs -100) để không đè lên +XP của combat.
+        const lines: Array<{ text: string; color: string }> = [
+            { text: `✅ ${questName}`, color: '#ffea7a' },
+        ];
+        if (rewards.exp > 0) lines.push({ text: `+${rewards.exp} XP`, color: '#bdf0a0' });
+        if (rewards.yen > 0) lines.push({ text: `+${rewards.yen} Yên`, color: '#f0b020' });
+        if (rewards.coin > 0) lines.push({ text: `+${rewards.coin} Xu`, color: '#ffd070' });
+        if (rewards.items) {
+            for (const it of rewards.items) {
+                lines.push({ text: `+${it.qty} ${it.template_id}`, color: '#bdf0a0' });
+            }
+        }
+        const baseY = player.y - 120;
+        lines.forEach((line, i) => {
+            const txt = this.add.text(player.x, baseY + i * 18, line.text, {
+                fontSize: '13px', fontStyle: 'bold', color: line.color,
+                fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
+            }).setOrigin(0.5).setDepth(60);
+            this.tweens.add({
+                targets: txt, y: txt.y - 60, alpha: 0,
+                duration: 1800, ease: 'Cubic.easeOut',
+                delay: i * 80,
+                onComplete: () => txt.destroy(),
+            });
         });
     }
 

@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { npcAPI, questAPI, type NpcActionDTO, type NpcQuestListsDTO, type QuestDTO, type TeleportDestinationDTO } from '../../network/api';
+import { npcAPI, questAPI, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
@@ -68,6 +68,7 @@ export class NpcManager implements GameComponent {
     private chatBubble?: NpcChatBubble;
     private questLog?: QuestLogPanel;
     private onStatusMessage?: (text: string, color: string) => void;
+    private onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
     private dialogueKeyByTemplate = new Map<string, string | null>();
     private teleportDestinations: TeleportDestinationDTO[] = [];
     private offeredQuestIDs: string[] = [];
@@ -84,6 +85,7 @@ export class NpcManager implements GameComponent {
             chatBubble?: NpcChatBubble;
             questLog?: QuestLogPanel;
             onStatusMessage?: (text: string, color: string) => void;
+            onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
         },
     ) {
         this.scene = scene;
@@ -95,6 +97,7 @@ export class NpcManager implements GameComponent {
         this.chatBubble = deps?.chatBubble;
         this.questLog = deps?.questLog;
         this.onStatusMessage = deps?.onStatusMessage;
+        this.onQuestRewarded = deps?.onQuestRewarded;
     }
 
     create(): void {
@@ -429,8 +432,8 @@ export class NpcManager implements GameComponent {
         }
         void questAPI.turnIn(character.id, questID, npc.templateId)
             .then((res) => {
-                const summary = formatRewardSummary(res.quest, res.granted_rewards);
-                this.onStatusMessage?.(summary, '#ffea7a');
+                const questName = questDisplayName(res.quest.name_key);
+                this.onQuestRewarded?.(questName, res.granted_rewards);
                 void this.questLog?.refresh();
             })
             .catch((err) => {
@@ -501,16 +504,3 @@ export class NpcManager implements GameComponent {
     }
 }
 
-function formatRewardSummary(quest: QuestDTO, rewards: QuestDTO['rewards']): string {
-    const parts: string[] = [];
-    if (rewards.exp > 0) parts.push(`+${rewards.exp} XP`);
-    if (rewards.yen > 0) parts.push(`+${rewards.yen} Yên`);
-    if (rewards.coin > 0) parts.push(`+${rewards.coin} Xu`);
-    if (rewards.items) {
-        for (const it of rewards.items) parts.push(`+${it.qty} ${it.template_id}`);
-    }
-    const name = questDisplayName(quest.name_key);
-    return parts.length > 0
-        ? `Hoàn thành ${name}! Thưởng: ${parts.join(' • ')}`
-        : `Hoàn thành ${name}!`;
-}
