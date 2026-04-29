@@ -2,6 +2,7 @@ export { ActionMenu } from './ActionMenu';
 export type { ActionMenuItem, ActionMenuOpenOptions } from './ActionMenu';
 export { BuffIndicator, iconForTemplate, categoryForTemplate } from './BuffIndicator';
 export type { ActiveBuff } from './BuffIndicator';
+export { CharacterInfoModal } from './CharacterInfoModal';
 export { ChatPanel } from './ChatPanel';
 export { EquipmentModal } from './EquipmentModal';
 export { GameControls } from './GameControls';

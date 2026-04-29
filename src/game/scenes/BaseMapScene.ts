@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, ChatPanel, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal,
+    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -24,6 +24,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected questLog!: QuestLogPanel;
     protected questTracker!: QuestTracker;
     protected equipment!: EquipmentModal;
+    protected characterInfo!: CharacterInfoModal;
     protected portals: Portal[] = [];
 
     private enterKey?: Phaser.Input.Keyboard.Key;
@@ -224,6 +225,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         });
         this.equipment.create();
 
+        // Character info modal — view profile nhân vật. Reusable cho click NPC
+        // / player khác xem thông tin (post-MVP).
+        this.characterInfo = new CharacterInfoModal(this);
+        this.characterInfo.create();
+
         // Minimap ignore UI
         this.minimap.ignoreUIElements();
 
@@ -246,6 +252,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.questTracker?.destroy();
             this.questLog?.destroy();
             this.equipment?.destroy();
+            this.characterInfo?.destroy();
             this.inventory?.destroy();
             this.shop?.destroy();
             this.chat?.destroy();
@@ -390,12 +397,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.npcChatBubble.update();
         this.buffIndicator.update();
 
-        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen()) {
+        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen() || this.characterInfo?.isOpen()) {
             player.body?.setVelocityX(0);
+            // CharacterInfoModal đang mở → forward arrow keys cho scroll content.
+            this.characterInfo?.update();
             // Trong khi panel mở: ESC đóng, các key khác bị bỏ qua.
             if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
                 if (this.questLog?.isVisible()) this.questLog.close();
                 else if (this.equipment?.isOpen()) this.equipment.close();
+                else if (this.characterInfo?.isOpen()) this.characterInfo.close();
             }
             return;
         }
@@ -645,6 +655,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.actionMenu.open({
             title: 'Menu',
             items: [
+                { key: 'info', label: 'Thông tin', icon: '📋', action: () => this.characterInfo.open() },
                 { key: 'inventory', label: 'Túi đồ', icon: '🎒', action: () => this.inventory.toggle() },
                 { key: 'equipment', label: 'Trang bị', icon: '⚔️', action: () => this.equipment.toggle() },
                 { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.questLog.open() },
