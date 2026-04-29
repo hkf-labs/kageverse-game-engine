@@ -223,6 +223,7 @@ export type CharacterDTO = {
     exp: number;
     exp_to_next_level: number;
     class: string;
+    death_state: 'alive' | 'dead' | 'spectating';
     current_hp: number;
     max_hp: number;
     current_mp: number;
@@ -705,6 +706,7 @@ export type MonsterInstanceDTO = {
     grade: 'normal' | 'elite' | 'leader' | 'world_boss';
     max_hp: number;
     current_hp: number;
+    attack_range_px: number;
     pos_x: number;
     pos_y: number;
     state: 'alive' | 'dead';
@@ -720,6 +722,24 @@ export type ListMonstersResponse = {
 export type AttackRequest = {
     instance_id: string;
     map_id: string;
+    skill_id?: string;
+    player_x: number;
+    player_y: number;
+};
+
+export type HitResultDTO = {
+    instance_id: string;
+    damage: number;
+    is_crit: boolean;
+    hp_remaining: number;
+    dead: boolean;
+    xp_credited: number;
+};
+
+export type RetaliationDTO = {
+    instance_id: string;
+    damage: number;
+    player_hp_after: number;
 };
 
 export type LevelUpDTO = {
@@ -733,10 +753,8 @@ export type LevelUpDTO = {
 };
 
 export type AttackResponse = {
-    damage_dealt: number;
-    is_crit: boolean;
-    monster_hp_remaining: number;
-    monster_dead: boolean;
+    hits: HitResultDTO[];
+    retaliations: RetaliationDTO[];
     xp_gained: number;
     level_up?: LevelUpDTO;
     character_current_hp: number;
@@ -744,12 +762,17 @@ export type AttackResponse = {
     character_level: number;
     character_exp: number;
     character_exp_to_next_level: number;
+    character_dead: boolean;
 };
 
 export type RespawnResponse = {
     current_hp: number;
     current_mp: number;
     map_id: string;
+};
+
+export type SetDeathStateResponse = {
+    death_state: 'alive' | 'dead' | 'spectating';
 };
 
 export const combatAPI = {
@@ -783,6 +806,19 @@ export const combatAPI = {
             throw new Error(`${formatApiError(resData, 'Hồi sinh thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as RespawnResponse;
+    },
+    async setDeathState(characterId: string, action: 'spectate'): Promise<SetDeathStateResponse> {
+        const path = `/characters/${encodeURIComponent(characterId)}/death-state`;
+        const { response, traceId } = await authFetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Đổi trạng thái thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as SetDeathStateResponse;
     },
 };
 

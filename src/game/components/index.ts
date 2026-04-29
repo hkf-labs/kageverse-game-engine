@@ -4,6 +4,8 @@ export { BuffIndicator, iconForTemplate, categoryForTemplate } from './BuffIndic
 export type { ActiveBuff } from './BuffIndicator';
 export { CharacterInfoModal } from './CharacterInfoModal';
 export { ChatPanel } from './ChatPanel';
+export { DeathMenu } from './DeathMenu';
+export type { DeathChoice } from './DeathMenu';
 export { EquipmentModal } from './EquipmentModal';
 export { GameControls } from './GameControls';
 export { HUD } from './HUD';
@@ -11,6 +13,7 @@ export { InventoryModal } from './InventoryModal';
 export { MapBackground } from './MapBackground';
 export { Minimap } from './Minimap';
 export { MonsterManager } from './MonsterManager';
+export { MonsterTargetFrame } from './MonsterTargetFrame';
 export { NpcChatBubble } from './NpcChatBubble';
 export { NpcManager } from './NpcManager';
 export { PlayerController } from './PlayerController';

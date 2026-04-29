@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal,
+    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DeathMenu, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -21,6 +21,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected controls!: GameControls;
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
+    protected targetFrame!: MonsterTargetFrame;
+    protected deathMenu!: DeathMenu;
+    private deathState: 'alive' | 'dead' | 'spectating' = 'alive';
     protected questLog!: QuestLogPanel;
     protected questTracker!: QuestTracker;
     protected equipment!: EquipmentModal;
@@ -137,10 +140,17 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return portal;
         });
 
+        // Target frame — top-center HUD cho quái đang nhắm.
+        this.targetFrame = new MonsterTargetFrame(this);
+        this.targetFrame.create();
+
         // Monsters — BE-driven (data từ /maps/:id/monsters per character).
         this.monsters = new MonsterManager(this, this.background, cfg.mapId, {
             onAttackResult: (res) => this.handleAttackResult(res),
             onError: (msg) => this.hud.setStatus(msg, '#ff8a8a'),
+            onTargetSelected: (m) => this.targetFrame?.setTarget(m),
+            onTargetCleared: () => this.targetFrame?.clear(),
+            onRetaliation: (r) => this.showRetaliationFloater(r.damage),
         });
         this.monsters.create();
         this.monsters.setPlayerPositionGetter(() => {
@@ -236,6 +246,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.characterInfo = new CharacterInfoModal(this);
         this.characterInfo.create();
 
+        // Death menu (Kiệt sức) — overlay khi character HP=0.
+        this.deathMenu = new DeathMenu(this, {
+            onChoice: (c) => void this.handleDeathChoice(c),
+        });
+        this.deathMenu.create();
+
         // Minimap ignore UI
         this.minimap.ignoreUIElements();
 
@@ -262,6 +278,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.inventory?.destroy();
             this.shop?.destroy();
             this.chat?.destroy();
+            this.deathMenu?.destroy();
+            this.targetFrame?.destroy();
         });
 
         this.onMapReady();
@@ -348,6 +366,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 level: c.level,
             });
             this.hud.setExpPercent(c.exp_to_next_level > 0 ? (c.exp / c.exp_to_next_level) * 100 : 0);
+            // Sync death_state từ DB — nếu user trước đó chọn 'Đóng' rồi đóng
+            // browser, scene mount lại vẫn ở spectating; show menu để chọn tiếp.
+            if (c.death_state === 'dead' || c.death_state === 'spectating') {
+                this.deathState = c.death_state;
+                this.deathMenu.showOptions();
+            }
             if (c.active_food_buff) {
                 this.buffIndicator.setBuff({
                     key: categoryForTemplate(c.active_food_buff.item_template_id),
@@ -402,6 +426,19 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.monsters.update();
         this.npcChatBubble.update();
         this.buffIndicator.update();
+
+        // Death state: khoá toàn bộ input movement / attack. Enter mở/giữ menu.
+        if (this.deathState !== 'alive') {
+            player.body?.setVelocityX(0);
+            if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+                if (this.deathMenu.getStage() === 'menu') {
+                    // No-op: menu đang mở, Enter không action gì (player phải click).
+                } else {
+                    this.deathMenu.showOptions();
+                }
+            }
+            return;
+        }
 
         if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen() || this.characterInfo?.isOpen()) {
             player.body?.setVelocityX(0);
@@ -526,13 +563,44 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (res.character_exp_to_next_level > 0) {
             this.hud.setExpPercent((res.character_exp / res.character_exp_to_next_level) * 100);
         }
-        // Quest progress: BE đã track kill, FE chỉ refresh cache khi quái chết.
-        if (res.monster_dead) {
+        // Quest progress: BE đã track kill, FE chỉ refresh cache khi có quái chết.
+        const anyDead = res.hits.some((h) => h.dead);
+        if (anyDead) {
             void this.questLog?.refresh();
+            // Update target frame fade-out cho con đã chết.
+            for (const h of res.hits) {
+                if (h.dead) this.targetFrame?.onMonsterDead(h.instance_id);
+            }
+        }
+        // Sync target frame HP cho con đang nhắm.
+        for (const h of res.hits) {
+            if (!h.dead) this.targetFrame?.updateHP(h.instance_id, h.hp_remaining);
         }
         // Death check.
-        if (res.character_current_hp <= 0) {
+        if (res.character_dead || res.character_current_hp <= 0) {
             void this.handleDeath();
+        }
+    }
+
+    private showRetaliationFloater(damage: number): void {
+        const player = this.playerCtrl.getPlayer();
+        if (!player) return;
+        const txt = this.add.text(player.x, player.y - 80, `-${damage}`, {
+            fontSize: '15px', fontStyle: 'bold', color: '#ff5454',
+            fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(60);
+        this.tweens.add({
+            targets: txt, y: txt.y - 40, alpha: 0,
+            duration: 800, ease: 'Cubic.easeOut',
+            onComplete: () => txt.destroy(),
+        });
+        // Player flash đỏ.
+        const sprite = this.playerCtrl.getSprite();
+        if (sprite) {
+            this.tweens.add({
+                targets: sprite, alpha: 0.4,
+                duration: 80, yoyo: true,
+            });
         }
     }
 
@@ -596,35 +664,53 @@ export abstract class BaseMapScene extends Phaser.Scene {
         });
     }
 
-    private async handleDeath(): Promise<void> {
+    private handleDeath(): void {
+        if (this.deathState !== 'alive') return;
+        this.deathState = 'dead';
+        // Clear target frame + select.
+        this.monsters?.clearSelection();
+        this.targetFrame?.clear();
+        // Show stage 1: nút Kiệt sức.
+        this.deathMenu.showKietSucButton();
+    }
+
+    private async handleDeathChoice(choice: import('../components').DeathChoice): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) return;
-        const overlay = this.add.rectangle(this.scale.width / 2, this.scale.height / 2,
-            this.scale.width, this.scale.height, 0x000000, 0.6)
-            .setScrollFactor(0).setDepth(250);
-        const txt = this.add.text(this.scale.width / 2, this.scale.height / 2, 'BẠN ĐÃ GỤC...\nĐang hồi sinh ở Làng', {
-            fontSize: '24px', color: '#ff8a8a', align: 'center',
-            fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 4,
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(251);
-
-        await new Promise((r) => setTimeout(r, 3000));
-        try {
-            const { combatAPI } = await import('../../network/api');
-            const res = await combatAPI.respawn(character.id);
-            this.hud.setStats({
-                current_hp: res.current_hp,
-                max_hp: res.current_hp,
-                current_mp: res.current_mp,
-                max_mp: res.current_mp,
-                level: this.lastKnownLevel,
-            });
-            this.scene.start('VillageScene');
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Hồi sinh thất bại';
-            this.hud.setStatus(msg, '#ff8a8a');
-        } finally {
-            overlay.destroy();
-            txt.destroy();
+        const { combatAPI } = await import('../../network/api');
+        switch (choice) {
+            case 'respawn_village':
+                try {
+                    const res = await combatAPI.respawn(character.id);
+                    this.hud.setStats({
+                        current_hp: res.current_hp,
+                        max_hp: res.current_hp,
+                        current_mp: res.current_mp,
+                        max_mp: res.current_mp,
+                        level: this.lastKnownLevel,
+                    });
+                    this.deathState = 'alive';
+                    this.deathMenu.hide();
+                    this.scene.start('VillageScene');
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : 'Hồi sinh thất bại';
+                    this.hud.setStatus(msg, '#ff8a8a');
+                }
+                break;
+            case 'respawn_here':
+                this.hud.setStatus('Hồi sinh tại chỗ — sắp ra mắt.', '#ffd070');
+                break;
+            case 'spectate':
+                try {
+                    await combatAPI.setDeathState(character.id, 'spectate');
+                    this.deathState = 'spectating';
+                    this.deathMenu.hide();
+                    this.hud.setStatus('Bấm Enter để mở lại menu hồi sinh.', '#aaa');
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : 'Đổi trạng thái thất bại';
+                    this.hud.setStatus(msg, '#ff8a8a');
+                }
+                break;
         }
     }
 

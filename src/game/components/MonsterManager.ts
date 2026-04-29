@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { combatAPI, type AttackResponse, type MonsterInstanceDTO } from '../../network/api';
+import { combatAPI, type AttackResponse, type MonsterInstanceDTO, type RetaliationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import type { GameComponent } from './types';
 import type { MapBackground } from './MapBackground';
@@ -36,10 +36,17 @@ interface MonsterEntry {
 export interface MonsterManagerCallbacks {
     onAttackResult?: (res: AttackResponse) => void;
     onError?: (msg: string) => void;
+    onTargetSelected?: (m: MonsterInstanceDTO) => void;
+    onTargetCleared?: () => void;
+    onRetaliation?: (r: RetaliationDTO) => void;
 }
 
-const ATTACK_RANGE = 220;
+// Player base attack range — Phase 1.5 hardcode khớp BE skillRegistry. Phase 2
+// đọc từ skill_templates per skill_id.
+const PLAYER_ATTACK_RANGE_PX = 120;
+const ATTACK_NEAREST_SCAN_RADIUS = 240; // bán kính tìm nearest khi auto-target
 const POLL_INTERVAL_MS = 8000;
+const DEFAULT_SKILL_ID = 'none.basic_swing';
 
 export class MonsterManager implements GameComponent {
     private scene: Phaser.Scene;
@@ -50,6 +57,7 @@ export class MonsterManager implements GameComponent {
     private pollTimer?: number;
     private inFlightAttack = false;
     private getPlayerPos: () => { x: number; y: number } | null = () => null;
+    private selectedInstanceId: string | null = null;
 
     constructor(
         scene: Phaser.Scene,
@@ -93,38 +101,87 @@ export class MonsterManager implements GameComponent {
         this.getPlayerPos = getter;
     }
 
-    /** Public: trigger attack vào monster gần nhất trong range (gọi từ Attack button). */
-    async attackNearest(): Promise<void> {
+    /** Trigger swing với skill_id (default basic_swing). Tìm target ưu tiên: selected
+     * → nearest in scan radius. Nếu ngoài tầm → toast, không tấn công. */
+    async swing(skillId: string = DEFAULT_SKILL_ID): Promise<void> {
         if (this.inFlightAttack) return;
         const pos = this.getPlayerPos();
         if (!pos) return;
-        const target = this.findNearestAlive(pos.x, pos.y, ATTACK_RANGE);
+
+        // Ưu tiên monster đang được select (nếu còn alive). Fallback nearest.
+        let target: MonsterEntry | null = null;
+        if (this.selectedInstanceId) {
+            const sel = this.monsters.find((m) => m.dto.instance_id === this.selectedInstanceId);
+            if (sel && sel.dto.state === 'alive') target = sel;
+        }
+        if (!target) target = this.findNearestAlive(pos.x, pos.y, ATTACK_NEAREST_SCAN_RADIUS);
         if (!target) {
-            this.callbacks.onError?.('Không có quái trong tầm đánh.');
+            this.callbacks.onError?.('Không có quái nào ở gần.');
             return;
         }
-        await this.attackInstance(target.dto.instance_id);
+        // Auto-select cho UX target frame.
+        this.selectMonster(target.dto.instance_id);
+
+        const d = distXY(pos.x, pos.y, target.renderX, target.baseY);
+        if (d > PLAYER_ATTACK_RANGE_PX) {
+            this.callbacks.onError?.('Mục tiêu ngoài tầm đánh, lại gần hơn.');
+            return;
+        }
+        await this.fireAttack(target, skillId, pos);
     }
 
-    private async attackInstance(instanceId: string): Promise<void> {
-        const character = getCurrentCharacter();
-        if (!character) return;
+    /** Click vào quái → select để target frame hiện. Nếu trong tầm → fire attack. */
+    private handleMonsterClick(instanceId: string): void {
         const target = this.monsters.find((m) => m.dto.instance_id === instanceId);
         if (!target || target.dto.state === 'dead') return;
+        this.selectMonster(instanceId);
+        const pos = this.getPlayerPos();
+        if (!pos) return;
+        const d = distXY(pos.x, pos.y, target.renderX, target.baseY);
+        if (d > PLAYER_ATTACK_RANGE_PX) {
+            this.callbacks.onError?.('Mục tiêu ngoài tầm đánh, lại gần hơn.');
+            return;
+        }
+        void this.fireAttack(target, DEFAULT_SKILL_ID, pos);
+    }
 
+    private async fireAttack(target: MonsterEntry, skillId: string, pos: { x: number; y: number }): Promise<void> {
+        const character = getCurrentCharacter();
+        if (!character) return;
+        if (this.inFlightAttack) return;
         this.inFlightAttack = true;
         try {
             const res = await combatAPI.attack(character.id, {
-                instance_id: instanceId,
+                instance_id: target.dto.instance_id,
                 map_id: this.mapId,
+                skill_id: skillId,
+                player_x: pos.x,
+                player_y: pos.y,
             });
-            // Update monster state.
-            target.dto.current_hp = res.monster_hp_remaining;
-            if (res.monster_dead) {
-                target.dto.state = 'dead';
+            // Apply hits per target.
+            for (const hit of res.hits) {
+                const ent = this.monsters.find((m) => m.dto.instance_id === hit.instance_id);
+                if (!ent) continue;
+                ent.dto.current_hp = hit.hp_remaining;
+                if (hit.dead) {
+                    ent.dto.state = 'dead';
+                    if (this.selectedInstanceId === ent.dto.instance_id) {
+                        // Frame fade-out qua callback; sau fade clear selection.
+                    }
+                }
+                this.redrawHpBar(ent);
+                this.spawnDamageFloater(
+                    ent.renderX,
+                    ent.baseY - ent.style.bodyHeight / 2 - 50,
+                    hit.damage,
+                    hit.is_crit,
+                );
+                this.flashHit(ent);
             }
-            this.redrawHpBar(target);
-            this.spawnDamageFloater(target.renderX, target.baseY - target.style.bodyHeight / 2 - 50, res.damage_dealt, res.is_crit);
+            // Forward retaliations to scene (player floater + HUD).
+            for (const ret of res.retaliations) {
+                this.callbacks.onRetaliation?.(ret);
+            }
             this.callbacks.onAttackResult?.(res);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Lỗi tấn công';
@@ -133,6 +190,24 @@ export class MonsterManager implements GameComponent {
             this.inFlightAttack = false;
         }
     }
+
+    private selectMonster(instanceId: string): void {
+        if (this.selectedInstanceId === instanceId) return;
+        this.selectedInstanceId = instanceId;
+        const ent = this.monsters.find((m) => m.dto.instance_id === instanceId);
+        if (ent) this.callbacks.onTargetSelected?.(ent.dto);
+    }
+
+    clearSelection(): void {
+        if (!this.selectedInstanceId) return;
+        this.selectedInstanceId = null;
+        this.callbacks.onTargetCleared?.();
+    }
+
+    getSelectedInstanceId(): string | null { return this.selectedInstanceId; }
+
+    /** Backward compatibility cho các call site cũ. */
+    async attackNearest(): Promise<void> { await this.swing(); }
 
     private async refreshFromBE(): Promise<void> {
         const character = getCurrentCharacter();
@@ -153,6 +228,7 @@ export class MonsterManager implements GameComponent {
         for (const entry of this.monsters) {
             const dto = byID.get(entry.dto.instance_id);
             if (!dto) {
+                if (this.selectedInstanceId === entry.dto.instance_id) this.clearSelection();
                 this.destroyEntry(entry);
                 continue;
             }
@@ -192,7 +268,7 @@ export class MonsterManager implements GameComponent {
         const hitArea = this.scene.add.rectangle(renderX, baseY, style.radius * 2 + 20, style.bodyHeight + 20, 0x000000, 0)
             .setDepth(7).setInteractive({ useHandCursor: true });
         hitArea.on('pointerdown', () => {
-            void this.attackInstance(dto.instance_id);
+            this.handleMonsterClick(dto.instance_id);
         });
 
         const entry: MonsterEntry = {
@@ -275,6 +351,18 @@ export class MonsterManager implements GameComponent {
         });
     }
 
+    private flashHit(m: MonsterEntry): void {
+        // Tint đỏ flash 100ms — feedback hit. Body là Graphics, không có tint API
+        // → re-draw với color override; sau timeout redraw normal.
+        m.body.alpha = 1;
+        this.scene.tweens.add({
+            targets: m.body,
+            alpha: 0.5,
+            duration: 80,
+            yoyo: true,
+        });
+    }
+
     private findNearestAlive(px: number, py: number, range: number): MonsterEntry | null {
         let best: MonsterEntry | null = null;
         let bestDist = range;
@@ -299,6 +387,12 @@ export class MonsterManager implements GameComponent {
         for (const m of this.monsters) this.destroyEntry(m);
         this.monsters = [];
     }
+}
+
+function distXY(ax: number, ay: number, bx: number, by: number): number {
+    const dx = ax - bx;
+    const dy = ay - by;
+    return Math.sqrt(dx * dx + dy * dy);
 }
 
 function pickStyle(level: number): MonsterStyle {
