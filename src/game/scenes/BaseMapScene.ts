@@ -133,6 +133,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onQuestRewarded: (questName, rewards) => this.showQuestRewardFloater(questName, rewards),
         });
         this.npcs.create();
+        this.npcs.setPlayerPositionGetter(() => {
+            const p = this.playerCtrl.getPlayer();
+            return p ? { x: p.x, y: p.y } : null;
+        });
 
         // Portals
         this.portals = this.getPortalConfigs().map((portalCfg) => {
@@ -428,6 +432,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.controls.updateVisuals(cursors);
         this.portals.forEach((p) => p.updatePortal(player.x, player.y));
         this.monsters.update();
+        this.npcs.update();
         this.npcChatBubble.update();
         this.buffIndicator.update();
 

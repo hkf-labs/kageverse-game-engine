@@ -73,6 +73,9 @@ export class MonsterManager implements GameComponent {
     private lastSwingAt = 0; // client-side cooldown gate
     private getPlayerPos: () => { x: number; y: number } | null = () => null;
     private selectedInstanceId: string | null = null;
+    // 'auto' = đang dùng nearest in-range. 'manual' = player chủ động chọn,
+    // sticky cho tới khi target chết / out of range.
+    private selectionMode: 'auto' | 'manual' = 'auto';
 
     constructor(
         scene: Phaser.Scene,
@@ -149,6 +152,56 @@ export class MonsterManager implements GameComponent {
             // Sync hit area position theo bob.
             m.hitArea.setPosition(m.renderX, m.baseY + bob);
         }
+        this.updateAutoTarget();
+    }
+
+    /**
+     * Auto-pick nearest alive monster trong tầm đánh mỗi frame.
+     * - selectionMode='auto': overwrite selection mỗi tick theo nearest.
+     * - selectionMode='manual': giữ nguyên cho tới khi target ngoài tầm hoặc chết.
+     */
+    private updateAutoTarget(): void {
+        const pos = this.getPlayerPos();
+        if (!pos) return;
+        const scaleFactor = this.scene.scale.height / 1440;
+        const playerRawX = pos.x / scaleFactor;
+
+        // Manual mode: check sticky target còn hợp lệ không.
+        if (this.selectionMode === 'manual' && this.selectedInstanceId) {
+            const sel = this.monsters.find((m) => m.dto.instance_id === this.selectedInstanceId);
+            if (!sel || sel.dto.state !== 'alive') {
+                // Target chết / despawn → fallback auto.
+                this.selectionMode = 'auto';
+                this.selectedInstanceId = null;
+                this.callbacks.onTargetCleared?.();
+            } else {
+                const dx = Math.abs(playerRawX - sel.dto.pos_x);
+                if (dx > PLAYER_ATTACK_RANGE_RAW_PX) {
+                    // Ra khỏi tầm → fallback auto, không bám nữa.
+                    this.selectionMode = 'auto';
+                }
+            }
+        }
+
+        // Auto mode: pick nearest alive trong attack range.
+        if (this.selectionMode === 'auto') {
+            let nearest: MonsterEntry | null = null;
+            let nearestDx = PLAYER_ATTACK_RANGE_RAW_PX;
+            for (const m of this.monsters) {
+                if (m.dto.state !== 'alive') continue;
+                const dx = Math.abs(playerRawX - m.dto.pos_x);
+                if (dx <= nearestDx) {
+                    nearestDx = dx;
+                    nearest = m;
+                }
+            }
+            const newId = nearest?.dto.instance_id ?? null;
+            if (newId !== this.selectedInstanceId) {
+                this.selectedInstanceId = newId;
+                if (newId && nearest) this.callbacks.onTargetSelected?.(nearest.dto);
+                else this.callbacks.onTargetCleared?.();
+            }
+        }
     }
 
     destroy(): void {
@@ -191,11 +244,11 @@ export class MonsterManager implements GameComponent {
         await this.fireAttack(target, skillId, pos);
     }
 
-    /** Click vào quái → select để target frame hiện. Nếu trong tầm → fire attack. */
+    /** Click vào quái → manual select để target frame hiện. Nếu trong tầm → fire attack. */
     private handleMonsterClick(instanceId: string): void {
         const target = this.monsters.find((m) => m.dto.instance_id === instanceId);
         if (!target || target.dto.state === 'dead') return;
-        this.selectMonster(instanceId);
+        this.selectMonster(instanceId, true); // manual=true → sticky.
         const pos = this.getPlayerPos();
         if (!pos) return;
         if (!this.isInRange(pos, target)) {
@@ -264,9 +317,14 @@ export class MonsterManager implements GameComponent {
         }
     }
 
-    private selectMonster(instanceId: string): void {
-        if (this.selectedInstanceId === instanceId) return;
+    private selectMonster(instanceId: string, manual: boolean = false): void {
+        if (this.selectedInstanceId === instanceId) {
+            // Re-click cùng target → bump sang manual.
+            if (manual) this.selectionMode = 'manual';
+            return;
+        }
         this.selectedInstanceId = instanceId;
+        if (manual) this.selectionMode = 'manual';
         const ent = this.monsters.find((m) => m.dto.instance_id === instanceId);
         if (ent) this.callbacks.onTargetSelected?.(ent.dto);
     }
@@ -274,6 +332,7 @@ export class MonsterManager implements GameComponent {
     clearSelection(): void {
         if (!this.selectedInstanceId) return;
         this.selectedInstanceId = null;
+        this.selectionMode = 'auto';
         this.callbacks.onTargetCleared?.();
     }
 

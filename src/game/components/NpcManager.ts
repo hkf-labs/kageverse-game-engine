@@ -49,9 +49,11 @@ export class NpcManager implements GameComponent {
     private npcList: NpcEntry[] = [];
     private interactingNpc: NpcEntry | null = null;
     private selectedNpc: NpcEntry | null = null;
+    private selectionMode: 'auto' | 'manual' = 'auto';
     private selectionIndicator?: Phaser.GameObjects.Graphics;
     private autoMoveTargetX: number | null = null;
     private fetchSeq = 0;
+    private getPlayerPos: () => { x: number; y: number } | null = () => null;
     private questBadges = new Map<string, Phaser.GameObjects.Text>();
     private availabilityCache: Record<string, NpcQuestListsDTO> = {};
 
@@ -126,7 +128,7 @@ export class NpcManager implements GameComponent {
             if (npc.templateId) this.questBadges.set(npc.templateId, badge);
 
             const npcEntry: NpcEntry = { ...npc, sprite: spr, nameText };
-            spr.on('pointerdown', () => this.selectNpc(npcEntry));
+            spr.on('pointerdown', () => this.selectNpc(npcEntry, true));
             this.npcList.push(npcEntry);
         });
 
@@ -137,6 +139,44 @@ export class NpcManager implements GameComponent {
     getSelectedNpc(): NpcEntry | null { return this.selectedNpc; }
     getAutoMoveTargetX(): number | null { return this.autoMoveTargetX; }
     clearAutoMove(): void { this.autoMoveTargetX = null; }
+
+    /** Auto-pick nearest NPC trong INTERACT_RANGE mỗi frame. Manual selection
+     * chỉ clear khi player ra khỏi tầm. Trong lúc dialog mở thì freeze. */
+    update(): void {
+        if (this.interactingNpc) return; // dialog đang mở — giữ nguyên selection.
+        const pos = this.getPlayerPos();
+        if (!pos) return;
+
+        // Manual mode: check sticky range.
+        if (this.selectionMode === 'manual' && this.selectedNpc) {
+            const d = Phaser.Math.Distance.Between(pos.x, pos.y, this.selectedNpc.sprite.x, this.selectedNpc.sprite.y);
+            if (d > this.INTERACT_RANGE) {
+                this.selectionMode = 'auto'; // ra khỏi tầm → fallback auto.
+            } else {
+                return; // còn trong tầm + manual → giữ selection cố định.
+            }
+        }
+
+        // Auto mode: pick nearest NPC trong range.
+        let nearest: NpcEntry | null = null;
+        let nearestD = this.INTERACT_RANGE;
+        for (const n of this.npcList) {
+            const d = Phaser.Math.Distance.Between(pos.x, pos.y, n.sprite.x, n.sprite.y);
+            if (d <= nearestD) {
+                nearestD = d;
+                nearest = n;
+            }
+        }
+        if (nearest === this.selectedNpc) return;
+        if (this.selectedNpc) this.selectedNpc.nameText?.setColor('#ffea7a');
+        this.selectedNpc = nearest;
+        if (nearest) {
+            nearest.nameText?.setColor('#9affb4');
+            this.updateSelectionIndicator();
+        } else {
+            this.selectionIndicator?.clear().setVisible(false);
+        }
+    }
 
     /**
      * Fetch batch quest availability cho mọi NPC + render badge ❗ (offered)
@@ -226,25 +266,37 @@ export class NpcManager implements GameComponent {
     cycleSelectedNpc(): void {
         if (!this.canCycleTarget()) return;
         const visible = this.getVisibleNpcs();
-        if (!this.selectedNpc) { this.selectNpc(visible[0]); return; }
+        if (!this.selectedNpc) { this.selectNpc(visible[0], true); return; }
         const currentIdx = visible.indexOf(this.selectedNpc);
         const nextIdx = currentIdx === -1 ? 0 : (currentIdx + 1) % visible.length;
-        this.selectNpc(visible[nextIdx]);
+        this.selectNpc(visible[nextIdx], true);
     }
 
-    private selectNpc(npc: NpcEntry): void {
+    /** BaseMapScene gọi để wire vị trí player (để auto-target tick). */
+    setPlayerPositionGetter(getter: () => { x: number; y: number } | null): void {
+        this.getPlayerPos = getter;
+    }
+
+    private selectNpc(npc: NpcEntry, manual: boolean = false): void {
         if (this.interactingNpc) return;
-        if (this.selectedNpc && this.selectedNpc !== npc) {
+        if (this.selectedNpc === npc) {
+            if (manual) this.selectionMode = 'manual';
+            return;
+        }
+        if (this.selectedNpc) {
             this.selectedNpc.nameText?.setColor('#ffea7a');
         }
         this.selectedNpc = npc;
+        if (manual) this.selectionMode = 'manual';
         npc.nameText?.setColor('#9affb4');
         this.updateSelectionIndicator();
     }
 
-    private clearNpcSelection(): void {
+    /** Public — gọi từ scene khi switch map / cleanup. */
+    clearNpcSelection(): void {
         if (this.selectedNpc) this.selectedNpc.nameText?.setColor('#ffea7a');
         this.selectedNpc = null;
+        this.selectionMode = 'auto';
         this.autoMoveTargetX = null;
         this.selectionIndicator?.clear().setVisible(false);
     }
@@ -463,10 +515,12 @@ export class NpcManager implements GameComponent {
         });
     }
 
-    /** ActionMenu đóng (item action / click ngoài / ESC) → clear NPC state. */
+    /** ActionMenu đóng (item action / click ngoài / ESC) → chỉ clear interacting
+     * state. Selection vẫn giữ — sẽ tự clear ở update tick khi player ra khỏi
+     * INTERACT_RANGE (cùng spec với target frame quái). */
     private handleMenuClosed(): void {
         this.interactingNpc = null;
-        this.clearNpcSelection();
+        this.autoMoveTargetX = null;
     }
 
     private getVisibleNpcs(): NpcEntry[] {
