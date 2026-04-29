@@ -52,6 +52,7 @@ export class NpcManager implements GameComponent {
     private selectionIndicator?: Phaser.GameObjects.Graphics;
     private autoMoveTargetX: number | null = null;
     private fetchSeq = 0;
+    private questBadges = new Map<string, Phaser.GameObjects.Text>();
 
     private readonly INTERACT_RANGE = 150;
     private readonly SPRITE_SCALE = 0.12;
@@ -113,6 +114,13 @@ export class NpcManager implements GameComponent {
                 stroke: '#000', strokeThickness: 3,
             }).setOrigin(0.5).setDepth(9);
 
+            // Quest badge — ẩn mặc định, set khi refreshBadges() chạy.
+            const badge = this.scene.add.text(scaledX, nameText.y - 16, '', {
+                fontSize: '20px', fontFamily: 'system-ui, sans-serif',
+                stroke: '#000', strokeThickness: 4,
+            }).setOrigin(0.5).setDepth(10).setVisible(false);
+            if (npc.templateId) this.questBadges.set(npc.templateId, badge);
+
             const npcEntry: NpcEntry = { ...npc, sprite: spr, nameText };
             spr.on('pointerdown', () => this.selectNpc(npcEntry));
             this.npcList.push(npcEntry);
@@ -125,6 +133,45 @@ export class NpcManager implements GameComponent {
     getSelectedNpc(): NpcEntry | null { return this.selectedNpc; }
     getAutoMoveTargetX(): number | null { return this.autoMoveTargetX; }
     clearAutoMove(): void { this.autoMoveTargetX = null; }
+
+    /**
+     * Fetch batch quest availability cho mọi NPC + render badge ❗ (offered)
+     * hoặc ❓ (turn-in, ưu tiên hơn). Không có quest → ẩn. Best-effort: lỗi
+     * API → ẩn hết, không throw.
+     */
+    async refreshBadges(): Promise<void> {
+        const character = getCurrentCharacter();
+        if (!character) {
+            this.hideAllBadges();
+            return;
+        }
+        try {
+            const res = await questAPI.npcAvailability(character.id);
+            for (const [templateId, badge] of this.questBadges) {
+                const entry = res.npcs[templateId];
+                this.paintBadge(badge, entry?.offered_quest_ids ?? [], entry?.turn_in_quest_ids ?? []);
+            }
+        } catch (err) {
+            this.hideAllBadges();
+            if (err instanceof Error) {
+                console.warn('npc: refresh badges failed', err.message);
+            }
+        }
+    }
+
+    private paintBadge(badge: Phaser.GameObjects.Text, offered: string[], turnIn: string[]): void {
+        if (turnIn.length > 0) {
+            badge.setText('❓').setColor('#ffea7a').setVisible(true);
+        } else if (offered.length > 0) {
+            badge.setText('❗').setColor('#ff8a8a').setVisible(true);
+        } else {
+            badge.setVisible(false);
+        }
+    }
+
+    private hideAllBadges(): void {
+        for (const badge of this.questBadges.values()) badge.setVisible(false);
+    }
 
     handleInteract(playerX: number, playerY: number): void {
         if (this.interactingNpc) return; // dialog đang mở qua ActionMenu

@@ -87,7 +87,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Quest log — tạo trước NpcManager để NPC dialog có thể mở/refresh panel.
         // onQuestsUpdated push cache mới nhất vào QuestTracker mỗi khi refresh().
         this.questLog = new QuestLogPanel(this, {
-            onQuestsUpdated: (quests) => this.questTracker?.setQuests(quests),
+            onQuestsUpdated: (quests) => {
+                this.questTracker?.setQuests(quests);
+                // Mọi quest event (accept/turn-in/kill) đều có thể đổi state
+                // offered/turn-in của NPC khác → refresh badge.
+                void this.npcs?.refreshBadges();
+            },
         });
         this.questLog.create();
 

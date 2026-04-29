@@ -605,6 +605,16 @@ export type TurnInQuestResponse = {
     granted_rewards: QuestRewardsDTO;
 };
 
+export type NpcQuestListsDTO = {
+    offered_quest_ids: string[];
+    turn_in_quest_ids: string[];
+};
+
+export type NpcAvailabilityResponse = {
+    character_id: string;
+    npcs: Record<string, NpcQuestListsDTO>;
+};
+
 export const questAPI = {
     async list(characterId: string, status?: QuestStatus): Promise<ListQuestsResponse> {
         const qs = status ? `?status=${encodeURIComponent(status)}` : '';
@@ -627,6 +637,15 @@ export const questAPI = {
             throw new Error(`${formatApiError(resData, 'Nhận nhiệm vụ thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as AcceptQuestResponse;
+    },
+
+    async npcAvailability(characterId: string): Promise<NpcAvailabilityResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests/npc-availability`);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được trạng thái NPC')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as NpcAvailabilityResponse;
     },
 
     async turnIn(characterId: string, questId: string, npcId: string): Promise<TurnInQuestResponse> {
