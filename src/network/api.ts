@@ -605,6 +605,7 @@ export type NextOfferedDTO = {
     name_key: string;
     min_level: number;
     giver_npc_id: string | null;
+    objectives: QuestObjectiveDTO[];
 };
 
 export type QuestBoardCategoryDTO = {

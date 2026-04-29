@@ -195,8 +195,10 @@ export class QuestLogPanel implements GameComponent {
         `;
 
         const body = document.createElement('div');
+        // Fixed height — không co dãn theo content. Tránh modal nhảy mỗi khi
+        // switch tab giữa Chính tuyến (nhiều quest) và Phụ tuyến (ít hơn).
         body.style.cssText = `
-            flex: 1; overflow-y: auto; padding: 12px 18px; display: flex;
+            height: 420px; overflow-y: auto; padding: 12px 18px; display: flex;
             flex-direction: column; gap: 10px;
         `;
 
@@ -308,67 +310,112 @@ export class QuestLogPanel implements GameComponent {
     }
 
     private renderNextHint(next: NonNullable<QuestBoardCategoryDTO['next_offered']>): HTMLDivElement {
-        const banner = document.createElement('div');
-        banner.style.cssText = `
-            border: 1px dashed rgba(255,138,138,0.5); border-radius: 8px;
-            padding: 10px 12px; background: rgba(255,138,138,0.08);
-            color: #ffd070; font-size: 13px;
-        `;
         const npcName = next.giver_npc_id ? targetDisplayName(next.giver_npc_id) : 'NPC chưa rõ';
-        banner.innerHTML =
-            `<span style="color:#ff8a8a;font-weight:600;">❗ Tiếp theo:</span> `
-            + `Đến gặp <span style="color:#bdf0a0;">${escapeHtml(npcName)}</span> để nhận `
-            + `<span style="color:#ffea7a;">${escapeHtml(questDisplayName(next.name_key))}</span> `
-            + `<span style="color:#aaa;font-size:11px;">(Lv ${next.min_level})</span>`;
-        return banner;
+        const headerLine = `<span style="color:#ff8a8a;font-weight:600;">❗ Tiếp theo —</span> Đến gặp <span style="color:#bdf0a0;">${escapeHtml(npcName)}</span>`;
+        return this.renderQuestCard({
+            title: questDisplayName(next.name_key),
+            subtitleHTML: headerLine,
+            minLevel: next.min_level,
+            objectives: next.objectives,
+            rewards: null,
+            statusBadge: null,
+            border: 'rgba(255,138,138,0.5)',
+            background: 'rgba(255,138,138,0.08)',
+            dashed: true,
+        });
     }
 
     private renderQuestRow(q: QuestDTO): HTMLDivElement {
+        const status = q.status as 'active' | 'completed';
+        return this.renderQuestCard({
+            title: questDisplayName(q.name_key),
+            subtitleHTML: null,
+            minLevel: q.min_level,
+            objectives: q.objectives,
+            rewards: q.rewards ?? null,
+            statusBadge: { label: STATUS_LABEL[status], color: STATUS_COLOR[status] },
+            border: 'rgba(189,240,160,0.25)',
+            background: 'rgba(255,255,255,0.04)',
+            dashed: false,
+        });
+    }
+
+    private renderQuestCard(opts: {
+        title: string;
+        subtitleHTML: string | null;
+        minLevel: number;
+        objectives: QuestObjectiveDTO[];
+        rewards: QuestDTO['rewards'] | null;
+        statusBadge: { label: string; color: string } | null;
+        border: string;
+        background: string;
+        dashed: boolean;
+    }): HTMLDivElement {
         const row = document.createElement('div');
         row.style.cssText = `
-            border: 1px solid rgba(189,240,160,0.25); border-radius: 10px;
-            padding: 10px 12px; background: rgba(255,255,255,0.04);
+            border: 1px ${opts.dashed ? 'dashed' : 'solid'} ${opts.border};
+            border-radius: 10px; padding: 10px 12px;
+            background: ${opts.background};
         `;
+
+        // Title bar
         const head = document.createElement('div');
-        head.style.cssText = 'display: flex; justify-content: space-between; gap: 8px; align-items: center;';
+        head.style.cssText = 'display: flex; justify-content: space-between; gap: 8px; align-items: baseline;';
         const title = document.createElement('div');
-        title.style.cssText = 'font-weight: 600; font-size: 14px;';
-        title.innerHTML = `<span style="color:#ffea7a">${escapeHtml(questDisplayName(q.name_key))}</span>
-            <span style="color:#888; font-size:11px; margin-left:6px">[Lv ${q.min_level}]</span>`;
-        const status = document.createElement('div');
-        status.textContent = STATUS_LABEL[q.status];
-        status.style.cssText = `font-size: 12px; color: ${STATUS_COLOR[q.status]};`;
-        head.append(title, status);
+        title.innerHTML = `<span style="color:#ffea7a;font-weight:600;font-size:14px;">${escapeHtml(opts.title)}</span>`;
+        head.appendChild(title);
+        if (opts.statusBadge) {
+            const badge = document.createElement('div');
+            badge.textContent = opts.statusBadge.label;
+            badge.style.cssText = `font-size: 11px; color: ${opts.statusBadge.color};`;
+            head.appendChild(badge);
+        }
         row.appendChild(head);
 
-        // Objectives
-        const obj = document.createElement('div');
-        obj.style.cssText = 'margin-top: 8px; font-size: 13px; color: #d8e0d8; display: flex; flex-direction: column; gap: 3px;';
-        for (const o of q.objectives) {
-            const line = document.createElement('div');
+        // Optional subtitle (NPC hint cho next_offered)
+        if (opts.subtitleHTML) {
+            const sub = document.createElement('div');
+            sub.style.cssText = 'margin-top: 4px; font-size: 12px; color: #ffd070;';
+            sub.innerHTML = opts.subtitleHTML;
+            row.appendChild(sub);
+        }
+
+        // Bullet body — level requirement + objectives
+        const body = document.createElement('div');
+        body.style.cssText = 'margin-top: 8px; font-size: 13px; color: #d8e0d8; display: flex; flex-direction: column; gap: 3px;';
+
+        // Level requirement bullet — luôn hiện, dùng character level để mark done.
+        const lvLine = document.createElement('div');
+        lvLine.innerHTML = `• Trình độ đạt cấp <span style="color:#ffea7a;">${opts.minLevel}</span>`;
+        body.appendChild(lvLine);
+
+        for (const o of opts.objectives) {
             const verb = OBJECTIVE_VERB[o.type] ?? o.type;
             const target = targetDisplayName(o.target_id);
             const done = Math.min(o.done, o.count);
             const isDone = done >= o.count;
-            line.innerHTML = `${isDone ? '✅' : '◻'} ${verb} ${escapeHtml(target)} <span style="color:${isDone ? '#bdf0a0' : '#aaa'}">(${done}/${o.count})</span>`;
-            obj.appendChild(line);
+            const line = document.createElement('div');
+            line.innerHTML = `• ${verb} <span style="color:${isDone ? '#bdf0a0' : '#ffe4c4'};">${escapeHtml(target)}</span> `
+                + `<span style="color:${isDone ? '#bdf0a0' : '#aaa'};">${done}/${o.count}</span>`
+                + (isDone ? ' <span style="color:#bdf0a0;">✓</span>' : '');
+            body.appendChild(line);
         }
-        row.appendChild(obj);
+        row.appendChild(body);
 
-        // Rewards
-        if (q.rewards) {
-            const rewardLine = document.createElement('div');
-            rewardLine.style.cssText = 'margin-top: 8px; font-size: 12px; color: #bbb;';
+        // Rewards (optional — chỉ hiện cho quest đang active/completed)
+        if (opts.rewards) {
             const parts: string[] = [];
-            if (q.rewards.exp > 0) parts.push(`+${q.rewards.exp} XP`);
-            if (q.rewards.yen > 0) parts.push(`+${q.rewards.yen} Yên`);
-            if (q.rewards.coin > 0) parts.push(`+${q.rewards.coin} Xu`);
-            if (q.rewards.items) {
-                for (const it of q.rewards.items) {
+            if (opts.rewards.exp > 0) parts.push(`+${opts.rewards.exp} XP`);
+            if (opts.rewards.yen > 0) parts.push(`+${opts.rewards.yen} Yên`);
+            if (opts.rewards.coin > 0) parts.push(`+${opts.rewards.coin} Xu`);
+            if (opts.rewards.items) {
+                for (const it of opts.rewards.items) {
                     parts.push(`+${it.qty} ${targetDisplayName(it.template_id)}`);
                 }
             }
             if (parts.length > 0) {
+                const rewardLine = document.createElement('div');
+                rewardLine.style.cssText = 'margin-top: 8px; font-size: 12px; color: #bbb;';
                 rewardLine.textContent = `Thưởng: ${parts.join(' • ')}`;
                 row.appendChild(rewardLine);
             }
