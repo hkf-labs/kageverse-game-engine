@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DeathMenu, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillModal,
+    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DeathMenu, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -29,6 +29,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected equipment!: EquipmentModal;
     protected characterInfo!: CharacterInfoModal;
     protected skillModal!: SkillModal;
+    protected skillHotbar!: SkillHotbar;
     protected portals: Portal[] = [];
     private autoAttackEnabled = false;
     private lastEnterAt = 0;
@@ -62,6 +63,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.load.image('btn_chat', 'assets/game/buttons/chat.png');
         this.load.image('btn_menu', 'assets/game/buttons/menu.png');
         this.load.image('topbar', 'assets/game/ui/topbar.png');
+        this.load.image('skill_slot_empty', 'assets/game/skills/skill-empty.png');
         this.preloadMapAssets();
     }
 
@@ -255,9 +257,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.characterInfo = new CharacterInfoModal(this);
         this.characterInfo.create();
 
-        // Skill modal — Menu → Kỹ năng.
-        this.skillModal = new SkillModal(this);
+        // Skill modal — Menu → Kỹ năng. Khi gán slot xong, push xuống hotbar
+        // để khỏi mất round-trip BE thêm cho UI sync.
+        this.skillModal = new SkillModal(this, {
+            onSlotsChanged: (slots) => this.skillHotbar?.setSlots(slots),
+        });
         this.skillModal.create();
+
+        // Skill hotbar — 5 slot ngoài world, phía trên minimap mobile.
+        this.skillHotbar = new SkillHotbar(this);
+        this.skillHotbar.create();
 
         // Death menu (Kiệt sức) — overlay khi character HP=0.
         this.deathMenu = new DeathMenu(this, {
@@ -289,6 +298,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.equipment?.destroy();
             this.characterInfo?.destroy();
             this.skillModal?.destroy();
+            this.skillHotbar?.destroy();
             this.inventory?.destroy();
             this.shop?.destroy();
             this.chat?.destroy();

@@ -62,9 +62,11 @@ export class SkillModal implements GameComponent {
     private scene: Phaser.Scene;
     private board?: ListSkillsResponse;
     private selectedSkillID: string | null = null;
+    private onSlotsChanged?: (slots: (string | null)[]) => void;
 
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, opts?: { onSlotsChanged?: (slots: (string | null)[]) => void }) {
         this.scene = scene;
+        this.onSlotsChanged = opts?.onSlotsChanged;
     }
 
     create(): void {
@@ -413,6 +415,7 @@ export class SkillModal implements GameComponent {
             this.board.skill_slots = res.skill_slots;
             this.setStatus(`Đã gán ${skillName(this.board.skills.find((sk) => sk.skill_id === skillID)?.name_key ?? skillID)} vào slot ${slotIndex + 1}.`, '#bdf0a0');
             this.render();
+            this.onSlotsChanged?.(res.skill_slots);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Gán slot thất bại';
             this.setStatus(msg, '#ff8a8a');
