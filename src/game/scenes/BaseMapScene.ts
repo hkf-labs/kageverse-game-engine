@@ -711,6 +711,39 @@ export abstract class BaseMapScene extends Phaser.Scene {
         });
     }
 
+    /**
+     * Tự sát: shortcut về Làng nhanh, không phải chạy bộ. Bypass màn Kiệt sức,
+     * gọi thẳng /respawn (BE heal full + reset death_state alive). Confirm để
+     * tránh mis-click.
+     */
+    private async handleSuicide(): Promise<void> {
+        if (this.deathState !== 'alive') return; // đang chết rồi thì menu Kiệt sức lo.
+        if (!window.confirm('Tự sát để quay về Làng?\nNhân vật sẽ hồi đầy HP/MP và teleport về Làng Sương Khói.')) return;
+        const character = getCurrentCharacter();
+        if (!character) return;
+        try {
+            this.setAutoAttack(false);
+            this.monsters?.setTickPaused(true);
+            this.monsters?.clearSelection();
+            this.targetFrame?.clear();
+            const { combatAPI } = await import('../../network/api');
+            const res = await combatAPI.respawn(character.id);
+            this.hud.setStats({
+                current_hp: res.current_hp,
+                max_hp: res.current_hp,
+                current_mp: res.current_mp,
+                max_mp: res.current_mp,
+                level: this.lastKnownLevel,
+            });
+            this.monsters?.setTickPaused(false);
+            this.scene.start('VillageScene');
+        } catch (err) {
+            this.monsters?.setTickPaused(false);
+            const msg = err instanceof Error ? err.message : 'Tự sát thất bại';
+            this.hud.setStatus(msg, '#ff8a8a');
+        }
+    }
+
     private setAutoAttack(enabled: boolean, statusMsg?: string): void {
         this.autoAttackEnabled = enabled;
         if (statusMsg) this.hud.setStatus(statusMsg, enabled ? '#bdf0a0' : '#aaa');
@@ -808,6 +841,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 { key: 'equipment', label: 'Trang bị', icon: '⚔️', action: () => this.equipment.toggle() },
                 { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.questLog.open() },
                 { key: 'skills', label: 'Kỹ năng', icon: '⚡', action: () => this.hud.setStatus('Mở Kỹ Năng (placeholder)', '#ffea7a') },
+                { key: 'suicide', label: 'Tự sát', icon: '☠️', action: () => void this.handleSuicide() },
                 { key: 'settings', label: 'Cài đặt', icon: '⚙️', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },
                 { key: 'logout', label: 'Đăng xuất', icon: '🚪', action: () => this.handleLogout() },
             ],
