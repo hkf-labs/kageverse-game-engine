@@ -29,6 +29,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected equipment!: EquipmentModal;
     protected characterInfo!: CharacterInfoModal;
     protected portals: Portal[] = [];
+    private autoAttackEnabled = false;
+    private lastEnterAt = 0;
+    private readonly DOUBLE_TAP_MS = 1500;
 
     private enterKey?: Phaser.Input.Keyboard.Key;
     private escKey?: Phaser.Input.Keyboard.Key;
@@ -478,7 +481,19 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
 
         if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
-            this.handleInteract();
+            const now = Date.now();
+            if (this.autoAttackEnabled) {
+                // Bất kỳ Enter nào → tắt auto.
+                this.setAutoAttack(false, '⚔️ Tự đánh: TẮT');
+                this.lastEnterAt = 0;
+            } else if (now - this.lastEnterAt < this.DOUBLE_TAP_MS) {
+                // Enter thứ 2 trong cửa sổ 1.5s → bật auto.
+                this.setAutoAttack(true, '⚔️ Tự đánh: BẬT — di chuyển để tắt');
+                this.lastEnterAt = 0;
+            } else {
+                this.lastEnterAt = now;
+                this.handleInteract();
+            }
             return;
         }
 
@@ -488,6 +503,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
         const moveLeft = cursors.left.isDown || vi.left;
         const moveRight = cursors.right.isDown || vi.right;
         const moveUp = cursors.up.isDown || vi.up;
+
+        // Auto-attack tick: idle → swing per cooldown. Move keys → tắt + apply
+        // movement frame này.
+        if (this.autoAttackEnabled) {
+            if (moveLeft || moveRight || moveUp) {
+                this.setAutoAttack(false, '⚔️ Tự đánh: TẮT (di chuyển)');
+            } else {
+                void this.monsters.swing();
+            }
+        }
 
         const autoTarget = this.npcs.getAutoMoveTargetX();
         if (autoTarget !== null) {
@@ -673,9 +698,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
         });
     }
 
+    private setAutoAttack(enabled: boolean, statusMsg?: string): void {
+        this.autoAttackEnabled = enabled;
+        if (statusMsg) this.hud.setStatus(statusMsg, enabled ? '#bdf0a0' : '#aaa');
+    }
+
     private handleDeath(): void {
         if (this.deathState !== 'alive') return;
         this.deathState = 'dead';
+        this.setAutoAttack(false);
         // Pause combat tick — BE đã skip, FE cũng nên dừng poll.
         this.monsters?.setTickPaused(true);
         // Clear target frame + select.

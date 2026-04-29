@@ -47,8 +47,17 @@ export interface MonsterManagerCallbacks {
 const PLAYER_ATTACK_RANGE_RAW_PX = 120;
 const ATTACK_NEAREST_SCAN_RADIUS_PX = 400; // bán kính render-space tìm nearest khi auto-target
 const LIST_POLL_INTERVAL_MS = 8000;        // poll list quái để sync respawn / new spawn
-const COMBAT_TICK_INTERVAL_MS = 700;       // poll retaliation từ BE — match BE monster cooldown 1500ms
+const COMBAT_TICK_INTERVAL_MS = 700;       // poll retaliation từ BE
 const DEFAULT_SKILL_ID = 'none.basic_swing';
+
+// Client-side cooldown gate per skill — mirror BE skillRegistry. Tránh spam
+// request mỗi khi user giữ phím Enter; BE vẫn check authoritative.
+const SKILL_COOLDOWN_MS: Record<string, number> = {
+    'none.basic_swing': 800,
+};
+function getSkillCooldownMs(skillId: string): number {
+    return SKILL_COOLDOWN_MS[skillId] ?? 800;
+}
 
 export class MonsterManager implements GameComponent {
     private scene: Phaser.Scene;
@@ -61,6 +70,7 @@ export class MonsterManager implements GameComponent {
     private tickInFlight = false;
     private tickPaused = false;
     private inFlightAttack = false;
+    private lastSwingAt = 0; // client-side cooldown gate
     private getPlayerPos: () => { x: number; y: number } | null = () => null;
     private selectedInstanceId: string | null = null;
 
@@ -151,9 +161,12 @@ export class MonsterManager implements GameComponent {
     }
 
     /** Trigger swing với skill_id (default basic_swing). Tìm target ưu tiên: selected
-     * → nearest in scan radius. Nếu ngoài tầm → toast, không tấn công. */
+     * → nearest in scan radius. Nếu ngoài tầm → toast, không tấn công.
+     * Client-side cooldown gate: silent skip nếu chưa hết cooldown skill (mirror BE). */
     async swing(skillId: string = DEFAULT_SKILL_ID): Promise<void> {
         if (this.inFlightAttack) return;
+        const now = Date.now();
+        if (now - this.lastSwingAt < getSkillCooldownMs(skillId)) return;
         const pos = this.getPlayerPos();
         if (!pos) return;
 
@@ -205,6 +218,7 @@ export class MonsterManager implements GameComponent {
         if (!character) return;
         if (this.inFlightAttack) return;
         this.inFlightAttack = true;
+        this.lastSwingAt = Date.now(); // gate ngay khi bắt đầu request, không đợi response.
         try {
             // Convert player rendered pos → raw (BE coords match monster.pos_x).
             const scaleFactor = this.scene.scale.height / 1440;
