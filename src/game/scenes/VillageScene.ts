@@ -33,13 +33,13 @@ export class VillageScene extends BaseMapScene {
 
     protected getNpcConfigs(): NpcConfig[] {
         return [
-            { key: 'npc_blacksmith', name: 'Thợ Rèn', x: 740, y: undefined, offsetY: 0 },
+            { key: 'npc_blacksmith', name: 'Thợ Rèn Tetsu', x: 740, y: undefined, offsetY: 0, templateId: 'npc_tetsu' },
             { key: 'npc_healer', name: 'Y Sĩ Ayame', x: 1400, y: undefined, offsetY: 0, templateId: 'npc_healer_ayame' },
             { key: 'npc_chef', name: 'Bếp Trưởng Kuma', x: 2000, y: undefined, offsetY: 0, templateId: 'npc_chef_kuma' },
             { key: 'npc_merchant', name: 'Thương Gia', x: 2600, y: undefined, offsetY: 0 },
-            { key: 'npc_stash', name: 'Rương Đồ', x: 3800, y: undefined, offsetY: 0 },
-            { key: 'npc_teleporter', name: 'Người Dịch Chuyển', x: 5000, y: undefined, offsetY: 0, templateId: 'npc_teleporter' },
-            { key: 'npc_elder', name: 'Trưởng Làng', x: 400, y: undefined, offsetY: 0 },
+            { key: 'npc_stash', name: 'Quản Kho Kura', x: 3800, y: undefined, offsetY: 0, templateId: 'npc_kura' },
+            { key: 'npc_teleporter', name: 'Xa Phu Tobi', x: 5000, y: undefined, offsetY: 0, templateId: 'npc_teleporter' },
+            { key: 'npc_elder', name: 'Trưởng Làng Genji', x: 400, y: undefined, offsetY: 0, templateId: 'npc_genji' },
         ];
     }
 
