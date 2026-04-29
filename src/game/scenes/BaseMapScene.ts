@@ -238,6 +238,18 @@ export abstract class BaseMapScene extends Phaser.Scene {
         void this.loadInitialCharacterState();
         this.startPositionAutosave();
 
+        // Scene shutdown (portal / scene.start) → destroy DOM overlays để không
+        // tích tụ qua mỗi lần chuyển map. Phaser tự cleanup GameObjects nhưng
+        // <div> append vào canvas parent thì phải tự xoá.
+        this.events.once('shutdown', () => {
+            this.questTracker?.destroy();
+            this.questLog?.destroy();
+            this.equipment?.destroy();
+            this.inventory?.destroy();
+            this.shop?.destroy();
+            this.chat?.destroy();
+        });
+
         this.onMapReady();
     }
 
