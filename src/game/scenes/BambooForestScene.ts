@@ -38,11 +38,18 @@ export class BambooForestScene extends BaseMapScene {
         return [
             { x: 180, label: 'Quay Về Đồng Cỏ', targetSceneKey: 'CombatFieldScene' },
             {
-                x: 1600,
+                x: 1400,
                 label: 'Trường Mikazuki — Phái Kiếm',
                 targetSceneKey: 'SwordSchoolScene',
                 locked: true,
                 lockedMessage: 'Cần hoàn thành Bái Sư (Q11) để vào Trường Mikazuki.',
+            },
+            {
+                x: 2400,
+                label: 'Trường Hayabusa — Phái Cung',
+                targetSceneKey: 'HayabusaSchoolScene',
+                locked: true,
+                lockedMessage: 'Cần hoàn thành Bái Sư (Q11) để vào Trường Hayabusa.',
             },
             {
                 x: 3700,

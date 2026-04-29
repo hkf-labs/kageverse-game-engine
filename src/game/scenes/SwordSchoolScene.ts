@@ -24,18 +24,20 @@ export class SwordSchoolScene extends BaseMapScene {
 
     protected getNpcConfigs(): NpcConfig[] {
         return [
-            { key: 'npc_teleporter', name: 'Người Dịch Chuyển', x: 1000, y: undefined, offsetY: 0, templateId: 'npc_teleporter' },
+            { key: 'npc_tsukikage', name: 'HT Tsukikage', x: 1500, y: undefined, offsetY: 0, templateId: 'npc_tsukikage' },
+            { key: 'npc_ryota', name: 'Võ Sư Ryota', x: 2500, y: undefined, offsetY: 0, templateId: 'npc_ryota' },
         ];
     }
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180, label: 'Quay Về Đồng Cỏ', targetSceneKey: 'CombatFieldScene' },
+            { x: 180, label: 'Quay Về Rừng Tre', targetSceneKey: 'BambooForestScene' },
         ];
     }
 
     protected preloadMapAssets(): void {
-        // Sprite teleporter dùng chung từ village_001 — chưa có asset riêng cho trường.
-        this.load.image('npc_teleporter', 'assets/maps/village_001/npcs/teleporter.png');
+        // Placeholder sprites — dùng village_elder / blacksmith cho 2 NPC trường.
+        this.load.image('npc_tsukikage', 'assets/maps/village_001/npcs/village_elder.png');
+        this.load.image('npc_ryota', 'assets/maps/village_001/npcs/blacksmith.png');
     }
 }
