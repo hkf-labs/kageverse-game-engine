@@ -44,16 +44,16 @@ export class QuestTracker implements GameComponent {
             position: 'absolute',
             left: '12px', top: '80px',
             maxWidth: '300px', minWidth: '180px',
-            padding: '8px 12px',
+            padding: '4px 10px',
             background: 'linear-gradient(180deg, rgba(20,28,36,0.85), rgba(14,18,24,0.85))',
             border: '1px solid rgba(189, 240, 160, 0.35)',
-            borderRadius: '8px',
+            borderRadius: '6px',
             color: '#ffffff',
             fontFamily: 'system-ui, sans-serif',
-            fontSize: '12px',
-            lineHeight: '1.5',
+            fontSize: '11px',
+            lineHeight: '1.25',
             zIndex: '90',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+            boxShadow: '0 3px 10px rgba(0,0,0,0.45)',
             cursor: this.onClick ? 'pointer' : 'default',
             userSelect: 'none',
             display: 'none',
@@ -111,7 +111,7 @@ export class QuestTracker implements GameComponent {
         const objective = tracked.objectives.find((o) => o.done < o.count) ?? tracked.objectives[0];
 
         const titleLine =
-            `<div style="font-size:11px;color:#ffea7a;margin-bottom:3px;font-weight:600;">📜 ${escapeHtml(questDisplayName(tracked.name_key))}</div>`;
+            `<div style="color:#ffea7a;font-weight:600;">📜 ${escapeHtml(questDisplayName(tracked.name_key))}</div>`;
 
         let bodyLine: string;
         if (isCompleted) {
