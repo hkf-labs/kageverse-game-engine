@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DeathMenu, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal,
+    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DeathMenu, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -28,6 +28,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected questTracker!: QuestTracker;
     protected equipment!: EquipmentModal;
     protected characterInfo!: CharacterInfoModal;
+    protected skillModal!: SkillModal;
     protected portals: Portal[] = [];
     private autoAttackEnabled = false;
     private lastEnterAt = 0;
@@ -254,6 +255,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.characterInfo = new CharacterInfoModal(this);
         this.characterInfo.create();
 
+        // Skill modal — Menu → Kỹ năng.
+        this.skillModal = new SkillModal(this);
+        this.skillModal.create();
+
         // Death menu (Kiệt sức) — overlay khi character HP=0.
         this.deathMenu = new DeathMenu(this, {
             onChoice: (c) => void this.handleDeathChoice(c),
@@ -283,6 +288,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.questLog?.destroy();
             this.equipment?.destroy();
             this.characterInfo?.destroy();
+            this.skillModal?.destroy();
             this.inventory?.destroy();
             this.shop?.destroy();
             this.chat?.destroy();
@@ -457,7 +463,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen() || this.characterInfo?.isOpen()) {
+        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen() || this.characterInfo?.isOpen() || this.skillModal?.isOpen()) {
             player.body?.setVelocityX(0);
             // CharacterInfoModal đang mở → forward arrow keys cho scroll content.
             this.characterInfo?.update();
@@ -466,6 +472,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 if (this.questLog?.isVisible()) this.questLog.close();
                 else if (this.equipment?.isOpen()) this.equipment.close();
                 else if (this.characterInfo?.isOpen()) this.characterInfo.close();
+                else if (this.skillModal?.isOpen()) this.skillModal.close();
             }
             return;
         }
@@ -828,7 +835,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 { key: 'inventory', label: 'Túi đồ', icon: '🎒', action: () => this.inventory.toggle() },
                 { key: 'equipment', label: 'Trang bị', icon: '⚔️', action: () => this.equipment.toggle() },
                 { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.questLog.open() },
-                { key: 'skills', label: 'Kỹ năng', icon: '⚡', action: () => this.hud.setStatus('Mở Kỹ Năng (placeholder)', '#ffea7a') },
+                { key: 'skills', label: 'Kỹ năng', icon: '⚡', action: () => this.skillModal.open() },
                 { key: 'suicide', label: 'Tự sát', icon: '☠️', action: () => void this.handleSuicide() },
                 { key: 'settings', label: 'Cài đặt', icon: '⚙️', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },
                 { key: 'logout', label: 'Đăng xuất', icon: '🚪', action: () => this.handleLogout() },

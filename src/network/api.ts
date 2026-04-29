@@ -924,3 +924,100 @@ export const shopAPI = {
         return resData as ShopBuyResponse;
     },
 };
+
+// ----- Skill -----
+
+export type SkillFaction = 'none' | 'sword' | 'bow' | 'katana' | 'fan' | 'dart' | 'kunai';
+export type SkillType = 'active_attack' | 'active_buff' | 'passive';
+
+export type NextUpgradeDTO = {
+    to_level: number;
+    sp_cost: number;
+    min_char_level: number;
+    ready: boolean;
+};
+
+export type PrereqMissingDTO = {
+    skill_id: string;
+    need_level: number;
+    current_level: number;
+};
+
+export type SkillDTO = {
+    skill_id: string;
+    name_key: string;
+    description_key?: string | null;
+    faction: SkillFaction;
+    skill_type: SkillType;
+    required_level: number;
+    current_skill_level: number;
+    max_skill_level: number;
+    learned: boolean;
+    upgradable: boolean;
+    next_upgrade: NextUpgradeDTO | null;
+    prerequisites_met: boolean;
+    missing_prerequisites?: PrereqMissingDTO[];
+    cooldown_ms: number;
+    cooldown_remaining_ms: number;
+    mp_cost: number;
+    range_px: number;
+    aoe_radius_px: number;
+    max_targets: number;
+    current_stats: Record<string, number>;
+    icon_key?: string | null;
+    animation_key?: string | null;
+};
+
+export type ListSkillsResponse = {
+    character_id: string;
+    skill_points: number;
+    skill_slots: (string | null)[];
+    skills: SkillDTO[];
+};
+
+export type UpgradeSkillResponse = {
+    skill_id: string;
+    from_level: number;
+    to_level: number;
+    sp_consumed: number;
+    skill_points_remaining: number;
+    current_stats: Record<string, number>;
+};
+
+export type AssignSlotsResponse = {
+    skill_slots: (string | null)[];
+};
+
+export const skillAPI = {
+    async list(characterId: string): Promise<ListSkillsResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/skills`);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được kỹ năng')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as ListSkillsResponse;
+    },
+
+    async upgrade(characterId: string, skillId: string): Promise<UpgradeSkillResponse> {
+        const path = `/characters/${encodeURIComponent(characterId)}/skills/${encodeURIComponent(skillId)}/upgrade`;
+        const { response, traceId } = await authFetch(path, { method: 'POST' });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Nâng cấp kỹ năng thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as UpgradeSkillResponse;
+    },
+
+    async assignSlots(characterId: string, slots: (string | null)[]): Promise<AssignSlotsResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/skill-slots`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slots }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Gán slot thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as AssignSlotsResponse;
+    },
+};
