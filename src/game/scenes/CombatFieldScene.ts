@@ -30,14 +30,7 @@ export class CombatFieldScene extends BaseMapScene {
         return [
             { x: 180, label: 'Quay Về Làng', targetSceneKey: 'VillageScene' },
             {
-                x: 800,
-                label: 'Trường Mikazuki — Phái Kiếm',
-                targetSceneKey: 'SwordSchoolScene',
-                locked: true,
-                lockedMessage: 'Cần hoàn thành nhiệm vụ Nhập Phái để mở khoá Trường Mikazuki.',
-            },
-            {
-                x: 5500,
+                x: 3800,
                 label: 'Rừng Tre Yatomi',
                 targetSceneKey: 'BambooForestScene',
                 locked: true,

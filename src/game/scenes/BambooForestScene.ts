@@ -38,7 +38,14 @@ export class BambooForestScene extends BaseMapScene {
         return [
             { x: 180, label: 'Quay Về Đồng Cỏ', targetSceneKey: 'CombatFieldScene' },
             {
-                x: 5500,
+                x: 1600,
+                label: 'Trường Mikazuki — Phái Kiếm',
+                targetSceneKey: 'SwordSchoolScene',
+                locked: true,
+                lockedMessage: 'Cần hoàn thành Bái Sư (Q11) để vào Trường Mikazuki.',
+            },
+            {
+                x: 3700,
                 label: 'Đồi Đá Iwagumo',
                 targetSceneKey: 'RockyHillScene',
                 locked: true,

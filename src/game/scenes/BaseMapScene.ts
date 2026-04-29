@@ -404,14 +404,22 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 }
             }
 
-            // Portal lock theo unlocked_maps: portal đến map chưa unlock thì lock.
-            // Áp dụng SAU portal config gốc (config gốc lock vẫn giữ — vd Sword School cần Bái Sư).
+            // Portal lock theo unlocked_maps: portal đến map đã unlock → mở khoá;
+            // chưa unlock → khoá kèm message gợi quest. Note: scene config có thể
+            // set locked=true mặc định cho UX (vd "Cần Bái Sư"), nhưng nếu BE đã
+            // unlock_map thì FE bỏ qua scene config gốc.
             const { mapIdForSceneKey } = await import('../maps/registry');
             this.portals.forEach((p) => {
                 const targetMapId = mapIdForSceneKey(p.getTargetSceneKey());
-                if (targetMapId && !c.unlocked_maps.includes(targetMapId)) {
+                if (!targetMapId) return;
+                if (c.unlocked_maps.includes(targetMapId)) {
+                    p.setLocked(false);
+                } else {
                     p.setLocked(true);
-                    p.setLockedMessage('Map này chưa mở khoá. Tiếp tục nhiệm vụ chính tuyến để mở.');
+                    // Giữ lockedMessage gốc của scene nếu có — nhiều thông tin hơn message generic.
+                    if (!p.getLockedMessage()) {
+                        p.setLockedMessage('Map này chưa mở khoá. Tiếp tục nhiệm vụ chính tuyến để mở.');
+                    }
                 }
             });
 
