@@ -177,8 +177,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.chat = new ChatPanel(this);
         this.chat.create();
 
-        // Buff indicator (food buff icon + countdown).
-        this.buffIndicator = new BuffIndicator(this);
+        // Buff indicator (food buff icon + countdown). Khi layout đổi (add/remove
+        // buff), reflow QuestTracker xuống dưới panel buff để không đè.
+        this.buffIndicator = new BuffIndicator(this, {
+            onLayoutChanged: () => this.syncQuestTrackerOffset(),
+        });
         this.buffIndicator.create();
 
         // Inventory modal (HTML DOM overlay) — callback HUD + buff indicator khi dùng item.
@@ -236,6 +239,17 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.startPositionAutosave();
 
         this.onMapReady();
+    }
+
+    /**
+     * Reflow QuestTracker để xếp dọc dưới BuffIndicator: có buff → tracker
+     * dịch xuống dưới panel buff (~y=176); không buff → về vị trí mặc định
+     * (y=80, ngay dưới topbar).
+     */
+    private syncQuestTrackerOffset(): void {
+        if (!this.questTracker || !this.buffIndicator) return;
+        const top = this.buffIndicator.hasBuffs() ? 176 : 80;
+        this.questTracker.setTopOffset(top);
     }
 
     private startPositionAutosave(): void {

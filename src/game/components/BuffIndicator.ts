@@ -53,10 +53,15 @@ export class BuffIndicator implements GameComponent {
     private slots: SlotView[] = [];
     private buffs: ActiveBuff[] = []; // ordered by insertion / oldest first
     private lastSecondShown = new Map<string, number>();
+    private onLayoutChanged?: () => void;
 
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, opts?: { onLayoutChanged?: () => void }) {
         this.scene = scene;
+        this.onLayoutChanged = opts?.onLayoutChanged;
     }
+
+    /** True khi đang có ít nhất 1 buff active. Auto-prune đã chạy trong update(). */
+    hasBuffs(): boolean { return this.buffs.length > 0; }
 
     create(): void {
         this.container = this.scene.add.container(ANCHOR_X, ANCHOR_Y).setScrollFactor(0).setDepth(100);
@@ -143,6 +148,7 @@ export class BuffIndicator implements GameComponent {
             slot.container.setVisible(true);
         }
         this.refreshTexts(Date.now());
+        this.onLayoutChanged?.();
     }
 
     private refreshTexts(now: number): void {

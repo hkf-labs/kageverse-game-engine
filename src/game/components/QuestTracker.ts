@@ -82,6 +82,15 @@ export class QuestTracker implements GameComponent {
     }
 
     /**
+     * Set top offset (px) — cho phép scene reflow khi BuffIndicator hiện/ẩn để
+     * 2 panel xếp dọc dưới topbar thay vì đè nhau.
+     */
+    setTopOffset(px: number): void {
+        if (!this.container) return;
+        this.container.style.top = `${px}px`;
+    }
+
+    /**
      * Set hint hiển thị khi không có quest active/completed nhưng có NPC đang
      * offer quest mới (vd new char chưa accept Q1). Pass null để clear.
      */
