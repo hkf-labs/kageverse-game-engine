@@ -90,6 +90,22 @@ const SKILL_ICON_EMOJI: Record<string, string> = {
     kunai: '🔪',
 };
 
+// Skill ID có file icon trong /assets/game/skills/icon_<id-with-underscore>.png.
+// Skills chưa có icon (lv 90/100/110/120) fallback về emoji theo phái.
+const SKILL_ICON_AVAILABLE: ReadonlySet<string> = new Set([
+    'sword.slash_lv10', 'sword.guard_lv15', 'sword.iron_body_lv20', 'sword.combo_lv25',
+    'sword.crit_focus_lv30', 'sword.cleave_lv35', 'sword.heavy_lv40', 'sword.fury_lv45',
+    'sword.thunder_lv50', 'sword.parry_lv60', 'sword.kage_lv70', 'sword.divine_lv80',
+    'bow.shoot_lv10', 'bow.eagle_eye_lv15', 'bow.steady_aim_lv20', 'bow.rapid_lv25',
+    'bow.wind_lv30', 'bow.piercing_lv35', 'bow.hunter_lv40', 'bow.swift_lv45',
+    'bow.storm_lv50', 'bow.shadow_step_lv60', 'bow.falcon_lv70', 'bow.master_lv80',
+]);
+
+function skillIconURL(skillID: string): string | null {
+    if (!SKILL_ICON_AVAILABLE.has(skillID)) return null;
+    return `/assets/game/skills/icon_${skillID.replace('.', '_')}.png`;
+}
+
 const TYPE_LABEL_VI: Record<string, string> = {
     active_attack: 'Chủ động — tấn công',
     active_buff: 'Chủ động — hỗ trợ',
@@ -102,7 +118,19 @@ function skillDesc(key: string | null | undefined): string {
     return SKILL_DESC_VI[key] ?? key;
 }
 function skillIcon(s: SkillDTO): string {
+    const url = skillIconURL(s.skill_id);
+    if (url) {
+        return `<img src="${url}" alt="" style="width:38px;height:38px;image-rendering:pixelated;display:block;" />`;
+    }
     return SKILL_ICON_EMOJI[s.faction] ?? '✨';
+}
+
+function skillIconInline(s: SkillDTO, size: number): string {
+    const url = skillIconURL(s.skill_id);
+    if (url) {
+        return `<img src="${url}" alt="" style="width:${size}px;height:${size}px;image-rendering:pixelated;vertical-align:middle;margin-right:6px;" />`;
+    }
+    return (SKILL_ICON_EMOJI[s.faction] ?? '✨') + ' ';
 }
 
 /**
@@ -373,7 +401,7 @@ export class SkillModal implements GameComponent {
         const descBlock = desc
             ? `<div style="font-size:13px;color:#ffe4c4;font-style:italic;margin-bottom:10px;line-height:1.5;">${escapeHtml(desc)}</div>`
             : '';
-        const title = `<div style="font-size:15px;font-weight:bold;color:#ffea7a;margin-bottom:8px;">${skillIcon(s)} ${escapeHtml(skillName(s.name_key))}</div>`;
+        const title = `<div style="font-size:15px;font-weight:bold;color:#ffea7a;margin-bottom:8px;display:flex;align-items:center;gap:6px;">${skillIconInline(s, 28)}<span>${escapeHtml(skillName(s.name_key))}</span></div>`;
         const rowHTML = rows.map((r) => {
             const valueColor = r.valueColor ?? '#ffe4c4';
             return `<div style="font-size:13px;line-height:1.7;display:flex;gap:6px;align-items:baseline;">`

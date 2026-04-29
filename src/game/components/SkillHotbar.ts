@@ -19,9 +19,28 @@ const FACTION_ICON: Record<string, string> = {
     kunai: '🔪',
 };
 
+// Skill ID có file icon — match SkillModal SKILL_ICON_AVAILABLE.
+const SKILL_ICON_AVAILABLE: ReadonlySet<string> = new Set([
+    'sword.slash_lv10', 'sword.guard_lv15', 'sword.iron_body_lv20', 'sword.combo_lv25',
+    'sword.crit_focus_lv30', 'sword.cleave_lv35', 'sword.heavy_lv40', 'sword.fury_lv45',
+    'sword.thunder_lv50', 'sword.parry_lv60', 'sword.kage_lv70', 'sword.divine_lv80',
+    'bow.shoot_lv10', 'bow.eagle_eye_lv15', 'bow.steady_aim_lv20', 'bow.rapid_lv25',
+    'bow.wind_lv30', 'bow.piercing_lv35', 'bow.hunter_lv40', 'bow.swift_lv45',
+    'bow.storm_lv50', 'bow.shadow_step_lv60', 'bow.falcon_lv70', 'bow.master_lv80',
+]);
+
+function skillTextureKey(skillID: string): string {
+    return `skill_icon_${skillID.replace('.', '_')}`;
+}
+
+function skillIconURL(skillID: string): string {
+    return `assets/game/skills/icon_${skillID.replace('.', '_')}.png`;
+}
+
 interface SlotView {
     container: Phaser.GameObjects.Container;
     bg: Phaser.GameObjects.Image;
+    iconImage: Phaser.GameObjects.Image;
     iconText: Phaser.GameObjects.Text;
     keyLabel: Phaser.GameObjects.Text;
     levelLabel: Phaser.GameObjects.Text;
@@ -51,6 +70,12 @@ export class SkillHotbar implements GameComponent {
         if (!this.scene.textures.exists(TEX_KEY_EMPTY)) {
             this.scene.load.image(TEX_KEY_EMPTY, 'assets/game/skills/skill-empty.png');
         }
+        for (const skillID of SKILL_ICON_AVAILABLE) {
+            const key = skillTextureKey(skillID);
+            if (!this.scene.textures.exists(key)) {
+                this.scene.load.image(key, skillIconURL(skillID));
+            }
+        }
     }
 
     create(): void {
@@ -64,6 +89,9 @@ export class SkillHotbar implements GameComponent {
             const slotX = i * (SLOT_SIZE + SLOT_GAP) + SLOT_SIZE / 2;
             const cell = this.scene.add.container(slotX, 0);
             const bg = this.scene.add.image(0, 0, TEX_KEY_EMPTY).setDisplaySize(SLOT_SIZE, SLOT_SIZE);
+            const iconImage = this.scene.add.image(0, 0, TEX_KEY_EMPTY)
+                .setDisplaySize(SLOT_SIZE - 6, SLOT_SIZE - 6)
+                .setVisible(false);
             const iconText = this.scene.add.text(0, -2, '', {
                 fontSize: '24px', color: '#ffea7a', fontFamily: 'system-ui, sans-serif',
                 stroke: '#000', strokeThickness: 3,
@@ -76,9 +104,9 @@ export class SkillHotbar implements GameComponent {
                 fontSize: '11px', fontStyle: 'bold', color: '#bdf0a0',
                 fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
             }).setOrigin(1, 1);
-            cell.add([bg, iconText, keyLabel, levelLabel]);
+            cell.add([bg, iconImage, iconText, keyLabel, levelLabel]);
             this.container.add(cell);
-            this.slots.push({ container: cell, bg, iconText, keyLabel, levelLabel });
+            this.slots.push({ container: cell, bg, iconImage, iconText, keyLabel, levelLabel });
         }
 
         void this.refresh();
@@ -117,18 +145,28 @@ export class SkillHotbar implements GameComponent {
             if (!slot) continue;
             const skillID = this.boundSlots[i];
             if (!skillID) {
+                slot.iconImage.setVisible(false);
                 slot.iconText.setText('');
                 slot.levelLabel.setText('');
                 continue;
             }
             const s = this.skillsByID.get(skillID);
             if (!s) {
-                // Slot có skill_id nhưng chưa load xong info — show placeholder.
+                slot.iconImage.setVisible(false);
                 slot.iconText.setText('?');
                 slot.levelLabel.setText('');
                 continue;
             }
-            slot.iconText.setText(FACTION_ICON[s.faction] ?? '✨');
+            const texKey = skillTextureKey(skillID);
+            if (this.scene.textures.exists(texKey)) {
+                slot.iconImage.setTexture(texKey)
+                    .setDisplaySize(SLOT_SIZE - 6, SLOT_SIZE - 6)
+                    .setVisible(true);
+                slot.iconText.setText('');
+            } else {
+                slot.iconImage.setVisible(false);
+                slot.iconText.setText(FACTION_ICON[s.faction] ?? '✨');
+            }
             slot.levelLabel.setText(s.learned ? `${s.current_skill_level}` : '');
         }
     }
