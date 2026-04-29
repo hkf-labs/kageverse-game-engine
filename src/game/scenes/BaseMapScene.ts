@@ -712,32 +712,21 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     /**
-     * Tự sát: shortcut về Làng nhanh, không phải chạy bộ. Bypass màn Kiệt sức,
-     * gọi thẳng /respawn (BE heal full + reset death_state alive). Confirm để
-     * tránh mis-click.
+     * Tự sát: gửi /death-state action='kill' để BE set HP=0 + death_state=dead,
+     * sau đó trigger handleDeath() local — flow giống hệt khi quái đánh chết
+     * (overlay Kiệt sức + 3 lựa chọn Quay về / Hồi sinh tại chỗ / Đóng).
      */
     private async handleSuicide(): Promise<void> {
         if (this.deathState !== 'alive') return; // đang chết rồi thì menu Kiệt sức lo.
         const character = getCurrentCharacter();
         if (!character) return;
         try {
-            this.setAutoAttack(false);
-            this.monsters?.setTickPaused(true);
-            this.monsters?.clearSelection();
-            this.targetFrame?.clear();
             const { combatAPI } = await import('../../network/api');
-            const res = await combatAPI.respawn(character.id);
-            this.hud.setStats({
-                current_hp: res.current_hp,
-                max_hp: res.current_hp,
-                current_mp: res.current_mp,
-                max_mp: res.current_mp,
-                level: this.lastKnownLevel,
-            });
-            this.monsters?.setTickPaused(false);
-            this.scene.start('VillageScene');
+            await combatAPI.setDeathState(character.id, 'kill');
+            // HP về 0 trên BE → FE đồng bộ HUD + chạy handleDeath chung.
+            this.hud.setHP(0, this.lastKnownStats.max_hp);
+            this.handleDeath();
         } catch (err) {
-            this.monsters?.setTickPaused(false);
             const msg = err instanceof Error ? err.message : 'Tự sát thất bại';
             this.hud.setStatus(msg, '#ff8a8a');
         }

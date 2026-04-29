@@ -833,7 +833,7 @@ export const combatAPI = {
         }
         return resData as CombatTickResponse;
     },
-    async setDeathState(characterId: string, action: 'spectate'): Promise<SetDeathStateResponse> {
+    async setDeathState(characterId: string, action: 'spectate' | 'kill'): Promise<SetDeathStateResponse> {
         const path = `/characters/${encodeURIComponent(characterId)}/death-state`;
         const { response, traceId } = await authFetch(path, {
             method: 'POST',
