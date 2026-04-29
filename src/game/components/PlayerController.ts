@@ -56,7 +56,7 @@ export class PlayerController implements GameComponent {
         const height = this.scene.scale.height;
         this.scene.cameras.main.startFollow(this.player!, true, 0.1, 0.1);
         this.scene.cameras.main.setDeadzone(width * 0.1, height * 0.2);
-        this.scene.cameras.main.setBounds(0, 0, this.background.getBgWidth(), this.background.getBgHeight());
+        this.scene.cameras.main.setBounds(0, 0, this.background.getWorldWidth(), this.background.getBgHeight());
 
         this.cursors = this.scene.input.keyboard?.createCursorKeys();
 

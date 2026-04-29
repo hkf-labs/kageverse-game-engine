@@ -4,6 +4,7 @@ import type { GameComponent, MapConfig, TiledMapData, TiledLayer, TiledObject } 
 export class MapBackground implements GameComponent {
     private bgWidth = 3200;
     private bgHeight = 1080;
+    private worldWidth = 3200; // max(bgWidth, collider extent) — player chạy được tới đây
     private platforms!: Phaser.Physics.Arcade.StaticGroup;
     private scene: Phaser.Scene;
     private config: MapConfig;
@@ -15,8 +16,11 @@ export class MapBackground implements GameComponent {
 
     create(): void {
         this.drawBackdrop();
+        // Compute world width = max(bg image, collider extent). Khi BG mock ngắn
+        // hơn map Tiled, player vẫn đi tới được rìa collider (sky lộ ngoài BG).
+        this.worldWidth = Math.max(this.bgWidth, this.computeColliderMaxX());
 
-        this.scene.physics.world.setBounds(0, 0, this.bgWidth, this.bgHeight);
+        this.scene.physics.world.setBounds(0, 0, this.worldWidth, this.bgHeight);
         this.scene.physics.world.setBoundsCollision(true, true, false, true);
         this.scene.physics.world.gravity.y = 900;
 
@@ -28,6 +32,7 @@ export class MapBackground implements GameComponent {
     }
 
     getBgWidth(): number { return this.bgWidth; }
+    getWorldWidth(): number { return this.worldWidth; }
     getBgHeight(): number { return this.bgHeight; }
     getPlatforms(): Phaser.Physics.Arcade.StaticGroup { return this.platforms; }
 
@@ -56,6 +61,20 @@ export class MapBackground implements GameComponent {
         });
 
         return lowestY === 0 ? this.getGroundY() : lowestY;
+    }
+
+    private computeColliderMaxX(): number {
+        const mapData = this.scene.cache.json.get(this.config.colliderKey) as TiledMapData | undefined;
+        if (!mapData || !mapData.layers) return 0;
+        const objectLayer = mapData.layers.find((l: TiledLayer) => l.type === 'objectgroup');
+        if (!objectLayer || !objectLayer.objects) return 0;
+        const scale = this.scene.scale.height / this.config.tiledOriginalHeight;
+        let maxX = 0;
+        for (const obj of objectLayer.objects) {
+            const right = (obj.x + (obj.width ?? 0)) * scale;
+            if (right > maxX) maxX = right;
+        }
+        return maxX;
     }
 
     private drawBackdrop(): void {

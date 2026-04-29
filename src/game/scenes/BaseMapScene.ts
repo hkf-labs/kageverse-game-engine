@@ -183,7 +183,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.questKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.J);
 
         // Minimap
-        this.minimap = new Minimap(this, this.background.getBgWidth(), this.background.getBgHeight());
+        this.minimap = new Minimap(this, this.background.getWorldWidth(), this.background.getBgHeight());
         this.minimap.create();
         const player = this.playerCtrl.getPlayer();
         if (player) this.minimap.followPlayer(player);
