@@ -28,6 +28,8 @@ export class QuestTracker implements GameComponent {
     private container?: HTMLDivElement;
     private scene: Phaser.Scene;
     private onClick?: () => void;
+    private currentQuests: QuestDTO[] = [];
+    private emptyHint: string | null = null;
 
     constructor(scene: Phaser.Scene, onClick?: () => void) {
         this.scene = scene;
@@ -73,14 +75,38 @@ export class QuestTracker implements GameComponent {
         this.container = c;
     }
 
-    /** Cập nhật từ cache QuestLogPanel; ẩn nếu không có quest active/completed. */
+    /** Cập nhật cache quest từ QuestLogPanel; render lại. */
     setQuests(quests: QuestDTO[]): void {
+        this.currentQuests = quests;
+        this.render();
+    }
+
+    /**
+     * Set hint hiển thị khi không có quest active/completed nhưng có NPC đang
+     * offer quest mới (vd new char chưa accept Q1). Pass null để clear.
+     */
+    setEmptyHint(text: string | null): void {
+        this.emptyHint = text;
+        this.render();
+    }
+
+    private render(): void {
         if (!this.container) return;
-        const tracked = pickTrackedQuest(quests);
-        if (!tracked) {
-            this.container.style.display = 'none';
+        const tracked = pickTrackedQuest(this.currentQuests);
+        if (tracked) {
+            this.renderQuest(tracked);
             return;
         }
+        if (this.emptyHint) {
+            this.container.innerHTML = `<div style="color:#ff8a8a;font-weight:600;">❗ ${escapeHtml(this.emptyHint)}</div>`;
+            this.container.style.display = 'block';
+            return;
+        }
+        this.container.style.display = 'none';
+    }
+
+    private renderQuest(tracked: QuestDTO): void {
+        if (!this.container) return;
         const isCompleted = tracked.status === 'completed';
         const objective = tracked.objectives.find((o) => o.done < o.count) ?? tracked.objectives[0];
 

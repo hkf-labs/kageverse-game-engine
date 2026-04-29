@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { npcAPI, questAPI, type NpcActionDTO, type QuestDTO, type TeleportDestinationDTO } from '../../network/api';
+import { npcAPI, questAPI, type NpcActionDTO, type NpcQuestListsDTO, type QuestDTO, type TeleportDestinationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
@@ -53,6 +53,7 @@ export class NpcManager implements GameComponent {
     private autoMoveTargetX: number | null = null;
     private fetchSeq = 0;
     private questBadges = new Map<string, Phaser.GameObjects.Text>();
+    private availabilityCache: Record<string, NpcQuestListsDTO> = {};
 
     private readonly INTERACT_RANGE = 150;
     private readonly SPRITE_SCALE = 0.12;
@@ -143,20 +144,37 @@ export class NpcManager implements GameComponent {
         const character = getCurrentCharacter();
         if (!character) {
             this.hideAllBadges();
+            this.availabilityCache = {};
             return;
         }
         try {
             const res = await questAPI.npcAvailability(character.id);
+            this.availabilityCache = res.npcs;
             for (const [templateId, badge] of this.questBadges) {
                 const entry = res.npcs[templateId];
                 this.paintBadge(badge, entry?.offered_quest_ids ?? [], entry?.turn_in_quest_ids ?? []);
             }
         } catch (err) {
             this.hideAllBadges();
+            this.availabilityCache = {};
             if (err instanceof Error) {
                 console.warn('npc: refresh badges failed', err.message);
             }
         }
+    }
+
+    /**
+     * NPC đầu tiên trong scene đang offer quest mới — dùng cho QuestTracker
+     * empty-state hint ("Đến gặp <Tên NPC>"). null nếu không NPC nào.
+     * Order theo thứ tự NPC config — tự nhiên giver chính thường ở đầu list.
+     */
+    getFirstOfferedNpc(): NpcEntry | null {
+        for (const npc of this.npcList) {
+            if (!npc.templateId) continue;
+            const entry = this.availabilityCache[npc.templateId];
+            if (entry?.offered_quest_ids?.length) return npc;
+        }
+        return null;
     }
 
     private paintBadge(badge: Phaser.GameObjects.Text, offered: string[], turnIn: string[]): void {
