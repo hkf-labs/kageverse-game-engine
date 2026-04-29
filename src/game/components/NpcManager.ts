@@ -1,10 +1,13 @@
 import * as Phaser from 'phaser';
-import { npcAPI, type NpcActionDTO, type TeleportDestinationDTO } from '../../network/api';
+import { npcAPI, questAPI, type NpcActionDTO, type QuestDTO, type TeleportDestinationDTO } from '../../network/api';
+import { getCurrentCharacter } from '../playerSession';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
 import type { MapBackground } from './MapBackground';
 import type { NpcChatBubble } from './NpcChatBubble';
+import { questDisplayName } from './QuestLogPanel';
+import type { QuestLogPanel } from './QuestLogPanel';
 import type { ShopModal } from './ShopModal';
 
 const ACTION_LABEL_VI: Record<string, string> = {
@@ -61,9 +64,12 @@ export class NpcManager implements GameComponent {
     private actionMenu?: ActionMenu;
     private shopModal?: ShopModal;
     private chatBubble?: NpcChatBubble;
+    private questLog?: QuestLogPanel;
     private onStatusMessage?: (text: string, color: string) => void;
     private dialogueKeyByTemplate = new Map<string, string | null>();
     private teleportDestinations: TeleportDestinationDTO[] = [];
+    private offeredQuestIDs: string[] = [];
+    private turnInQuestIDs: string[] = [];
 
     constructor(
         scene: Phaser.Scene,
@@ -74,6 +80,7 @@ export class NpcManager implements GameComponent {
             actionMenu?: ActionMenu;
             shopModal?: ShopModal;
             chatBubble?: NpcChatBubble;
+            questLog?: QuestLogPanel;
             onStatusMessage?: (text: string, color: string) => void;
         },
     ) {
@@ -84,6 +91,7 @@ export class NpcManager implements GameComponent {
         this.actionMenu = deps?.actionMenu;
         this.shopModal = deps?.shopModal;
         this.chatBubble = deps?.chatBubble;
+        this.questLog = deps?.questLog;
         this.onStatusMessage = deps?.onStatusMessage;
     }
 
@@ -204,34 +212,63 @@ export class NpcManager implements GameComponent {
         if (npc.templateId && this.mapId) {
             showLoading();
             const seq = ++this.fetchSeq;
-            void npcAPI.getInteract(this.mapId, npc.templateId)
+            const characterId = getCurrentCharacter()?.id;
+            void npcAPI.getInteract(this.mapId, npc.templateId, characterId)
                 .then((res) => {
                     if (npc.templateId) {
                         this.dialogueKeyByTemplate.set(npc.templateId, res.default_dialogue_key);
                     }
                     if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
                     this.teleportDestinations = res.teleport_destinations ?? [];
+                    this.offeredQuestIDs = res.offered_quest_ids ?? [];
+                    this.turnInQuestIDs = res.turn_in_quest_ids ?? [];
                     this.openMenuFromBE(npc, res.available_actions);
                 })
                 .catch((err) => {
                     if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
+                    this.offeredQuestIDs = [];
+                    this.turnInQuestIDs = [];
                     const msg = err instanceof Error ? err.message : 'Không tải được menu NPC';
                     this.onStatusMessage?.(msg, '#ff8a8a');
                     this.openMenuMock(npc);
                 });
         } else {
+            this.offeredQuestIDs = [];
+            this.turnInQuestIDs = [];
             this.openMenuMock(npc);
         }
     }
 
     private openMenuFromBE(npc: NpcEntry, actions: NpcActionDTO[]): void {
         if (!this.actionMenu) return;
-        const items: ActionMenuItem[] = actions.map((a) => ({
-            key: a.action,
-            label: actionLabel(a),
-            icon: ACTION_ICON[a.action],
-            action: () => this.runAction(npc, a.action),
-        }));
+        const items: ActionMenuItem[] = [];
+
+        // Quest hooks lên đầu menu — phổ biến nhất khi player tới gặp NPC quest.
+        for (const questID of this.turnInQuestIDs) {
+            items.push({
+                key: `turn_in_${questID}`,
+                label: `Trả: ${questDisplayName(`quest.${questID}.name`)}`,
+                icon: '🏆',
+                action: () => this.runQuestTurnIn(npc, questID),
+            });
+        }
+        for (const questID of this.offeredQuestIDs) {
+            items.push({
+                key: `accept_${questID}`,
+                label: `Nhận: ${questDisplayName(`quest.${questID}.name`)}`,
+                icon: '❗',
+                action: () => this.runQuestAccept(npc, questID),
+            });
+        }
+
+        for (const a of actions) {
+            items.push({
+                key: a.action,
+                label: actionLabel(a),
+                icon: ACTION_ICON[a.action],
+                action: () => this.runAction(npc, a.action),
+            });
+        }
         items.push({ key: 'leave', label: 'Rời đi', icon: '🚪', action: () => {} });
         this.actionMenu.open({
             title: npc.name,
@@ -287,6 +324,12 @@ export class NpcManager implements GameComponent {
                 this.openTeleportMenu();
                 break;
             case 'view_quests':
+                if (this.questLog) {
+                    this.questLog.open();
+                } else {
+                    this.onStatusMessage?.('Nhật ký nhiệm vụ chưa sẵn sàng.', '#aaaaaa');
+                }
+                break;
             case 'upgrade_equipment':
             case 'open_stash':
                 this.onStatusMessage?.(`Chức năng "${ACTION_LABEL_VI[action] || action}" sắp ra mắt.`, '#aaaaaa');
@@ -294,6 +337,41 @@ export class NpcManager implements GameComponent {
             default:
                 this.onStatusMessage?.(`Hành động "${action}" chưa hỗ trợ.`, '#aaaaaa');
         }
+    }
+
+    private runQuestAccept(npc: NpcEntry, questID: string): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) {
+            this.onStatusMessage?.('Không thể nhận nhiệm vụ.', '#ff8a8a');
+            return;
+        }
+        void questAPI.accept(character.id, questID, npc.templateId)
+            .then((res) => {
+                this.onStatusMessage?.(`Đã nhận nhiệm vụ: ${questDisplayName(res.quest.name_key)}`, '#bdf0a0');
+                void this.questLog?.refresh();
+            })
+            .catch((err) => {
+                const msg = err instanceof Error ? err.message : 'Nhận nhiệm vụ thất bại';
+                this.onStatusMessage?.(msg, '#ff8a8a');
+            });
+    }
+
+    private runQuestTurnIn(npc: NpcEntry, questID: string): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) {
+            this.onStatusMessage?.('Không thể trả nhiệm vụ.', '#ff8a8a');
+            return;
+        }
+        void questAPI.turnIn(character.id, questID, npc.templateId)
+            .then((res) => {
+                const summary = formatRewardSummary(res.quest, res.granted_rewards);
+                this.onStatusMessage?.(summary, '#ffea7a');
+                void this.questLog?.refresh();
+            })
+            .catch((err) => {
+                const msg = err instanceof Error ? err.message : 'Trả nhiệm vụ thất bại';
+                this.onStatusMessage?.(msg, '#ff8a8a');
+            });
     }
 
     private openTeleportMenu(): void {
@@ -356,4 +434,18 @@ export class NpcManager implements GameComponent {
         } catch { return 0; }
         return 0;
     }
+}
+
+function formatRewardSummary(quest: QuestDTO, rewards: QuestDTO['rewards']): string {
+    const parts: string[] = [];
+    if (rewards.exp > 0) parts.push(`+${rewards.exp} XP`);
+    if (rewards.yen > 0) parts.push(`+${rewards.yen} Yên`);
+    if (rewards.coin > 0) parts.push(`+${rewards.coin} Xu`);
+    if (rewards.items) {
+        for (const it of rewards.items) parts.push(`+${it.qty} ${it.template_id}`);
+    }
+    const name = questDisplayName(quest.name_key);
+    return parts.length > 0
+        ? `Hoàn thành ${name}! Thưởng: ${parts.join(' • ')}`
+        : `Hoàn thành ${name}!`;
 }

@@ -478,17 +478,110 @@ export type NpcInteractResponse = {
     is_hidden: boolean;
     available_actions: NpcActionDTO[];
     teleport_destinations?: TeleportDestinationDTO[];
+    offered_quest_ids: string[];
+    turn_in_quest_ids: string[];
 };
 
 export const npcAPI = {
-    async getInteract(mapId: string, npcTemplateId: string): Promise<NpcInteractResponse> {
-        const path = `/maps/${encodeURIComponent(mapId)}/npcs/${encodeURIComponent(npcTemplateId)}`;
+    async getInteract(mapId: string, npcTemplateId: string, characterId?: string): Promise<NpcInteractResponse> {
+        const qs = characterId ? `?character_id=${encodeURIComponent(characterId)}` : '';
+        const path = `/maps/${encodeURIComponent(mapId)}/npcs/${encodeURIComponent(npcTemplateId)}${qs}`;
         const { response, traceId } = await authFetch(path);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
             throw new Error(`${formatApiError(resData, 'Không tải được NPC')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as NpcInteractResponse;
+    },
+};
+
+// ----- Quest -----
+
+export type QuestObjectiveDTO = {
+    type: 'kill_monster' | 'talk_npc' | 'collect_item' | 'use_item' | 'buy_item';
+    target_id: string;
+    count: number;
+    done: number;
+};
+
+export type QuestRewardItemDTO = {
+    template_id: string;
+    qty: number;
+};
+
+export type QuestRewardsDTO = {
+    exp: number;
+    yen: number;
+    coin: number;
+    items?: QuestRewardItemDTO[];
+};
+
+export type QuestStatus = 'active' | 'completed' | 'claimed';
+
+export type QuestDTO = {
+    quest_id: string;
+    name_key: string;
+    category: 'main' | 'side' | 'daily' | 'weekly';
+    quest_type: string;
+    min_level: number;
+    giver_npc_id: string | null;
+    turn_in_npc_id: string | null;
+    prerequisite_id: string | null;
+    status: QuestStatus;
+    objectives: QuestObjectiveDTO[];
+    rewards: QuestRewardsDTO;
+    accepted_at?: string;
+    completed_at?: string | null;
+    claimed_at?: string | null;
+};
+
+export type ListQuestsResponse = {
+    character_id: string;
+    quests: QuestDTO[];
+};
+
+export type AcceptQuestResponse = { quest: QuestDTO };
+
+export type TurnInQuestResponse = {
+    quest: QuestDTO;
+    granted_rewards: QuestRewardsDTO;
+};
+
+export const questAPI = {
+    async list(characterId: string, status?: QuestStatus): Promise<ListQuestsResponse> {
+        const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests${qs}`);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được nhiệm vụ')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as ListQuestsResponse;
+    },
+
+    async accept(characterId: string, questId: string, npcId: string): Promise<AcceptQuestResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests/${encodeURIComponent(questId)}/accept`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ npc_id: npcId }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Nhận nhiệm vụ thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as AcceptQuestResponse;
+    },
+
+    async turnIn(characterId: string, questId: string, npcId: string): Promise<TurnInQuestResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests/${encodeURIComponent(questId)}/turn-in`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ npc_id: npcId }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Trả nhiệm vụ thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as TurnInQuestResponse;
     },
 };
 

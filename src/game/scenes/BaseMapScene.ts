@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, ChatPanel, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, ShopModal,
+    ActionMenu, BuffIndicator, ChatPanel, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, ShopModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -21,10 +21,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected controls!: GameControls;
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
+    protected questLog!: QuestLogPanel;
     protected portals: Portal[] = [];
 
     private enterKey?: Phaser.Input.Keyboard.Key;
     private escKey?: Phaser.Input.Keyboard.Key;
+    private questKey?: Phaser.Input.Keyboard.Key;
     private lastKnownLevel = 1;
     private lastKnownStats = { max_hp: 100, max_mp: 50 };
     private positionSaveTimer?: number;
@@ -80,12 +82,17 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.actionMenu = new ActionMenu(this);
         this.actionMenu.create();
 
+        // Quest log — tạo trước NpcManager để NPC dialog có thể mở/refresh panel.
+        this.questLog = new QuestLogPanel(this);
+        this.questLog.create();
+
         // NPC
         this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), {
             mapId: cfg.mapId,
             actionMenu: this.actionMenu,
             shopModal: this.shop,
             chatBubble: this.npcChatBubble,
+            questLog: this.questLog,
             onStatusMessage: (text, color) => this.hud.setStatus(text, color),
         });
         this.npcs.create();
@@ -131,6 +138,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         this.enterKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
         this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+        this.questKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.J);
 
         // Minimap
         this.minimap = new Minimap(this, this.background.getBgWidth(), this.background.getBgHeight());
@@ -309,8 +317,23 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.npcChatBubble.update();
         this.buffIndicator.update();
 
-        if (this.chat.isFocused() || this.shop?.isOpen()) {
+        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible()) {
             player.body?.setVelocityX(0);
+            // Trong khi panel mở: ESC đóng, các key khác bị bỏ qua.
+            if (this.questLog?.isVisible() && this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
+                this.questLog.close();
+            }
+            return;
+        }
+
+        // J toggle Nhật ký Nhiệm vụ — chỉ khi không có modal/menu khác.
+        if (
+            this.questKey
+            && Phaser.Input.Keyboard.JustDown(this.questKey)
+            && !this.actionMenu.isOpen()
+            && !this.inventory.isOpen()
+        ) {
+            this.questLog.open();
             return;
         }
 
@@ -410,6 +433,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.showLevelUpBanner(res.level_up.from_level, res.level_up.to_level);
         }
         if (res.xp_gained > 0) this.showXPFloater(res.xp_gained);
+        // Quest progress: BE đã track kill, FE chỉ refresh cache khi quái chết.
+        if (res.monster_dead) {
+            void this.questLog?.refresh();
+        }
         // Death check.
         if (res.character_current_hp <= 0) {
             void this.handleDeath();
@@ -511,7 +538,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             title: 'Menu',
             items: [
                 { key: 'inventory', label: 'Túi đồ', icon: '🎒', action: () => this.inventory.toggle() },
-                { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.hud.setStatus('Mở Nhiệm Vụ (placeholder)', '#ffea7a') },
+                { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.questLog.open() },
                 { key: 'skills', label: 'Kỹ năng', icon: '⚡', action: () => this.hud.setStatus('Mở Kỹ Năng (placeholder)', '#ffea7a') },
                 { key: 'settings', label: 'Cài đặt', icon: '⚙️', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },
                 { key: 'logout', label: 'Đăng xuất', icon: '🚪', action: () => this.handleLogout() },
