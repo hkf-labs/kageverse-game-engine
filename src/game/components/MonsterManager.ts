@@ -93,8 +93,19 @@ export class MonsterManager implements GameComponent {
     /** Pause/resume combat tick (vd khi player chết / Đóng menu). */
     setTickPaused(paused: boolean): void { this.tickPaused = paused; }
 
+    private hasAliveMonster(): boolean {
+        for (const m of this.monsters) {
+            if (m.dto.state === 'alive') return true;
+        }
+        return false;
+    }
+
     private async combatTick(): Promise<void> {
         if (this.tickPaused || this.tickInFlight) return;
+        // Map không có quái sống → no-op. Tránh tốn RPS ở Làng / Trường / map
+        // không phải combat. Khi quái respawn / scene mới load, applyMonsterList
+        // sẽ thêm vào và tick tự kích hoạt lại.
+        if (!this.hasAliveMonster()) return;
         const character = getCurrentCharacter();
         if (!character) return;
         const pos = this.getPlayerPos();
