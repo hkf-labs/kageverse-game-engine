@@ -220,6 +220,8 @@ export type CharacterDTO = {
     gender: string;
     costume_primary_color: string;
     level: number;
+    exp: number;
+    exp_to_next_level: number;
     class: string;
     current_hp: number;
     max_hp: number;
@@ -713,6 +715,7 @@ export type AttackResponse = {
     character_current_mp: number;
     character_level: number;
     character_exp: number;
+    character_exp_to_next_level: number;
 };
 
 export type RespawnResponse = {

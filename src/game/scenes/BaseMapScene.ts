@@ -321,6 +321,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 max_mp: c.max_mp,
                 level: c.level,
             });
+            this.hud.setExpPercent(c.exp_to_next_level > 0 ? (c.exp / c.exp_to_next_level) * 100 : 0);
             if (c.active_food_buff) {
                 this.buffIndicator.setBuff({
                     key: categoryForTemplate(c.active_food_buff.item_template_id),
@@ -493,6 +494,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.showLevelUpBanner(res.level_up.from_level, res.level_up.to_level);
         }
         if (res.xp_gained > 0) this.showXPFloater(res.xp_gained);
+        if (res.character_exp_to_next_level > 0) {
+            this.hud.setExpPercent((res.character_exp / res.character_exp_to_next_level) * 100);
+        }
         // Quest progress: BE đã track kill, FE chỉ refresh cache khi quái chết.
         if (res.monster_dead) {
             void this.questLog?.refresh();
