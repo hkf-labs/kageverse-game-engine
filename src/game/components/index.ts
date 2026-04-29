@@ -15,6 +15,7 @@ export { NpcManager } from './NpcManager';
 export { PlayerController } from './PlayerController';
 export { Portal } from './Portal';
 export { QuestLogPanel, questDisplayName, targetDisplayName } from './QuestLogPanel';
+export { QuestTracker } from './QuestTracker';
 export { ShopModal } from './ShopModal';
 export type { GameComponent, MapConfig, NpcConfig, NpcEntry, PortalConfig, TiledMapData, TiledLayer, TiledObject } from './types';
 export type { ControlCallbacks } from './GameControls';

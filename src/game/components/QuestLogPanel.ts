@@ -85,10 +85,15 @@ export class QuestLogPanel implements GameComponent {
     private loading = false;
     private scene: Phaser.Scene;
     private onClosed?: () => void;
+    private onQuestsUpdated?: (quests: QuestDTO[]) => void;
 
-    constructor(scene: Phaser.Scene, onClosed?: () => void) {
+    constructor(
+        scene: Phaser.Scene,
+        opts?: { onClosed?: () => void; onQuestsUpdated?: (quests: QuestDTO[]) => void },
+    ) {
         this.scene = scene;
-        this.onClosed = onClosed;
+        this.onClosed = opts?.onClosed;
+        this.onQuestsUpdated = opts?.onQuestsUpdated;
     }
 
     create(): void {
@@ -125,6 +130,7 @@ export class QuestLogPanel implements GameComponent {
             this.quests = res.quests;
             this.render();
             this.setStatus('', '#fff');
+            this.onQuestsUpdated?.(this.quests);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Lỗi tải nhiệm vụ';
             this.setStatus(msg, '#ff8a8a');

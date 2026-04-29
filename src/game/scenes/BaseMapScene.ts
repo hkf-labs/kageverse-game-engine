@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, ChatPanel, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, ShopModal,
+    ActionMenu, BuffIndicator, ChatPanel, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -22,6 +22,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
     protected questLog!: QuestLogPanel;
+    protected questTracker!: QuestTracker;
     protected equipment!: EquipmentModal;
     protected portals: Portal[] = [];
 
@@ -84,8 +85,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.actionMenu.create();
 
         // Quest log — tạo trước NpcManager để NPC dialog có thể mở/refresh panel.
-        this.questLog = new QuestLogPanel(this);
+        // onQuestsUpdated push cache mới nhất vào QuestTracker mỗi khi refresh().
+        this.questLog = new QuestLogPanel(this, {
+            onQuestsUpdated: (quests) => this.questTracker?.setQuests(quests),
+        });
         this.questLog.create();
+
+        // Quest tracker — DOM góc trái, click mở quest log.
+        this.questTracker = new QuestTracker(this, () => this.questLog.open());
+        this.questTracker.create();
 
         // NPC
         this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), {
@@ -266,6 +274,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private async loadInitialCharacterState(): Promise<void> {
         const current = getCurrentCharacter();
         if (!current) return;
+        // Initial fetch quest list để QuestTracker populate ngay khi vào scene.
+        void this.questLog.refresh();
         try {
             const list = await charactersAPI.list();
             const c = list.characters.find((it) => it.id === current.id) ?? list.characters[0];
