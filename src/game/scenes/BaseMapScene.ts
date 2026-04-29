@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, ChatPanel, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, ShopModal,
+    ActionMenu, BuffIndicator, ChatPanel, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, ShopModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -22,6 +22,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
     protected questLog!: QuestLogPanel;
+    protected equipment!: EquipmentModal;
     protected portals: Portal[] = [];
 
     private enterKey?: Phaser.Input.Keyboard.Key;
@@ -177,8 +178,25 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     label: buff.item_template_id,
                 });
             },
+            onEquipmentChanged: () => {
+                if (this.equipment?.isOpen()) void this.equipment.refresh();
+            },
         });
         this.inventory.create();
+
+        // Equipment modal — view trang bị đang mặc + tháo. Equip mới đi qua InventoryModal.
+        this.equipment = new EquipmentModal(this, {
+            onStatsChanged: (stats) => {
+                this.hud.setStats({
+                    current_hp: stats.current_hp,
+                    max_hp: stats.max_hp,
+                    current_mp: stats.current_mp,
+                    max_mp: stats.max_mp,
+                    level: this.lastKnownLevel,
+                });
+            },
+        });
+        this.equipment.create();
 
         // Minimap ignore UI
         this.minimap.ignoreUIElements();
@@ -317,11 +335,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.npcChatBubble.update();
         this.buffIndicator.update();
 
-        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible()) {
+        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen()) {
             player.body?.setVelocityX(0);
             // Trong khi panel mở: ESC đóng, các key khác bị bỏ qua.
-            if (this.questLog?.isVisible() && this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
-                this.questLog.close();
+            if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
+                if (this.questLog?.isVisible()) this.questLog.close();
+                else if (this.equipment?.isOpen()) this.equipment.close();
             }
             return;
         }
@@ -538,6 +557,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             title: 'Menu',
             items: [
                 { key: 'inventory', label: 'Túi đồ', icon: '🎒', action: () => this.inventory.toggle() },
+                { key: 'equipment', label: 'Trang bị', icon: '⚔️', action: () => this.equipment.toggle() },
                 { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.questLog.open() },
                 { key: 'skills', label: 'Kỹ năng', icon: '⚡', action: () => this.hud.setStatus('Mở Kỹ Năng (placeholder)', '#ffea7a') },
                 { key: 'settings', label: 'Cài đặt', icon: '⚙️', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },

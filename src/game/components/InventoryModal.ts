@@ -16,12 +16,15 @@ interface InventoryItem {
     userItemId: string;
     name: string;
     type: InventoryItemType;
+    subType: string | null;
     iconBg: string;
     iconText: string;
     amount: number;
     maxStack: number;
     upgradeLevel: number;
     isBound: boolean;
+    isEquipped: boolean;
+    equippedSlot: string | null;
     description: string;
 }
 
@@ -84,15 +87,29 @@ function mapBeItem(dto: InventoryItemDTO): InventoryItem | null {
         userItemId: dto.id,
         name: dto.name_key,
         type: dto.item_type,
+        subType: dto.sub_type,
         iconBg: DEFAULT_BG[dto.item_type],
         iconText: (dto.sub_type && SUBTYPE_ICON[dto.sub_type]) || DEFAULT_ICON[dto.item_type],
         amount: dto.amount,
         maxStack: dto.max_stack,
         upgradeLevel: dto.upgrade_level,
         isBound: dto.is_bound,
+        isEquipped: dto.is_equipped,
+        equippedSlot: dto.equipped_slot,
         description: dto.sub_type ? `${dto.item_template_id} (${dto.sub_type})` : dto.item_template_id,
     };
 }
+
+// Map sub_type → equipment slot — đồng bộ với BE inventory.SlotForSubType.
+const SUBTYPE_TO_SLOT: Record<string, string> = {
+    weapon: 'main_hand',
+    shirt: 'shirt',
+    pants: 'pants',
+    shoes: 'shoes',
+    hat: 'hat',
+    ring: 'ring',
+    cloak: 'cloak',
+};
 
 export class InventoryModal implements GameComponent {
     private overlay?: HTMLDivElement;
@@ -102,6 +119,7 @@ export class InventoryModal implements GameComponent {
     private detailEl?: HTMLDivElement;
     private currenciesEl?: HTMLDivElement;
     private useBtn?: HTMLButtonElement;
+    private equipBtn?: HTMLButtonElement;
     private dropBtn?: HTMLButtonElement;
     private visible = false;
     private currentPage = 1;
@@ -115,17 +133,20 @@ export class InventoryModal implements GameComponent {
     private scene: Phaser.Scene;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
     private onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
+    private onEquipmentChanged?: () => void;
 
     constructor(
         scene: Phaser.Scene,
         callbacks?: {
             onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
             onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
+            onEquipmentChanged?: () => void;
         },
     ) {
         this.scene = scene;
         this.onStatsChanged = callbacks?.onStatsChanged;
         this.onFoodBuffStarted = callbacks?.onFoodBuffStarted;
+        this.onEquipmentChanged = callbacks?.onEquipmentChanged;
     }
 
     create(): void {
@@ -171,11 +192,13 @@ export class InventoryModal implements GameComponent {
         this.detailEl = root.querySelector('#inv-detail') as HTMLDivElement;
         this.currenciesEl = root.querySelector('#inv-currencies') as HTMLDivElement;
         this.useBtn = root.querySelector('#inv-use') as HTMLButtonElement;
+        this.equipBtn = root.querySelector('#inv-equip') as HTMLButtonElement;
         this.dropBtn = root.querySelector('#inv-drop') as HTMLButtonElement;
         const closeBtn = root.querySelector('#inv-close') as HTMLDivElement;
 
         closeBtn.addEventListener('click', () => this.toggle());
         this.useBtn.addEventListener('click', () => void this.handleUse());
+        this.equipBtn.addEventListener('click', () => void this.handleEquipToggle());
         this.dropBtn.addEventListener('click', () => void this.handleDrop());
 
         this.renderTabs();
@@ -245,6 +268,7 @@ export class InventoryModal implements GameComponent {
             // Footer buttons
             `<div style="display:flex;gap:8px;padding:10px 14px;border-top:2px solid #4d2d13;background:#1a0f04;flex-shrink:0;">`,
             `  <button id="inv-use" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">Sử dụng</button>`,
+            `  <button id="inv-equip" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a6a2a;background:#3a3014;color:#ffd070;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">Trang bị</button>`,
             `  <button id="inv-drop" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a3a3a;background:#4a1a1a;color:#f0a0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">Vứt</button>`,
             `</div>`,
         ].join('');
@@ -383,8 +407,14 @@ export class InventoryModal implements GameComponent {
         ].join('');
 
         const canUse = !this.actionInFlight && item.type === 'consumable';
-        const canDrop = !this.actionInFlight && !item.isBound;
-        this.setButtonsEnabled(canUse, canDrop);
+        // Drop chỉ được phép khi: chưa khoá + không đang equip (BE sẽ reject equipped items).
+        const canDrop = !this.actionInFlight && !item.isBound && !item.isEquipped;
+        const isEquippable = item.type === 'equipment'
+            && item.subType !== null
+            && SUBTYPE_TO_SLOT[item.subType] !== undefined;
+        const canEquip = !this.actionInFlight && isEquippable;
+        const equipLabel = item.isEquipped ? 'Tháo' : 'Trang bị';
+        this.setButtonsEnabled(canUse, canDrop, canEquip, equipLabel);
     }
 
     private renderCounter(): void {
@@ -397,11 +427,17 @@ export class InventoryModal implements GameComponent {
         this.counterEl.textContent = `Trang ${this.currentPage}: ${usedThisPage} / ${this.maxSlots}`;
     }
 
-    private setButtonsEnabled(use: boolean, drop: boolean): void {
+    private setButtonsEnabled(use: boolean, drop: boolean, equip: boolean = false, equipLabel: string = 'Trang bị'): void {
         if (this.useBtn) {
             this.useBtn.disabled = !use;
             this.useBtn.style.opacity = use ? '1' : '0.5';
             this.useBtn.style.cursor = use ? 'pointer' : 'not-allowed';
+        }
+        if (this.equipBtn) {
+            this.equipBtn.disabled = !equip;
+            this.equipBtn.style.opacity = equip ? '1' : '0.5';
+            this.equipBtn.style.cursor = equip ? 'pointer' : 'not-allowed';
+            this.equipBtn.textContent = equipLabel;
         }
         if (this.dropBtn) {
             this.dropBtn.disabled = !drop;
@@ -492,6 +528,44 @@ export class InventoryModal implements GameComponent {
             await this.loadInventory();
         } catch (err) {
             this.errorMessage = err instanceof Error ? err.message : 'Sử dụng vật phẩm thất bại';
+            this.renderDetail();
+        } finally {
+            this.actionInFlight = false;
+        }
+    }
+
+    private async handleEquipToggle(): Promise<void> {
+        const item = this.findSelectedItem();
+        if (!item || item.type !== 'equipment' || this.actionInFlight) return;
+        const character = getCurrentCharacter();
+        if (!character) return;
+
+        this.actionInFlight = true;
+        this.setButtonsEnabled(false, false, false);
+        try {
+            if (item.isEquipped && item.equippedSlot) {
+                await inventoryAPI.unequip(character.id, item.equippedSlot);
+            } else {
+                if (!item.subType) throw new Error('Vật phẩm thiếu sub_type');
+                const slot = SUBTYPE_TO_SLOT[item.subType];
+                if (!slot) throw new Error(`Sub_type "${item.subType}" không equippable`);
+                await inventoryAPI.equip(character.id, item.userItemId, slot);
+            }
+            await this.loadInventory();
+            this.onEquipmentChanged?.();
+            // Stat character thay đổi sau equip → fetch lại để HUD đồng bộ.
+            if (this.onStatsChanged) {
+                const list = await charactersAPI.list();
+                const c = list.characters.find((x) => x.id === character.id);
+                if (c) this.onStatsChanged({
+                    current_hp: c.current_hp, max_hp: c.max_hp,
+                    current_mp: c.current_mp, max_mp: c.max_mp,
+                    hp_potion_cd_until: null,
+                    mp_potion_cd_until: null,
+                });
+            }
+        } catch (err) {
+            this.errorMessage = err instanceof Error ? err.message : 'Trang bị thất bại';
             this.renderDetail();
         } finally {
             this.actionInFlight = false;

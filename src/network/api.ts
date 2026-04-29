@@ -342,7 +342,30 @@ export type InventoryItemDTO = {
     upgrade_level: number;
     durability: number | null;
     is_bound: boolean;
+    is_equipped: boolean;
+    equipped_slot: string | null;
+    base_stats: Record<string, number> | null;
+    rolled_stats: Record<string, number> | null;
     expires_at: string | null;
+};
+
+export type EquippedItemDTO = {
+    slot: string;
+    item: InventoryItemDTO;
+};
+
+export type EquipResponse = {
+    equipped: EquippedItemDTO;
+    replaced: EquippedItemDTO | null;
+};
+
+export type UnequipResponse = {
+    unequipped: EquippedItemDTO;
+};
+
+export type ListEquippedResponse = {
+    character_id: string;
+    items: EquippedItemDTO[];
 };
 
 export type ListInventoryResponse = {
@@ -443,6 +466,41 @@ export const inventoryAPI = {
             throw new Error(`${formatApiError(resData, 'Sắp xếp slot thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as MoveInventoryResponse;
+    },
+
+    async equip(characterId: string, userItemId: string, slot: string): Promise<EquipResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory/equip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_item_id: userItemId, slot }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Trang bị thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as EquipResponse;
+    },
+
+    async unequip(characterId: string, slot: string): Promise<UnequipResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory/unequip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slot }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Tháo trang bị thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as UnequipResponse;
+    },
+
+    async listEquipped(characterId: string): Promise<ListEquippedResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory/equipped`);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được danh sách trang bị')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as ListEquippedResponse;
     },
 };
 
