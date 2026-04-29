@@ -32,7 +32,6 @@ interface InfoRow {
     label: string;
     value: string;
     valueColor?: string;
-    bullet?: string; // override mặc định '▶'
 }
 
 /**
@@ -51,10 +50,8 @@ export class CharacterInfoModal implements GameComponent {
     private scene: Phaser.Scene;
     private upKey?: Phaser.Input.Keyboard.Key;
     private downKey?: Phaser.Input.Keyboard.Key;
-    // Drag state
-    private dragging = false;
-    private dragStartY = 0;
-    private dragStartScroll = 0;
+    private rows: InfoRow[] = [];
+    private selectedIdx = 0;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -104,16 +101,16 @@ export class CharacterInfoModal implements GameComponent {
         root.appendChild(header);
 
         const body = document.createElement('div');
-        // Hidden scrollbar — Firefox / IE / WebKit. Vẫn `overflow:auto` để
-        // scrollTop vẫn có thể set qua arrow keys / drag.
+        // Hidden scrollbar (Firefox / IE / WebKit) — body chỉ tự động scroll khi
+        // selected row off-view. User không scroll trực tiếp; arrow keys + wheel
+        // luôn dịch chuyển con trỏ ▶, body follow.
         body.style.cssText = `
             height: 320px; overflow-y: auto; padding: 12px 16px;
             background: rgba(20,12,4,0.7);
             scrollbar-width: none; -ms-overflow-style: none;
-            cursor: grab; user-select: none;
+            user-select: none;
         `;
         body.classList.add('cim-scroll');
-        // Inject 1 lần (idempotent) — hide WebKit scrollbar.
         if (!document.getElementById('cim-scroll-style')) {
             const styleEl = document.createElement('style');
             styleEl.id = 'cim-scroll-style';
@@ -128,26 +125,13 @@ export class CharacterInfoModal implements GameComponent {
 
         (header.querySelector('[data-close]') as HTMLDivElement).addEventListener('click', () => this.close());
 
-        // Mouse drag scroll
-        body.addEventListener('mousedown', (e) => {
-            this.dragging = true;
-            this.dragStartY = e.clientY;
-            this.dragStartScroll = body.scrollTop;
-            body.style.cursor = 'grabbing';
+        // Wheel chuột → dịch con trỏ thay vì scroll. preventDefault để body
+        // không tự scroll theo wheel; mỗi tick wheel = di 1 hàng.
+        body.addEventListener('wheel', (e) => {
             e.preventDefault();
-        });
-        body.addEventListener('mousemove', (e) => {
-            if (!this.dragging) return;
-            const delta = this.dragStartY - e.clientY;
-            body.scrollTop = this.dragStartScroll + delta;
-        });
-        const stopDrag = () => {
-            if (!this.dragging) return;
-            this.dragging = false;
-            body.style.cursor = 'grab';
-        };
-        body.addEventListener('mouseup', stopDrag);
-        body.addEventListener('mouseleave', stopDrag);
+            if (e.deltaY > 0) this.moveCursor(1);
+            else if (e.deltaY < 0) this.moveCursor(-1);
+        }, { passive: false });
 
         this.bodyEl = body;
         this.statusEl = status;
@@ -184,15 +168,42 @@ export class CharacterInfoModal implements GameComponent {
         else this.open(characterId);
     }
 
-    /** Gọi từ scene update() — xử lý arrow keys khi modal mở. */
+    /** Gọi từ scene update() — arrow keys di chuyển con trỏ. */
     update(): void {
-        if (!this.visible || !this.bodyEl) return;
-        if (this.upKey && Phaser.Input.Keyboard.JustDown(this.upKey)) {
-            this.bodyEl.scrollTop = Math.max(0, this.bodyEl.scrollTop - 36);
-        }
-        if (this.downKey && Phaser.Input.Keyboard.JustDown(this.downKey)) {
-            this.bodyEl.scrollTop = Math.min(this.bodyEl.scrollHeight, this.bodyEl.scrollTop + 36);
-        }
+        if (!this.visible) return;
+        if (this.upKey && Phaser.Input.Keyboard.JustDown(this.upKey)) this.moveCursor(-1);
+        if (this.downKey && Phaser.Input.Keyboard.JustDown(this.downKey)) this.moveCursor(1);
+    }
+
+    private moveCursor(delta: number): void {
+        if (this.rows.length === 0) return;
+        const next = Math.max(0, Math.min(this.rows.length - 1, this.selectedIdx + delta));
+        if (next === this.selectedIdx) return;
+        this.selectedIdx = next;
+        this.repaintBullets();
+        this.scrollSelectedIntoView();
+    }
+
+    private repaintBullets(): void {
+        if (!this.bodyEl) return;
+        const els = this.bodyEl.querySelectorAll<HTMLElement>('[data-bullet]');
+        els.forEach((el, i) => {
+            const isSel = i === this.selectedIdx;
+            el.textContent = isSel ? '▶' : '•';
+            el.style.color = isSel ? '#bdf0a0' : '#7a5a3a';
+        });
+    }
+
+    private scrollSelectedIntoView(): void {
+        if (!this.bodyEl) return;
+        const row = this.bodyEl.children[this.selectedIdx] as HTMLElement | undefined;
+        if (!row) return;
+        const rowTop = row.offsetTop;
+        const rowBottom = rowTop + row.offsetHeight;
+        const viewTop = this.bodyEl.scrollTop;
+        const viewBottom = viewTop + this.bodyEl.clientHeight;
+        if (rowTop < viewTop) this.bodyEl.scrollTop = rowTop;
+        else if (rowBottom > viewBottom) this.bodyEl.scrollTop = rowBottom - this.bodyEl.clientHeight;
     }
 
     private async load(characterId?: string): Promise<void> {
@@ -225,14 +236,17 @@ export class CharacterInfoModal implements GameComponent {
 
     private render(c: CharacterDTO): void {
         if (!this.bodyEl) return;
-        const className = CLASS_LABEL[c.class] ?? c.class;
-        const school = CLASS_TO_SCHOOL[c.class] ?? '—';
+        // Lớp / Trường fallback khi chưa Bái Sư (class='none').
+        const className = c.class === 'none' || !c.class
+            ? 'Chưa vào lớp'
+            : (CLASS_LABEL[c.class] ?? c.class);
+        const school = CLASS_TO_SCHOOL[c.class] ?? 'Chưa vào trường';
         const gender = GENDER_LABEL[c.gender] ?? c.gender;
         const combatPower = computeCombatPower(c);
         const expPct = c.exp_to_next_level > 0 ? (c.exp / c.exp_to_next_level) * 100 : 0;
 
-        const rows: InfoRow[] = [
-            { label: 'Nhân vật', value: c.display_name, valueColor: '#bdf0a0', bullet: '▶' },
+        this.rows = [
+            { label: 'Nhân vật', value: c.display_name, valueColor: '#bdf0a0' },
             { label: 'Giới tính', value: gender },
             { label: 'Trình độ', value: String(c.level) },
             { label: 'Kinh nghiệm', value: `${c.exp} / ${c.exp_to_next_level} (${expPct.toFixed(2)}%)` },
@@ -243,25 +257,23 @@ export class CharacterInfoModal implements GameComponent {
             { label: 'MP', value: `${c.current_mp.toLocaleString('en-US')} / ${c.max_mp.toLocaleString('en-US')}`, valueColor: '#8aaaff' },
             { label: 'Tấn công', value: `${c.min_attack} – ${c.max_attack}` },
             { label: 'Phòng thủ', value: String(c.defense) },
-            { label: 'Xu', value: c.coin.toLocaleString('en-US'), valueColor: '#ffd070' },
-            { label: 'Vàng', value: c.gold.toLocaleString('en-US'), valueColor: '#f0b020' },
-            { label: 'Kim cương', value: c.gem.toLocaleString('en-US'), valueColor: '#6cd0ff' },
         ];
+        this.selectedIdx = 0;
 
-        this.bodyEl.innerHTML = rows
-            .map((r) => {
-                const bullet = r.bullet ?? '';
-                const bulletHTML = bullet
-                    ? `<span style="color:#bdf0a0;margin-right:4px;">${bullet}</span>`
-                    : `<span style="color:#7a5a3a;margin-right:4px;">•</span>`;
+        this.bodyEl.innerHTML = this.rows
+            .map((r, i) => {
+                const isSel = i === this.selectedIdx;
+                const bulletChar = isSel ? '▶' : '•';
+                const bulletColor = isSel ? '#bdf0a0' : '#7a5a3a';
                 const valueColor = r.valueColor ?? '#ffe4c4';
-                return `<div style="font-size:13px;line-height:1.7;display:flex;gap:6px;">`
-                    + `${bulletHTML}`
+                return `<div style="font-size:13px;line-height:1.7;display:flex;gap:6px;align-items:baseline;">`
+                    + `<span data-bullet style="color:${bulletColor};margin-right:4px;width:12px;display:inline-block;">${bulletChar}</span>`
                     + `<span style="color:#a89070;">${escapeHtml(r.label)}:</span>`
                     + ` <span style="color:${valueColor};font-weight:600;">${escapeHtml(r.value)}</span>`
                     + `</div>`;
             })
             .join('');
+        this.bodyEl.scrollTop = 0;
     }
 
     private setStatus(text: string, color: string): void {
