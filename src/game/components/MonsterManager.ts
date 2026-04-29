@@ -41,10 +41,10 @@ export interface MonsterManagerCallbacks {
     onRetaliation?: (r: RetaliationDTO) => void;
 }
 
-// Player base attack range — Phase 1.5 hardcode khớp BE skillRegistry. Phase 2
-// đọc từ skill_templates per skill_id.
-const PLAYER_ATTACK_RANGE_PX = 120;
-const ATTACK_NEAREST_SCAN_RADIUS = 240; // bán kính tìm nearest khi auto-target
+// Player base attack range — Phase 1.5 hardcode khớp BE skillRegistry. Đơn vị
+// RAW game coords (Tiled-space). Phase 2 đọc từ skill_templates per skill_id.
+const PLAYER_ATTACK_RANGE_RAW_PX = 120;
+const ATTACK_NEAREST_SCAN_RADIUS_PX = 400; // bán kính render-space tìm nearest khi auto-target
 const POLL_INTERVAL_MS = 8000;
 const DEFAULT_SKILL_ID = 'none.basic_swing';
 
@@ -114,7 +114,7 @@ export class MonsterManager implements GameComponent {
             const sel = this.monsters.find((m) => m.dto.instance_id === this.selectedInstanceId);
             if (sel && sel.dto.state === 'alive') target = sel;
         }
-        if (!target) target = this.findNearestAlive(pos.x, pos.y, ATTACK_NEAREST_SCAN_RADIUS);
+        if (!target) target = this.findNearestAlive(pos.x, pos.y, ATTACK_NEAREST_SCAN_RADIUS_PX);
         if (!target) {
             this.callbacks.onError?.('Không có quái nào ở gần.');
             return;
@@ -122,8 +122,7 @@ export class MonsterManager implements GameComponent {
         // Auto-select cho UX target frame.
         this.selectMonster(target.dto.instance_id);
 
-        const d = distXY(pos.x, pos.y, target.renderX, target.baseY);
-        if (d > PLAYER_ATTACK_RANGE_PX) {
+        if (!this.isInRange(pos, target)) {
             this.callbacks.onError?.('Mục tiêu ngoài tầm đánh, lại gần hơn.');
             return;
         }
@@ -137,12 +136,19 @@ export class MonsterManager implements GameComponent {
         this.selectMonster(instanceId);
         const pos = this.getPlayerPos();
         if (!pos) return;
-        const d = distXY(pos.x, pos.y, target.renderX, target.baseY);
-        if (d > PLAYER_ATTACK_RANGE_PX) {
+        if (!this.isInRange(pos, target)) {
             this.callbacks.onError?.('Mục tiêu ngoài tầm đánh, lại gần hơn.');
             return;
         }
         void this.fireAttack(target, DEFAULT_SKILL_ID, pos);
+    }
+
+    /** Range check 1D x trong raw coords — match BE check. Side-scroller, Y bỏ qua. */
+    private isInRange(playerRendered: { x: number; y: number }, target: MonsterEntry): boolean {
+        const scaleFactor = this.scene.scale.height / 1440;
+        const playerRawX = playerRendered.x / scaleFactor;
+        const dx = Math.abs(playerRawX - target.dto.pos_x);
+        return dx <= PLAYER_ATTACK_RANGE_RAW_PX;
     }
 
     private async fireAttack(target: MonsterEntry, skillId: string, pos: { x: number; y: number }): Promise<void> {
@@ -151,12 +157,16 @@ export class MonsterManager implements GameComponent {
         if (this.inFlightAttack) return;
         this.inFlightAttack = true;
         try {
+            // Convert player rendered pos → raw (BE coords match monster.pos_x).
+            const scaleFactor = this.scene.scale.height / 1440;
+            const playerRawX = pos.x / scaleFactor;
+            const playerRawY = pos.y / scaleFactor;
             const res = await combatAPI.attack(character.id, {
                 instance_id: target.dto.instance_id,
                 map_id: this.mapId,
                 skill_id: skillId,
-                player_x: pos.x,
-                player_y: pos.y,
+                player_x: playerRawX,
+                player_y: playerRawY,
             });
             // Apply hits per target.
             for (const hit of res.hits) {
@@ -387,12 +397,6 @@ export class MonsterManager implements GameComponent {
         for (const m of this.monsters) this.destroyEntry(m);
         this.monsters = [];
     }
-}
-
-function distXY(ax: number, ay: number, bx: number, by: number): number {
-    const dx = ax - bx;
-    const dy = ay - by;
-    return Math.sqrt(dx * dx + dy * dy);
 }
 
 function pickStyle(level: number): MonsterStyle {
