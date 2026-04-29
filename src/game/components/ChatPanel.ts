@@ -18,6 +18,7 @@ export class ChatPanel implements GameComponent {
         if (!parent) return;
 
         this.overlay = document.createElement('div');
+        this.overlay.classList.add('kageverse-overlay', 'kageverse-overlay-chat');
         Object.assign(this.overlay.style, {
             position: 'absolute', inset: '0',
             background: 'rgba(0,0,0,0.35)',

@@ -61,6 +61,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected preloadMapAssets(): void {}
 
     create(): void {
+        // Defensive cleanup: nếu shutdown handler trước đó miss vì lý do nào đó
+        // (Phaser internal race, dev hot-reload, etc.), purge mọi DOM overlay
+        // tagged kageverse-overlay trước khi tạo bộ mới. Tránh stack 2+ tracker /
+        // modal đè nhau qua từng lần chuyển scene.
+        document.querySelectorAll('.kageverse-overlay').forEach((el) => el.remove());
+
         const cfg = this.getMapConfig();
         const width = this.scale.width;
         this.cameras.main.setBackgroundColor('#77c6ff');

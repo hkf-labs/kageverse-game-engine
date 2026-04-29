@@ -40,6 +40,7 @@ export class QuestTracker implements GameComponent {
         const parent = this.scene.game.canvas.parentElement;
         if (!parent) return;
         const c = document.createElement('div');
+        c.classList.add('kageverse-overlay', 'kageverse-overlay-quest-tracker');
         Object.assign(c.style, {
             position: 'absolute',
             left: '12px', top: '100px',

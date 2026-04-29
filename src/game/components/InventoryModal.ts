@@ -154,6 +154,7 @@ export class InventoryModal implements GameComponent {
         if (!parent) return;
 
         this.overlay = document.createElement('div');
+        this.overlay.classList.add('kageverse-overlay', 'kageverse-overlay-inventory');
         Object.assign(this.overlay.style, {
             position: 'absolute', inset: '0',
             background: 'rgba(0,0,0,0.55)',

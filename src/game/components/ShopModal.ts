@@ -91,6 +91,7 @@ export class ShopModal implements GameComponent {
         if (!parent) return;
 
         this.overlay = document.createElement('div');
+        this.overlay.classList.add('kageverse-overlay', 'kageverse-overlay-shop');
         Object.assign(this.overlay.style, {
             position: 'absolute', inset: '0',
             background: 'rgba(0,0,0,0.55)',

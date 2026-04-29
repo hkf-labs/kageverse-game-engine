@@ -158,6 +158,7 @@ export class QuestLogPanel implements GameComponent {
 
     private buildOverlay(): void {
         const overlay = document.createElement('div');
+        overlay.classList.add('kageverse-overlay', 'kageverse-overlay-quest-log');
         overlay.style.cssText = `
             position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
             background: rgba(0,0,0,0.55); z-index: 200;
