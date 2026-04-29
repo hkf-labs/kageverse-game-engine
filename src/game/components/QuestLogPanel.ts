@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { questAPI, type QuestDTO, type QuestObjectiveDTO } from '../../network/api';
+import { questAPI, type QuestBoardCategoryDTO, type QuestDTO, type QuestObjectiveDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import type { GameComponent } from './types';
 
@@ -13,13 +13,6 @@ const STATUS_COLOR: Record<QuestDTO['status'], string> = {
     active: '#bdf0a0',
     completed: '#ffea7a',
     claimed: '#7a8a8a',
-};
-
-const CATEGORY_BADGE: Record<QuestDTO['category'], string> = {
-    main: 'Cốt truyện',
-    side: 'Phụ',
-    daily: 'Hàng ngày',
-    weekly: 'Hàng tuần',
 };
 
 const OBJECTIVE_VERB: Record<QuestObjectiveDTO['type'], string> = {
@@ -76,13 +69,23 @@ export function targetDisplayName(targetID: string): string {
     return TARGET_NAME_VI[targetID] ?? targetID;
 }
 
+type TabKey = 'main' | 'side' | 'event';
+const TAB_LABEL: Record<TabKey, string> = {
+    main: 'Chính tuyến',
+    side: 'Phụ tuyến',
+    event: 'Sự kiện',
+};
+
 export class QuestLogPanel implements GameComponent {
     private overlay?: HTMLDivElement;
-    private listEl?: HTMLDivElement;
+    private bodyEl?: HTMLDivElement;
+    private tabsEl?: HTMLDivElement;
     private statusEl?: HTMLDivElement;
     private visible = false;
-    private quests: QuestDTO[] = [];
+    private board: Record<string, QuestBoardCategoryDTO> = {};
+    private flatQuests: QuestDTO[] = [];
     private loading = false;
+    private currentTab: TabKey = 'main';
     private scene: Phaser.Scene;
     private onClosed?: () => void;
     private onQuestsUpdated?: (quests: QuestDTO[]) => void;
@@ -126,11 +129,17 @@ export class QuestLogPanel implements GameComponent {
         this.loading = true;
         this.setStatus('Đang tải...', '#aaaaaa');
         try {
-            const res = await questAPI.list(character.id);
-            this.quests = res.quests;
-            this.render();
+            const res = await questAPI.board(character.id);
+            this.board = {};
+            this.flatQuests = [];
+            for (const c of res.categories) {
+                this.board[c.category] = c;
+                this.flatQuests.push(...c.quests);
+            }
+            this.renderTabs();
+            this.renderBody();
             this.setStatus('', '#fff');
-            this.onQuestsUpdated?.(this.quests);
+            this.onQuestsUpdated?.(this.flatQuests);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Lỗi tải nhiệm vụ';
             this.setStatus(msg, '#ff8a8a');
@@ -139,8 +148,8 @@ export class QuestLogPanel implements GameComponent {
         }
     }
 
-    /** Cached quests (không gọi API) — HUD tracker dùng. */
-    getQuests(): QuestDTO[] { return this.quests; }
+    /** Cached quests phẳng (active+completed mọi category) — tracker dùng. */
+    getQuests(): QuestDTO[] { return this.flatQuests; }
 
     destroy(): void {
         this.overlay?.remove();
@@ -165,11 +174,11 @@ export class QuestLogPanel implements GameComponent {
         const header = document.createElement('div');
         header.style.cssText = `
             display: flex; align-items: center; justify-content: space-between;
-            padding: 14px 18px; border-bottom: 1px solid rgba(189,240,160,0.2);
+            padding: 12px 18px; border-bottom: 1px solid rgba(189,240,160,0.2);
         `;
         const title = document.createElement('div');
         title.textContent = '📜 Nhật ký Nhiệm vụ';
-        title.style.cssText = 'font-size: 18px; font-weight: 600; color: #ffea7a;';
+        title.style.cssText = 'font-size: 17px; font-weight: 600; color: #ffea7a;';
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '✕';
         closeBtn.style.cssText = `
@@ -179,8 +188,14 @@ export class QuestLogPanel implements GameComponent {
         closeBtn.onclick = () => this.close();
         header.append(title, closeBtn);
 
-        const list = document.createElement('div');
-        list.style.cssText = `
+        const tabs = document.createElement('div');
+        tabs.style.cssText = `
+            display: flex; gap: 4px; padding: 10px 14px 0 14px;
+            background: rgba(0,0,0,0.25); border-bottom: 1px solid rgba(189,240,160,0.15);
+        `;
+
+        const body = document.createElement('div');
+        body.style.cssText = `
             flex: 1; overflow-y: auto; padding: 12px 18px; display: flex;
             flex-direction: column; gap: 10px;
         `;
@@ -192,7 +207,7 @@ export class QuestLogPanel implements GameComponent {
             min-height: 24px;
         `;
 
-        panel.append(header, list, status);
+        panel.append(header, tabs, body, status);
         overlay.appendChild(panel);
         overlay.addEventListener('click', (ev) => {
             if (ev.target === overlay) this.close();
@@ -200,28 +215,112 @@ export class QuestLogPanel implements GameComponent {
         document.body.appendChild(overlay);
 
         this.overlay = overlay;
-        this.listEl = list;
+        this.tabsEl = tabs;
+        this.bodyEl = body;
         this.statusEl = status;
+
+        this.renderTabs();
+        this.renderBody();
     }
 
-    private render(): void {
-        if (!this.listEl) return;
-        this.listEl.innerHTML = '';
-        if (this.quests.length === 0) {
-            const empty = document.createElement('div');
-            empty.style.cssText = 'padding: 40px; text-align: center; color: #888;';
-            empty.textContent = 'Chưa có nhiệm vụ. Đi gặp Trưởng Làng Genji ở Làng Sương Khói!';
-            this.listEl.appendChild(empty);
+    private renderTabs(): void {
+        if (!this.tabsEl) return;
+        this.tabsEl.innerHTML = '';
+        (['main', 'side', 'event'] as TabKey[]).forEach((key) => {
+            const isEvent = key === 'event';
+            const cat = !isEvent ? this.board[key] : undefined;
+            const activeCount = cat?.quests.filter((q) => q.status !== 'claimed').length ?? 0;
+            const hasNext = cat?.next_offered != null;
+            const dot = !isEvent && (activeCount > 0 || hasNext);
+
+            const tab = document.createElement('div');
+            const isCurrent = this.currentTab === key;
+            const disabled = isEvent;
+            tab.style.cssText = `
+                padding: 7px 14px; font-size: 13px; font-weight: 600;
+                cursor: ${disabled ? 'not-allowed' : 'pointer'};
+                color: ${isCurrent ? '#ffea7a' : disabled ? '#666' : '#ffe4c4'};
+                background: ${isCurrent ? 'rgba(255,234,122,0.12)' : 'transparent'};
+                border: 1px solid ${isCurrent ? 'rgba(255,234,122,0.4)' : 'transparent'};
+                border-bottom: none;
+                border-top-left-radius: 6px; border-top-right-radius: 6px;
+                user-select: none; position: relative;
+                opacity: ${disabled ? '0.6' : '1'};
+            `;
+            tab.textContent = TAB_LABEL[key];
+            if (dot) {
+                const dotEl = document.createElement('span');
+                dotEl.style.cssText = `
+                    position: absolute; top: 4px; right: 4px;
+                    width: 8px; height: 8px; border-radius: 50%;
+                    background: #ff8a8a; box-shadow: 0 0 4px #ff8a8a;
+                `;
+                tab.appendChild(dotEl);
+            }
+            if (!disabled) {
+                tab.addEventListener('click', () => {
+                    if (this.currentTab === key) return;
+                    this.currentTab = key;
+                    this.renderTabs();
+                    this.renderBody();
+                });
+            }
+            this.tabsEl!.appendChild(tab);
+        });
+    }
+
+    private renderBody(): void {
+        if (!this.bodyEl) return;
+        this.bodyEl.innerHTML = '';
+
+        if (this.currentTab === 'event') {
+            const note = document.createElement('div');
+            note.style.cssText = 'padding: 60px; text-align: center; color: #888; font-style: italic;';
+            note.textContent = 'Sự kiện sắp ra mắt.';
+            this.bodyEl.appendChild(note);
             return;
         }
-        // Sort: active đầu tiên (mới nhất trước), rồi completed, rồi claimed.
-        const sorted = [...this.quests].sort((a, b) => {
-            const orderA = ({ active: 0, completed: 1, claimed: 2 } as const)[a.status];
-            const orderB = ({ active: 0, completed: 1, claimed: 2 } as const)[b.status];
+
+        const cat = this.board[this.currentTab];
+        const quests = (cat?.quests ?? []).filter((q) => q.status !== 'claimed');
+        const next = cat?.next_offered ?? null;
+
+        if (next) this.bodyEl.appendChild(this.renderNextHint(next));
+
+        if (quests.length === 0 && !next) {
+            const empty = document.createElement('div');
+            empty.style.cssText = 'padding: 50px; text-align: center; color: #888;';
+            empty.textContent = this.currentTab === 'main'
+                ? 'Chưa có nhiệm vụ chính tuyến nào khả dụng.'
+                : 'Chưa có nhiệm vụ phụ tuyến nào khả dụng.';
+            this.bodyEl.appendChild(empty);
+            return;
+        }
+
+        // Sort: completed (cần turn-in) trước active.
+        const sorted = [...quests].sort((a, b) => {
+            const orderA = a.status === 'completed' ? 0 : 1;
+            const orderB = b.status === 'completed' ? 0 : 1;
             if (orderA !== orderB) return orderA - orderB;
-            return 0;
+            return a.min_level - b.min_level;
         });
-        for (const q of sorted) this.listEl.appendChild(this.renderQuestRow(q));
+        for (const q of sorted) this.bodyEl.appendChild(this.renderQuestRow(q));
+    }
+
+    private renderNextHint(next: NonNullable<QuestBoardCategoryDTO['next_offered']>): HTMLDivElement {
+        const banner = document.createElement('div');
+        banner.style.cssText = `
+            border: 1px dashed rgba(255,138,138,0.5); border-radius: 8px;
+            padding: 10px 12px; background: rgba(255,138,138,0.08);
+            color: #ffd070; font-size: 13px;
+        `;
+        const npcName = next.giver_npc_id ? targetDisplayName(next.giver_npc_id) : 'NPC chưa rõ';
+        banner.innerHTML =
+            `<span style="color:#ff8a8a;font-weight:600;">❗ Tiếp theo:</span> `
+            + `Đến gặp <span style="color:#bdf0a0;">${escapeHtml(npcName)}</span> để nhận `
+            + `<span style="color:#ffea7a;">${escapeHtml(questDisplayName(next.name_key))}</span> `
+            + `<span style="color:#aaa;font-size:11px;">(Lv ${next.min_level})</span>`;
+        return banner;
     }
 
     private renderQuestRow(q: QuestDTO): HTMLDivElement {
@@ -235,7 +334,7 @@ export class QuestLogPanel implements GameComponent {
         const title = document.createElement('div');
         title.style.cssText = 'font-weight: 600; font-size: 14px;';
         title.innerHTML = `<span style="color:#ffea7a">${escapeHtml(questDisplayName(q.name_key))}</span>
-            <span style="color:#888; font-size:11px; margin-left:6px">[${CATEGORY_BADGE[q.category]} • Lv ${q.min_level}]</span>`;
+            <span style="color:#888; font-size:11px; margin-left:6px">[Lv ${q.min_level}]</span>`;
         const status = document.createElement('div');
         status.textContent = STATUS_LABEL[q.status];
         status.style.cssText = `font-size: 12px; color: ${STATUS_COLOR[q.status]};`;

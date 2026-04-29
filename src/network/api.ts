@@ -600,6 +600,24 @@ export type ListQuestsResponse = {
     quests: QuestDTO[];
 };
 
+export type NextOfferedDTO = {
+    quest_id: string;
+    name_key: string;
+    min_level: number;
+    giver_npc_id: string | null;
+};
+
+export type QuestBoardCategoryDTO = {
+    category: 'main' | 'side' | 'daily' | 'weekly';
+    quests: QuestDTO[];
+    next_offered: NextOfferedDTO | null;
+};
+
+export type QuestBoardResponse = {
+    character_id: string;
+    categories: QuestBoardCategoryDTO[];
+};
+
 export type AcceptQuestResponse = { quest: QuestDTO };
 
 export type TurnInQuestResponse = {
@@ -639,6 +657,15 @@ export const questAPI = {
             throw new Error(`${formatApiError(resData, 'Nhận nhiệm vụ thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as AcceptQuestResponse;
+    },
+
+    async board(characterId: string): Promise<QuestBoardResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests/board`);
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Không tải được nhật ký nhiệm vụ')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as QuestBoardResponse;
     },
 
     async npcAvailability(characterId: string): Promise<NpcAvailabilityResponse> {
