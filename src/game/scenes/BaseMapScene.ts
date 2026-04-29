@@ -248,7 +248,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
      */
     private syncQuestTrackerOffset(): void {
         if (!this.questTracker || !this.buffIndicator) return;
-        const top = this.buffIndicator.hasBuffs() ? 176 : 80;
+        // Topbar render từ y=0..91 (asset 568x182 scaled 0.5). Buff panel anchor
+        // y=110, cao ~55px (icon 36 + countdown text). Tracker stack dưới topbar
+        // hoặc dưới panel buff khi có.
+        const top = this.buffIndicator.hasBuffs() ? 176 : 100;
         this.questTracker.setTopOffset(top);
     }
 

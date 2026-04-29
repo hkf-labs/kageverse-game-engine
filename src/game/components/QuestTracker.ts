@@ -42,7 +42,7 @@ export class QuestTracker implements GameComponent {
         const c = document.createElement('div');
         Object.assign(c.style, {
             position: 'absolute',
-            left: '12px', top: '80px',
+            left: '12px', top: '100px',
             maxWidth: '300px', minWidth: '180px',
             padding: '4px 10px',
             background: 'linear-gradient(180deg, rgba(20,28,36,0.85), rgba(14,18,24,0.85))',
