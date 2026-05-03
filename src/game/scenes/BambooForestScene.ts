@@ -22,8 +22,6 @@ export class BambooForestScene extends BaseMapScene {
             bgAsset: 'assets/maps/bamboo_forest_yatomi/bg.png',
             colliderKey: 'bamboo_forest_yatomi_colliders',
             colliderAsset: 'assets/maps/bamboo_forest_yatomi/colliders.json',
-            playerTextureKey: 'player-placeholder-male',
-            playerTextureAsset: 'assets/game/characters/placeholder-ninja-male.jpg',
             tiledOriginalHeight: 1440,
         };
     }

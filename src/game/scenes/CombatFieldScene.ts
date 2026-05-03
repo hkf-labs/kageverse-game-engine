@@ -14,8 +14,6 @@ export class CombatFieldScene extends BaseMapScene {
             bgAsset: 'assets/maps/combat_field_001/bg.jpg',
             colliderKey: 'combat_field_001_colliders',
             colliderAsset: 'assets/maps/combat_field_001/colliders.json',
-            playerTextureKey: 'player-placeholder-male',
-            playerTextureAsset: 'assets/game/characters/placeholder-ninja-male.jpg',
             tiledOriginalHeight: 1440,
         };
     }

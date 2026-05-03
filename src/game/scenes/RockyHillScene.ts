@@ -23,8 +23,6 @@ export class RockyHillScene extends BaseMapScene {
             bgAsset: 'assets/maps/rocky_hill_iwagumo/bg.png',
             colliderKey: 'rocky_hill_iwagumo_colliders',
             colliderAsset: 'assets/maps/rocky_hill_iwagumo/colliders.json',
-            playerTextureKey: 'player-placeholder-male',
-            playerTextureAsset: 'assets/game/characters/placeholder-ninja-male.jpg',
             tiledOriginalHeight: 1440,
         };
     }

@@ -1,22 +1,63 @@
 import * as Phaser from 'phaser';
 import { getCurrentCharacter, saveCurrentCharacter } from '../playerSession';
 import { charactersAPI } from '../../network/api';
-import type { GameComponent, MapConfig } from './types';
+import type { GameComponent } from './types';
 import type { MapBackground } from './MapBackground';
+
+export interface CharacterAppearance {
+    headTextureKey: string;
+    topTextureKey: string;
+    bottomTextureKey: string;
+}
+
+// Bộ mặc định lv thấp (chưa mặc trang bị). Trong tương lai khi nhân vật equip
+// áo / quần, override các key tương ứng qua setAppearance().
+export const DEFAULT_CHARACTER_APPEARANCE: CharacterAppearance = {
+    headTextureKey: 'body-head-default',
+    topTextureKey: 'body-top-default',
+    bottomTextureKey: 'body-bottom-default',
+};
+
+// Asset paths khớp các texture key bên trên — preload qua BaseMapScene.
+export const DEFAULT_CHARACTER_APPEARANCE_ASSETS: Record<string, string> = {
+    'body-head-default': 'assets/game/characters/body-head-default.png',
+    'body-top-default': 'assets/game/characters/body-top-default.png',
+    'body-bottom-default': 'assets/game/characters/body-bottom-default.png',
+};
+
+// Stack 3 phần dọc, chân chạm đáy hitbox 60×110. Kích thước nguồn:
+// head 84×76 → top 88×44 → bottom 60×32. Overlap 10px ở mỗi seam (head↔body
+// và body↔legs) — hair / chin gối lên collar gi, belt knot gối lên waistband.
+// Edge-to-edge stack lộ vệt nền do alpha falloff ở mép từng part.
+const HEAD_OFFSET_Y = -39;
+const TOP_OFFSET_Y = 11;
+const BOTTOM_OFFSET_Y = 39;
+// Bù lệch ngang cho từng part — art body bị lệch trục so với head/legs nên
+// shift phải vài pixel để ngực thẳng cột với đầu + chân.
+const HEAD_OFFSET_X = 5;
+const TOP_OFFSET_X = 3;
+const BOTTOM_OFFSET_X = 0;
+// Scale toàn body container — chỉnh chỗ này để phóng to / thu nhỏ nhân vật.
+// Scale tác động lên cả offset → seam vẫn khớp ở mọi giá trị.
+const BODY_SCALE = 0.75;
+// Name text không thuộc container nên không tự scale — derive Y từ head top
+// (-39 - 38 = -77 local) để name luôn cách đỉnh đầu 13px ở mọi BODY_SCALE.
+const NAME_OFFSET_Y = (HEAD_OFFSET_Y - 38) * BODY_SCALE - 13;
 
 export class PlayerController implements GameComponent {
     private player?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-    private playerSprite?: Phaser.GameObjects.Sprite;
+    private bodyContainer?: Phaser.GameObjects.Container;
+    private headSprite?: Phaser.GameObjects.Sprite;
+    private topSprite?: Phaser.GameObjects.Sprite;
+    private bottomSprite?: Phaser.GameObjects.Sprite;
     private playerNameText?: Phaser.GameObjects.Text;
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private virtualInputs = { left: false, right: false, up: false };
     private scene: Phaser.Scene;
-    private config: MapConfig;
     private background: MapBackground;
 
-    constructor(scene: Phaser.Scene, config: MapConfig, background: MapBackground) {
+    constructor(scene: Phaser.Scene, background: MapBackground) {
         this.scene = scene;
-        this.config = config;
         this.background = background;
     }
 
@@ -36,13 +77,20 @@ export class PlayerController implements GameComponent {
             this.player.body.debugBodyColor = 0xffff00;
         }
 
-        this.playerSprite = this.scene.add.sprite(this.player!.x, this.player!.y, this.config.playerTextureKey);
-        this.playerSprite.setScale(0.12);
-        this.playerSprite.setBlendMode(Phaser.BlendModes.MULTIPLY);
-        this.playerSprite.setDepth(10);
+        const appearance = DEFAULT_CHARACTER_APPEARANCE;
+        this.headSprite = this.scene.add.sprite(HEAD_OFFSET_X, HEAD_OFFSET_Y, appearance.headTextureKey);
+        this.topSprite = this.scene.add.sprite(TOP_OFFSET_X, TOP_OFFSET_Y, appearance.topTextureKey);
+        this.bottomSprite = this.scene.add.sprite(BOTTOM_OFFSET_X, BOTTOM_OFFSET_Y, appearance.bottomTextureKey);
+        this.applyPixelArtFilter();
+
+        this.bodyContainer = this.scene.add.container(this.player!.x, this.player!.y, [
+            this.bottomSprite, this.topSprite, this.headSprite,
+        ]);
+        this.bodyContainer.setDepth(10);
+        this.bodyContainer.setScale(BODY_SCALE);
 
         const displayName = getCurrentCharacter()?.displayName || 'Ninja';
-        this.playerNameText = this.scene.add.text(this.player!.x, this.player!.y - 65, displayName, {
+        this.playerNameText = this.scene.add.text(this.player!.x, this.player!.y + NAME_OFFSET_Y, displayName, {
             fontSize: '14px',
             color: '#fff',
             fontFamily: 'system-ui, sans-serif',
@@ -66,27 +114,40 @@ export class PlayerController implements GameComponent {
     update(): void {
         if (!this.player || !this.cursors) return;
 
-        if (this.playerSprite) {
-            this.playerSprite.setPosition(this.player.x, this.player.y);
+        if (this.bodyContainer) {
+            this.bodyContainer.setPosition(this.player.x, this.player.y);
         }
         if (this.playerNameText) {
-            this.playerNameText.setPosition(this.player.x, this.player.y - 65);
+            this.playerNameText.setPosition(this.player.x, this.player.y + NAME_OFFSET_Y);
         }
+    }
+
+    setAppearance(appearance: Partial<CharacterAppearance>): void {
+        if (appearance.headTextureKey) this.headSprite?.setTexture(appearance.headTextureKey);
+        if (appearance.topTextureKey) this.topSprite?.setTexture(appearance.topTextureKey);
+        if (appearance.bottomTextureKey) this.bottomSprite?.setTexture(appearance.bottomTextureKey);
+        this.applyPixelArtFilter();
+    }
+
+    setFacing(left: boolean): void {
+        this.headSprite?.setFlipX(left);
+        this.topSprite?.setFlipX(left);
+        this.bottomSprite?.setFlipX(left);
     }
 
     getPlayer(): Phaser.Types.Physics.Arcade.SpriteWithDynamicBody | undefined { return this.player; }
     getCursors(): Phaser.Types.Input.Keyboard.CursorKeys | undefined { return this.cursors; }
     getVirtualInputs(): { left: boolean; right: boolean; up: boolean } { return this.virtualInputs; }
-    getSprite(): Phaser.GameObjects.Sprite | undefined { return this.playerSprite; }
+    getSprite(): Phaser.GameObjects.Container | undefined { return this.bodyContainer; }
 
     moveLeft(speed: number): void {
         this.player?.body?.setVelocityX(-speed);
-        this.playerSprite?.setFlipX(true);
+        this.setFacing(true);
     }
 
     moveRight(speed: number): void {
         this.player?.body?.setVelocityX(speed);
-        this.playerSprite?.setFlipX(false);
+        this.setFacing(false);
     }
 
     stopHorizontal(): void {
@@ -100,6 +161,13 @@ export class PlayerController implements GameComponent {
     isOnGround(): boolean {
         if (!this.player?.body) return false;
         return this.player.body.blocked.down || this.player.body.touching.down;
+    }
+
+    private applyPixelArtFilter(): void {
+        // NEAREST giữ pixel art sắc nét — Phaser default linear filter sẽ làm mờ.
+        [this.headSprite, this.topSprite, this.bottomSprite].forEach((s) => {
+            s?.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+        });
     }
 
     private async syncCharacterInfo(): Promise<void> {

@@ -67,7 +67,5 @@ export interface MapConfig {
     bgAsset: string;
     colliderKey: string;
     colliderAsset: string;
-    playerTextureKey: string;
-    playerTextureAsset: string;
     tiledOriginalHeight: number;
 }

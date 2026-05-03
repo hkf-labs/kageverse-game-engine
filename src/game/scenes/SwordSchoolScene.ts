@@ -14,8 +14,6 @@ export class SwordSchoolScene extends BaseMapScene {
             bgAsset: 'assets/maps/sword_school_001/bg.png',
             colliderKey: 'sword_school_001_colliders',
             colliderAsset: 'assets/maps/sword_school_001/colliders.json',
-            playerTextureKey: 'player-placeholder-male',
-            playerTextureAsset: 'assets/game/characters/placeholder-ninja-male.jpg',
             tiledOriginalHeight: 1440,
         };
     }

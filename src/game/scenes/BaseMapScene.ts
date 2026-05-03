@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DeathMenu, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -56,7 +56,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     preload(): void {
         const cfg = this.getMapConfig();
-        this.load.image(cfg.playerTextureKey, cfg.playerTextureAsset);
+        for (const [key, asset] of Object.entries(DEFAULT_CHARACTER_APPEARANCE_ASSETS)) {
+            this.load.image(key, asset);
+        }
         this.load.image(cfg.bgKey, cfg.bgAsset);
         this.load.json(cfg.colliderKey, cfg.colliderAsset);
         this.load.image('btn_attack', 'assets/game/buttons/button-attack.png');
@@ -85,7 +87,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.background.create();
 
         // Player
-        this.playerCtrl = new PlayerController(this, cfg, this.background);
+        this.playerCtrl = new PlayerController(this, this.background);
         this.playerCtrl.create();
 
         // Shop modal — phải tạo trước NpcManager để NPC dialog gọi được.
@@ -553,7 +555,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             } else {
                 const dx = autoTarget - player.x;
                 player.body?.setVelocityX(dx > 0 ? speed : -speed);
-                this.playerCtrl.getSprite()?.setFlipX(dx < 0);
+                this.playerCtrl.setFacing(dx < 0);
             }
         } else if (moveLeft) {
             this.playerCtrl.moveLeft(speed);

@@ -14,8 +14,6 @@ export class VillageScene extends BaseMapScene {
             bgAsset: 'assets/maps/village_001/village_1.png',
             colliderKey: 'village_001_colliders',
             colliderAsset: 'assets/maps/village_001/colliders.json',
-            playerTextureKey: 'player-placeholder-male',
-            playerTextureAsset: 'assets/game/characters/placeholder-ninja-male.jpg',
             tiledOriginalHeight: 1440,
         };
     }
