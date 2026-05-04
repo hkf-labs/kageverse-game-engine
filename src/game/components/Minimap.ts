@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
 export class Minimap implements GameComponent {
@@ -36,7 +37,7 @@ export class Minimap implements GameComponent {
         miniFrame.strokeRoundedRect(mmX - 6, mmY - titleH - 6, mmWidth + 12, mmHeight + titleH + 12, 10);
         miniFrame.setScrollFactor(0).setDepth(200);
 
-        this.scene.add.text(mmX + mmWidth / 2, mmY - titleH / 2 - 4, 'BẢN ĐỒ', {
+        this.scene.add.text(mmX + mmWidth / 2, mmY - titleH / 2 - 4, t('minimap.title'), {
             fontSize: '11px', fontStyle: 'bold', color: '#ffea7a',
             fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 2,
         }).setOrigin(0.5).setScrollFactor(0).setDepth(201);

@@ -155,6 +155,9 @@ export const en: TranslationTable = {
     'map.locked_default': 'This map is locked. Progress the main story to unlock.',
     'portal.locked_default': 'Portal is locked. Complete a quest to unlock.',
 
+    // Minimap
+    'minimap.title': 'MAP',
+
     // Map names
     'map.name.village_001': 'Mistveil Village',
     'map.name.sword_school_001': 'Mikazuki — Sword School',

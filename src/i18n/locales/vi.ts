@@ -155,6 +155,9 @@ export const vi: TranslationTable = {
     'map.locked_default': 'Map này chưa mở khoá. Tiếp tục nhiệm vụ chính tuyến để mở.',
     'portal.locked_default': 'Cổng đang khoá. Bạn cần hoàn thành nhiệm vụ để mở.',
 
+    // Minimap
+    'minimap.title': 'BẢN ĐỒ',
+
     // Map names (registry + scene displayName)
     'map.name.village_001': 'Làng Sương Khói',
     'map.name.sword_school_001': 'Trường Mikazuki — Phái Kiếm',
