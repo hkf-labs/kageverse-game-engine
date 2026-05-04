@@ -6,6 +6,7 @@ import {
     type InventoryItemDTO,
 } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { onLocaleChange, t } from '../../i18n';
 import type { GameComponent } from './types';
 
 // 16 ô tổng = 10 active (5 trái + 5 phải) + 6 dưới khoá.
@@ -18,31 +19,31 @@ type SlotKey =
 
 interface SlotDef {
     key: SlotKey;
-    label: string;
+    labelKey: string; // i18n key resolved via t() at render time.
     icon: string;
     locked: boolean; // true = ô khoá vĩnh viễn (post-MVP); active=false để bỏ qua API.
     beSlotId?: string; // slot id BE biết (nếu khác key, hoặc null cho ô khoá).
 }
 
 const LEFT_COL: SlotDef[] = [
-    { key: 'hat',   label: 'Nón',       icon: '🪖', locked: false, beSlotId: 'hat' },
-    { key: 'cloak', label: 'Áo Choàng', icon: '🧥', locked: false, beSlotId: 'cloak' },
-    { key: 'shirt', label: 'Áo',        icon: '👕', locked: false, beSlotId: 'shirt' },
-    { key: 'pants', label: 'Quần',      icon: '👖', locked: false, beSlotId: 'pants' },
-    { key: 'shoes', label: 'Giày',      icon: '👟', locked: false, beSlotId: 'shoes' },
+    { key: 'hat',   labelKey: 'equipment.slot_hat',    icon: '🪖', locked: false, beSlotId: 'hat' },
+    { key: 'cloak', labelKey: 'equipment.slot_cloak',  icon: '🧥', locked: false, beSlotId: 'cloak' },
+    { key: 'shirt', labelKey: 'equipment.slot_shirt',  icon: '👕', locked: false, beSlotId: 'shirt' },
+    { key: 'pants', labelKey: 'equipment.slot_pants',  icon: '👖', locked: false, beSlotId: 'pants' },
+    { key: 'shoes', labelKey: 'equipment.slot_shoes',  icon: '👟', locked: false, beSlotId: 'shoes' },
 ];
 
 const RIGHT_COL: SlotDef[] = [
-    { key: 'main_hand',       label: 'Vũ Khí',   icon: '⚔️', locked: false, beSlotId: 'main_hand' },
-    { key: 'ring',            label: 'Nhẫn',     icon: '💍', locked: false, beSlotId: 'ring' },
-    { key: 'scroll',          label: 'Bí Kíp',   icon: '📜', locked: true },
-    { key: 'ninjutsu',        label: 'Nhẫn Thuật', icon: '🌀', locked: true },
-    { key: 'support_costume', label: 'Phụ Trợ',  icon: '🎽', locked: true },
+    { key: 'main_hand',       labelKey: 'equipment.slot_main_hand',       icon: '⚔️', locked: false, beSlotId: 'main_hand' },
+    { key: 'ring',            labelKey: 'equipment.slot_ring',            icon: '💍', locked: false, beSlotId: 'ring' },
+    { key: 'scroll',          labelKey: 'equipment.slot_scroll',          icon: '📜', locked: true },
+    { key: 'ninjutsu',        labelKey: 'equipment.slot_ninjutsu',        icon: '🌀', locked: true },
+    { key: 'support_costume', labelKey: 'equipment.slot_support_costume', icon: '🎽', locked: true },
 ];
 
 const BOTTOM_ROW: SlotDef[] = Array.from({ length: 6 }, (_, i) => ({
     key: `future_${i}` as SlotKey,
-    label: 'Sắp ra mắt',
+    labelKey: 'equipment.slot_future',
     icon: '',
     locked: true,
 }));
@@ -50,28 +51,35 @@ const BOTTOM_ROW: SlotDef[] = Array.from({ length: 6 }, (_, i) => ({
 const PLACEHOLDER_FEMALE = 'assets/game/characters/ninja-full-body-female.png';
 const PLACEHOLDER_MALE = 'assets/game/characters/ninja-full-body-male.png';
 
-// Tên VN cho stat trong tooltip (rolled_stats keys khớp `equipment-system.md`).
-const STAT_LABEL_VI: Record<string, string> = {
-    attack: 'Tấn công',
-    min_attack: 'Tấn công min',
-    max_attack: 'Tấn công max',
-    defense: 'Phòng thủ',
-    max_hp: 'HP tối đa',
-    max_mp: 'MP tối đa',
-    crit_rate: 'Tỉ lệ chí mạng',
-    accuracy: 'Chính xác',
-    dodge: 'Né tránh',
+// Stat key → i18n key (rolled_stats keys khớp `equipment-system.md`).
+const STAT_KEY: Record<string, string> = {
+    attack: 'equipment.stat_attack',
+    min_attack: 'equipment.stat_min_attack',
+    max_attack: 'equipment.stat_max_attack',
+    defense: 'equipment.stat_defense',
+    max_hp: 'equipment.stat_max_hp',
+    max_mp: 'equipment.stat_max_mp',
+    crit_rate: 'equipment.stat_crit_rate',
+    accuracy: 'equipment.stat_accuracy',
+    dodge: 'equipment.stat_dodge',
 };
+
+function statLabel(key: string): string {
+    const i18nKey = STAT_KEY[key];
+    return i18nKey ? t(i18nKey) : key;
+}
 
 export class EquipmentModal implements GameComponent {
     private overlay?: HTMLDivElement;
     private slotsByKey = new Map<SlotKey, HTMLDivElement>();
     private statusEl?: HTMLDivElement;
     private statsEl?: HTMLDivElement;
+    private titleEl?: HTMLDivElement;
     private visible = false;
     private equipped = new Map<string, EquippedItemDTO>(); // be slot id → item
     private loading = false;
     private actionInFlight = false;
+    private localeUnsub?: () => void;
     private scene: Phaser.Scene;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
     private onEquipmentChanged?: () => void;
@@ -125,9 +133,10 @@ export class EquipmentModal implements GameComponent {
         const header = document.createElement('div');
         header.style.cssText = 'display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;';
         header.innerHTML =
-            `<div style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">TRANG BỊ</div>`
+            `<div id="eq-title" style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">${escapeHtml(t('equipment.title'))}</div>`
             + `<div id="eq-close" style="width:40px;text-align:center;cursor:pointer;font-size:18px;font-weight:bold;color:#ff8a8a;padding:10px 0;flex-shrink:0;">&#10005;</div>`;
         root.appendChild(header);
+        this.titleEl = header.querySelector('#eq-title') as HTMLDivElement;
 
         // Body — 3 cột (5 trái / character / 5 phải)
         const body = document.createElement('div');
@@ -147,7 +156,7 @@ export class EquipmentModal implements GameComponent {
         // Stat tổng (placeholder — wire khi BE expose endpoint stats aggregated).
         this.statsEl = document.createElement('div');
         this.statsEl.style.cssText = 'margin-top:14px;padding:8px 12px;background:rgba(45,26,10,0.6);border:1px solid #4d2d13;border-radius:6px;font-size:11px;color:#ffd070;text-align:center;line-height:1.6;min-width:140px;';
-        this.statsEl.innerHTML = `<div style="color:#888;font-style:italic;">Bonus stat sẽ hiện ở đây</div>`;
+        this.statsEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('equipment.stats_placeholder'))}</div>`;
         center.appendChild(this.statsEl);
 
         body.append(leftCol, center, rightCol);
@@ -166,6 +175,13 @@ export class EquipmentModal implements GameComponent {
 
         const closeBtn = header.querySelector('#eq-close') as HTMLDivElement;
         closeBtn.addEventListener('click', () => this.toggle());
+
+        // Re-render mọi text khi locale đổi runtime.
+        this.localeUnsub = onLocaleChange(() => {
+            if (this.titleEl) this.titleEl.textContent = t('equipment.title');
+            this.renderSlots();
+            this.renderStatsSummary();
+        });
     }
 
     private buildColumn(defs: SlotDef[], side: 'left' | 'right'): HTMLDivElement {
@@ -190,7 +206,7 @@ export class EquipmentModal implements GameComponent {
             transition: 'border-color 0.1s, box-shadow 0.1s',
             opacity: def.locked ? '0.55' : '1',
         });
-        cell.title = def.label;
+        cell.title = t(def.labelKey);
 
         if (def.locked) {
             cell.innerHTML = `<div style="font-size:22px;color:#666;">🔒</div>`;
@@ -198,7 +214,7 @@ export class EquipmentModal implements GameComponent {
             // Default: show icon + small label tag.
             cell.innerHTML =
                 `<div data-icon style="font-size:24px;opacity:0.45;">${def.icon}</div>`
-                + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:#a07040;background:rgba(0,0,0,0.4);padding:1px 0;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${def.label}</div>`;
+                + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:#a07040;background:rgba(0,0,0,0.4);padding:1px 0;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${escapeHtml(t(def.labelKey))}</div>`;
             cell.addEventListener('mouseenter', () => {
                 cell.style.borderColor = '#ffd070';
                 cell.style.boxShadow = '0 0 8px rgba(255,234,122,0.4)';
@@ -235,12 +251,12 @@ export class EquipmentModal implements GameComponent {
     async refresh(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
-            this.setStatus('Chưa có nhân vật.', '#ff8a8a');
+            this.setStatus(t('equipment.error_no_character'), '#ff8a8a');
             return;
         }
         if (this.loading) return;
         this.loading = true;
-        this.setStatus('Đang tải trang bị...', '#aaa');
+        this.setStatus(t('equipment.loading'), '#aaa');
         try {
             const res = await inventoryAPI.listEquipped(character.id);
             this.equipped.clear();
@@ -249,7 +265,7 @@ export class EquipmentModal implements GameComponent {
             this.renderStatsSummary();
             this.setStatus('', '#ffe4c4');
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Không tải được trang bị';
+            const msg = err instanceof Error ? err.message : t('equipment.error_load');
             this.setStatus(msg, '#ff8a8a');
         } finally {
             this.loading = false;
@@ -260,6 +276,8 @@ export class EquipmentModal implements GameComponent {
         this.overlay?.remove();
         this.overlay = undefined;
         this.slotsByKey.clear();
+        this.localeUnsub?.();
+        this.localeUnsub = undefined;
     }
 
     private renderSlots(): void {
@@ -274,12 +292,13 @@ export class EquipmentModal implements GameComponent {
     }
 
     private paintCell(cell: HTMLDivElement, def: SlotDef, equipped?: EquippedItemDTO): void {
+        const slotLabel = t(def.labelKey);
         if (!equipped) {
             // Slot trống — icon mờ + label
             cell.innerHTML =
                 `<div data-icon style="font-size:24px;opacity:0.45;">${def.icon}</div>`
-                + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:#a07040;background:rgba(0,0,0,0.4);padding:1px 0;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${def.label}</div>`;
-            cell.title = `${def.label} — trống`;
+                + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:#a07040;background:rgba(0,0,0,0.4);padding:1px 0;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${escapeHtml(slotLabel)}</div>`;
+            cell.title = t('equipment.tooltip_empty', { slot: slotLabel });
             cell.style.borderColor = '#d4af37';
             return;
         }
@@ -293,8 +312,8 @@ export class EquipmentModal implements GameComponent {
         cell.innerHTML =
             `<div style="font-size:24px;">${def.icon}</div>`
             + upgradeBadge + boundBadge
-            + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:#ffea7a;background:rgba(0,0,0,0.6);padding:1px 0;font-weight:bold;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${def.label}</div>`;
-        cell.title = formatItemTooltip(def.label, item);
+            + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:#ffea7a;background:rgba(0,0,0,0.6);padding:1px 0;font-weight:bold;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${escapeHtml(slotLabel)}</div>`;
+        cell.title = formatItemTooltip(slotLabel, item);
         cell.style.borderColor = '#ffea7a';
     }
 
@@ -309,14 +328,13 @@ export class EquipmentModal implements GameComponent {
         }
         const entries = Object.entries(totals).filter(([, v]) => v !== 0);
         if (entries.length === 0) {
-            this.statsEl.innerHTML = `<div style="color:#888;font-style:italic;">Chưa có bonus stat</div>`;
+            this.statsEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('equipment.stats_empty'))}</div>`;
             return;
         }
         this.statsEl.innerHTML = entries
             .map(([k, v]) => {
                 const sign = v > 0 ? '+' : '';
-                const label = STAT_LABEL_VI[k] ?? k;
-                return `<div>${label}: <span style="color:#bdf0a0;font-weight:bold;">${sign}${v}</span></div>`;
+                return `<div>${escapeHtml(statLabel(k))}: <span style="color:#bdf0a0;font-weight:bold;">${sign}${v}</span></div>`;
             })
             .join('');
     }
@@ -325,7 +343,7 @@ export class EquipmentModal implements GameComponent {
         if (!def.beSlotId) return;
         const equipped = this.equipped.get(def.beSlotId);
         if (!equipped) {
-            this.setStatus(`${def.label}: chưa trang bị. Mở Túi Đồ chọn vật phẩm.`, '#aaa');
+            this.setStatus(t('equipment.empty_hint', { slot: t(def.labelKey) }), '#aaa');
             return;
         }
         void this.handleUnequip(def, equipped);
@@ -336,13 +354,14 @@ export class EquipmentModal implements GameComponent {
         const character = getCurrentCharacter();
         if (!character) return;
 
-        if (!window.confirm(`Tháo ${def.label} (${equipped.item.name_key})?`)) return;
+        const slotLabel = t(def.labelKey);
+        if (!window.confirm(t('equipment.confirm_unequip', { slot: slotLabel, name: equipped.item.name_key }))) return;
 
         this.actionInFlight = true;
-        this.setStatus('Đang tháo...', '#aaa');
+        this.setStatus(t('equipment.unequipping'), '#aaa');
         try {
             await inventoryAPI.unequip(character.id, def.beSlotId);
-            this.setStatus(`Đã tháo ${def.label}.`, '#bdf0a0');
+            this.setStatus(t('equipment.unequipped', { slot: slotLabel }), '#bdf0a0');
             await this.refresh();
             // equip_item objective state có thể thay đổi (vd Q3 require equip
             // weapon — unequip khiến progress reset). Báo scene refresh.
@@ -360,7 +379,7 @@ export class EquipmentModal implements GameComponent {
                 });
             }
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Tháo trang bị thất bại';
+            const msg = err instanceof Error ? err.message : t('equipment.error_unequip');
             this.setStatus(msg, '#ff8a8a');
         } finally {
             this.actionInFlight = false;
@@ -377,14 +396,19 @@ export class EquipmentModal implements GameComponent {
 function formatItemTooltip(slotLabel: string, item: InventoryItemDTO): string {
     const parts = [`${slotLabel}: ${item.name_key}`];
     if (item.upgrade_level > 0) parts.push(`+${item.upgrade_level}`);
-    if (item.is_bound) parts.push('(khoá)');
+    if (item.is_bound) parts.push(t('equipment.tooltip_locked'));
     const stats = item.rolled_stats ?? item.base_stats;
     if (stats) {
         for (const [k, v] of Object.entries(stats)) {
-            const label = STAT_LABEL_VI[k] ?? k;
             const sign = v > 0 ? '+' : '';
-            parts.push(`${label}: ${sign}${v}`);
+            parts.push(`${statLabel(k)}: ${sign}${v}`);
         }
     }
     return parts.join('\n');
+}
+
+function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c] ?? c));
 }
