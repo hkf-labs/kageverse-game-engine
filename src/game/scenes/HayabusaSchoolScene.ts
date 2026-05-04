@@ -1,4 +1,6 @@
 import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import { mapDisplayName } from '../maps/registry';
+import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
 /**
@@ -15,7 +17,7 @@ export class HayabusaSchoolScene extends BaseMapScene {
     protected getMapConfig(): MapConfig {
         return {
             mapId: 'hayabusa_school_001',
-            displayName: 'Trường Hayabusa — Phái Cung',
+            displayName: mapDisplayName('hayabusa_school_001'),
             bgKey: 'map-bg-hayabusa-school-001',
             bgAsset: 'assets/maps/hayabusa_school_001/bg.png',
             colliderKey: 'hayabusa_school_001_colliders',
@@ -24,18 +26,18 @@ export class HayabusaSchoolScene extends BaseMapScene {
         };
     }
 
-    protected getMapDisplayName(): string { return 'TRƯỜNG HAYABUSA — PHÁI CUNG'; }
+    protected getMapDisplayName(): string { return mapDisplayName('hayabusa_school_001').toUpperCase(); }
 
     protected getNpcConfigs(): NpcConfig[] {
         return [
-            { key: 'npc_tobishima', name: 'HT Tobishima', x: 1500, y: undefined, offsetY: 0, templateId: 'npc_tobishima' },
-            { key: 'npc_kazu', name: 'Thợ Cung Kazu', x: 2500, y: undefined, offsetY: 0, templateId: 'npc_kazu' },
+            { key: 'npc_tobishima', name: t('npc.name.npc_tobishima'), x: 1500, y: undefined, offsetY: 0, templateId: 'npc_tobishima' },
+            { key: 'npc_kazu', name: t('npc.name.npc_kazu'), x: 2500, y: undefined, offsetY: 0, templateId: 'npc_kazu' },
         ];
     }
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180, label: 'Quay Về Rừng Tre', targetSceneKey: 'BambooForestScene' },
+            { x: 180, label: t('portal.label.return_bamboo'), targetSceneKey: 'BambooForestScene' },
         ];
     }
 

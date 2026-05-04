@@ -54,6 +54,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     protected abstract getMapConfig(): MapConfig;
+
+    // Default lookup từ map registry — scene chỉ cần override nếu muốn label khác.
     protected abstract getNpcConfigs(): NpcConfig[];
     protected getPortalConfigs(): PortalConfig[] { return []; }
     protected getMapDisplayName(): string { return ''; }

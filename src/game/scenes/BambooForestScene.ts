@@ -1,4 +1,6 @@
 import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import { mapDisplayName } from '../maps/registry';
+import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
 /**
@@ -17,7 +19,7 @@ export class BambooForestScene extends BaseMapScene {
     protected getMapConfig(): MapConfig {
         return {
             mapId: 'bamboo_forest_yatomi',
-            displayName: 'Rừng Tre Yatomi',
+            displayName: mapDisplayName('bamboo_forest_yatomi'),
             bgKey: 'map-bg-bamboo-forest-yatomi',
             bgAsset: 'assets/maps/bamboo_forest_yatomi/bg.png',
             colliderKey: 'bamboo_forest_yatomi_colliders',
@@ -26,7 +28,7 @@ export class BambooForestScene extends BaseMapScene {
         };
     }
 
-    protected getMapDisplayName(): string { return 'RỪNG TRE YATOMI'; }
+    protected getMapDisplayName(): string { return mapDisplayName('bamboo_forest_yatomi').toUpperCase(); }
 
     protected getNpcConfigs(): NpcConfig[] {
         return [];
@@ -34,27 +36,27 @@ export class BambooForestScene extends BaseMapScene {
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180, label: 'Quay Về Đồng Cỏ', targetSceneKey: 'CombatFieldScene' },
+            { x: 180, label: t('portal.label.return_combat_field'), targetSceneKey: 'CombatFieldScene' },
             {
                 x: 1400,
-                label: 'Trường Mikazuki — Phái Kiếm',
+                label: t('portal.label.sword_school'),
                 targetSceneKey: 'SwordSchoolScene',
                 locked: true,
-                lockedMessage: 'Cần hoàn thành Bái Sư (Q11) để vào Trường Mikazuki.',
+                lockedMessage: t('portal.locked.sword_school'),
             },
             {
                 x: 2400,
-                label: 'Trường Hayabusa — Phái Cung',
+                label: t('portal.label.bow_school'),
                 targetSceneKey: 'HayabusaSchoolScene',
                 locked: true,
-                lockedMessage: 'Cần hoàn thành Bái Sư (Q11) để vào Trường Hayabusa.',
+                lockedMessage: t('portal.locked.bow_school'),
             },
             {
                 x: 3700,
-                label: 'Đồi Đá Iwagumo',
+                label: t('portal.label.rocky_hill'),
                 targetSceneKey: 'RockyHillScene',
                 locked: true,
-                lockedMessage: 'Cần đạt lv 14 và hoàn thành nhiệm vụ Đồi Đá để mở khoá.',
+                lockedMessage: t('portal.locked.rocky_hill'),
             },
         ];
     }

@@ -190,7 +190,7 @@ export class AuthScene extends Phaser.Scene {
                 throw error;
             }
             if (this.statusText?.active) {
-                this.statusText.setText('Không gọi được API nhân vật — vào game thử (kiểm tra server).').setColor('#ffaa00');
+                this.statusText.setText(t('auth.bootstrap.api_error')).setColor('#ffaa00');
             }
             this.scene.start('MainScene');
         }

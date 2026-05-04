@@ -1,4 +1,6 @@
 import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import { mapDisplayName } from '../maps/registry';
+import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
 export class CombatFieldScene extends BaseMapScene {
@@ -9,7 +11,7 @@ export class CombatFieldScene extends BaseMapScene {
     protected getMapConfig(): MapConfig {
         return {
             mapId: 'combat_field_001',
-            displayName: 'Đồng Cỏ Săn Quái',
+            displayName: mapDisplayName('combat_field_001'),
             bgKey: 'map-bg-combat-field-001',
             bgAsset: 'assets/maps/combat_field_001/bg.jpg',
             colliderKey: 'combat_field_001_colliders',
@@ -18,7 +20,7 @@ export class CombatFieldScene extends BaseMapScene {
         };
     }
 
-    protected getMapDisplayName(): string { return 'ĐỒNG CỎ SĂN QUÁI'; }
+    protected getMapDisplayName(): string { return mapDisplayName('combat_field_001').toUpperCase(); }
 
     protected getNpcConfigs(): NpcConfig[] {
         return [];
@@ -26,13 +28,13 @@ export class CombatFieldScene extends BaseMapScene {
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180, label: 'Quay Về Làng', targetSceneKey: 'VillageScene' },
+            { x: 180, label: t('portal.label.return_village'), targetSceneKey: 'VillageScene' },
             {
                 x: 3800,
-                label: 'Rừng Tre Yatomi',
+                label: t('portal.label.bamboo_forest'),
                 targetSceneKey: 'BambooForestScene',
                 locked: true,
-                lockedMessage: 'Cần hoàn thành nhiệm vụ Vào Rừng Tre (lv 8) để mở khoá.',
+                lockedMessage: t('portal.locked.bamboo'),
             },
         ];
     }

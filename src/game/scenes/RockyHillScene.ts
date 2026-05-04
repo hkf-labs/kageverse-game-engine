@@ -1,4 +1,6 @@
 import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import { mapDisplayName } from '../maps/registry';
+import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
 /**
@@ -20,7 +22,7 @@ export class RockyHillScene extends BaseMapScene {
     protected getMapConfig(): MapConfig {
         return {
             mapId: 'rocky_hill_iwagumo',
-            displayName: 'Đồi Đá Iwagumo',
+            displayName: mapDisplayName('rocky_hill_iwagumo'),
             bgKey: 'map-bg-rocky-hill-iwagumo',
             bgAsset: 'assets/maps/rocky_hill_iwagumo/bg.png',
             colliderKey: 'rocky_hill_iwagumo_colliders',
@@ -29,7 +31,7 @@ export class RockyHillScene extends BaseMapScene {
         };
     }
 
-    protected getMapDisplayName(): string { return 'ĐỒI ĐÁ IWAGUMO'; }
+    protected getMapDisplayName(): string { return mapDisplayName('rocky_hill_iwagumo').toUpperCase(); }
 
     protected getNpcConfigs(): NpcConfig[] {
         return [];
@@ -37,7 +39,7 @@ export class RockyHillScene extends BaseMapScene {
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180, label: 'Quay Về Rừng Tre', targetSceneKey: 'BambooForestScene' },
+            { x: 180, label: t('portal.label.return_bamboo'), targetSceneKey: 'BambooForestScene' },
         ];
     }
 }

@@ -21,6 +21,21 @@ export const en: TranslationTable = {
     'auth.login.missing_fields': 'Enter username/email and password.',
     'auth.login.session_restoring': 'Restoring session...',
     'auth.login.session_expired': 'Session expired, please sign in again.',
+    'auth.bootstrap.api_error': 'Could not reach character API — entering game (check server).',
+
+    // NPC names — content-level. Shown as label above NPC sprite.
+    'npc.name.npc_genji': 'Village Elder Genji',
+    'npc.name.npc_healer_ayame': 'Healer Ayame',
+    'npc.name.npc_tetsu': 'Blacksmith Tetsu',
+    'npc.name.npc_chef_kuma': 'Chef Kuma',
+    'npc.name.npc_merchant': 'Merchant',
+    'npc.name.npc_kura': 'Stash Keeper Kura',
+    'npc.name.npc_teleporter': 'Teleporter Tobi',
+    'npc.name.npc_tsukikage': 'Principal Tsukikage',
+    'npc.name.npc_ryota': 'Master Ryota',
+    'npc.name.npc_tobishima': 'Principal Tobishima',
+    'npc.name.npc_kazu': 'Bowsmith Kazu',
+    'npc.name.npc_hoshi': 'Refiner Hoshi',
 
     // Auth — register screen
     'auth.register.title': 'ENROLLMENT',
@@ -139,6 +154,76 @@ export const en: TranslationTable = {
     // Map / portal
     'map.locked_default': 'This map is locked. Progress the main story to unlock.',
     'portal.locked_default': 'Portal is locked. Complete a quest to unlock.',
+
+    // Map names
+    'map.name.village_001': 'Mistveil Village',
+    'map.name.sword_school_001': 'Mikazuki — Sword School',
+    'map.name.hayabusa_school_001': 'Hayabusa — Bow School',
+    'map.name.combat_field_001': 'Hunting Meadow',
+    'map.name.bamboo_forest_yatomi': 'Yatomi Bamboo Forest',
+    'map.name.rocky_hill_iwagumo': 'Iwagumo Rocky Hill',
+
+    // Portal labels
+    'portal.label.time_pit': 'Time Pit',
+    'portal.label.return_village': 'Return to Village',
+    'portal.label.return_combat_field': 'Return to Meadow',
+    'portal.label.return_bamboo': 'Return to Bamboo',
+    'portal.label.bamboo_forest': 'Yatomi Bamboo Forest',
+    'portal.label.sword_school': 'Mikazuki — Sword School',
+    'portal.label.bow_school': 'Hayabusa — Bow School',
+    'portal.label.rocky_hill': 'Iwagumo Rocky Hill',
+
+    // Portal locked messages
+    'portal.locked.bamboo': 'Complete the Bamboo Quest (lv 8) to unlock.',
+    'portal.locked.sword_school': 'Complete the Initiation (Q11) to enter Mikazuki.',
+    'portal.locked.bow_school': 'Complete the Initiation (Q11) to enter Hayabusa.',
+    'portal.locked.rocky_hill': 'Reach level 14 and complete the Rocky Hill quest to unlock.',
+
+    // Form validation
+    'validation.username_required': 'Please enter a username.',
+    'validation.username_too_short': 'Username must be at least {n} characters.',
+    'validation.username_too_long': 'Username cannot exceed {n} characters.',
+    'validation.username_alphanum': 'Username can only contain letters and digits (a-z, A-Z, 0-9).',
+    'validation.identifier_required': 'Please enter a username or email.',
+    'validation.email_invalid': 'Invalid email.',
+    'validation.display_name_required': 'Please enter a display name.',
+    'validation.display_name_too_short': 'Display name must be at least {n} characters.',
+    'validation.display_name_too_long': 'Display name cannot exceed {n} characters.',
+    'validation.display_name_alphanum': 'Display name can only contain letters and digits (a-z, A-Z, 0-9).',
+
+    // API errors (fallback when BE has no message)
+    'api.error.not_logged_in': 'Not logged in',
+    'api.error.load_countries': 'Failed to load country list',
+    'api.error.register': 'Registration failed',
+    'api.error.login': 'Login failed',
+    'api.error.load_characters': 'Failed to load characters',
+    'api.error.create_character': 'Failed to create character',
+    'api.error.load_wallet': 'Failed to load wallet',
+    'api.error.load_inventory': 'Failed to load inventory',
+    'api.error.use_item': 'Failed to use item',
+    'api.error.drop_item': 'Failed to drop item',
+    'api.error.sort_slots': 'Failed to sort slots',
+    'api.error.equip': 'Failed to equip',
+    'api.error.unequip': 'Failed to unequip',
+    'api.error.load_equipped': 'Failed to load equipped items',
+    'api.error.load_npc': 'Failed to load NPC',
+    'api.error.load_quests': 'Failed to load quests',
+    'api.error.accept_quest': 'Failed to accept quest',
+    'api.error.load_quest_log': 'Failed to load quest log',
+    'api.error.load_npc_status': 'Failed to load NPC status',
+    'api.error.turn_in_quest': 'Failed to turn in quest',
+    'api.error.load_monsters': 'Failed to load monsters',
+    'api.error.attack': 'Attack failed',
+    'api.error.respawn': 'Respawn failed',
+    'api.error.combat_tick': 'Combat tick failed',
+    'api.error.death_state': 'Failed to change state',
+    'api.error.load_shop': 'Failed to load shop',
+    'api.error.buy': 'Purchase failed',
+    'api.error.load_skills': 'Failed to load skills',
+    'api.error.upgrade_skill': 'Failed to upgrade skill',
+    'api.error.assign_slot': 'Failed to assign slot',
+    'api.error.upgrade_equipment': 'Enhancement failed',
+    'api.error.extract_equipment': 'Extraction failed',
 
     // Settings modal
     'settings.title': 'SETTINGS',

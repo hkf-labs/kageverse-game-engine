@@ -1,5 +1,6 @@
 import { getMockMapDetail } from '../features/maps';
 import type { MapDetail } from '../features/maps';
+import { t } from '../i18n';
 export type { MapDetail, Vec2 } from '../features/maps';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
@@ -115,7 +116,7 @@ async function authFetch(
     init: { method?: string; body?: BodyInit | null; headers?: Record<string, string> } = {},
 ): Promise<{ response: Response; traceId: string }> {
     const token = getAccessToken();
-    if (!token) throw new Error('Chưa đăng nhập');
+    if (!token) throw new Error(t('api.error.not_logged_in'));
 
     const doFetch = async (accessToken: string) => {
         const headers = buildHeaders({
@@ -161,7 +162,7 @@ export const authAPI = {
         const resData = await parseJsonSafe(response);
         const traceId = extractTraceId(response, headers);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được danh sách quốc gia')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_countries'))} (trace_id=${traceId || 'n/a'})`);
         }
         const data = asRecord(resData);
         const list = data?.countries;
@@ -178,7 +179,7 @@ export const authAPI = {
         const resData = await parseJsonSafe(response);
         const traceId = extractTraceId(response, headers);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Đăng ký thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.register'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as {
             user: Record<string, unknown>;
@@ -197,7 +198,7 @@ export const authAPI = {
         const resData = await parseJsonSafe(response);
         const traceId = extractTraceId(response, headers);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Đăng nhập thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.login'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as {
             user: Record<string, unknown>;
@@ -276,7 +277,7 @@ export const charactersAPI = {
         const { response, traceId } = await authFetch('/characters');
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được nhân vật')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_characters'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ListCharactersResponse;
     },
@@ -289,7 +290,7 @@ export const charactersAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Tạo nhân vật thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.create_character'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as { character: CharacterDTO; max_characters_per_user: number };
     },
@@ -298,7 +299,7 @@ export const charactersAPI = {
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/wallet`);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được ví tiền')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_wallet'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as WalletDTO;
     },
@@ -426,7 +427,7 @@ export const inventoryAPI = {
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory`);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được túi đồ')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_inventory'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ListInventoryResponse;
     },
@@ -439,7 +440,7 @@ export const inventoryAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Sử dụng vật phẩm thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.use_item'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as UseInventoryResponse;
     },
@@ -454,7 +455,7 @@ export const inventoryAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Vứt vật phẩm thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.drop_item'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as DropInventoryResponse;
     },
@@ -467,7 +468,7 @@ export const inventoryAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Sắp xếp slot thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.sort_slots'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as MoveInventoryResponse;
     },
@@ -480,7 +481,7 @@ export const inventoryAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Trang bị thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.equip'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as EquipResponse;
     },
@@ -493,7 +494,7 @@ export const inventoryAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Tháo trang bị thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.unequip'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as UnequipResponse;
     },
@@ -502,7 +503,7 @@ export const inventoryAPI = {
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory/equipped`);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được danh sách trang bị')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_equipped'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ListEquippedResponse;
     },
@@ -551,7 +552,7 @@ export const npcAPI = {
         const { response, traceId } = await authFetch(path);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được NPC')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_npc'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as NpcInteractResponse;
     },
@@ -648,7 +649,7 @@ export const questAPI = {
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests${qs}`);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được nhiệm vụ')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_quests'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ListQuestsResponse;
     },
@@ -661,7 +662,7 @@ export const questAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Nhận nhiệm vụ thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.accept_quest'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as AcceptQuestResponse;
     },
@@ -670,7 +671,7 @@ export const questAPI = {
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests/board`);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được nhật ký nhiệm vụ')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_quest_log'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as QuestBoardResponse;
     },
@@ -679,7 +680,7 @@ export const questAPI = {
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests/npc-availability`);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được trạng thái NPC')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_npc_status'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as NpcAvailabilityResponse;
     },
@@ -692,7 +693,7 @@ export const questAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Trả nhiệm vụ thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.turn_in_quest'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as TurnInQuestResponse;
     },
@@ -799,7 +800,7 @@ export const combatAPI = {
         const { response, traceId } = await authFetch(path);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được danh sách quái')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_monsters'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ListMonstersResponse;
     },
@@ -812,7 +813,7 @@ export const combatAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Tấn công thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.attack'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as AttackResponse;
     },
@@ -821,7 +822,7 @@ export const combatAPI = {
         const { response, traceId } = await authFetch(path, { method: 'POST' });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Hồi sinh thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.respawn'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as RespawnResponse;
     },
@@ -834,7 +835,7 @@ export const combatAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Tick combat thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.combat_tick'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as CombatTickResponse;
     },
@@ -847,7 +848,7 @@ export const combatAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Đổi trạng thái thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.death_state'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as SetDeathStateResponse;
     },
@@ -911,7 +912,7 @@ export const shopAPI = {
         const { response, traceId } = await authFetch(path);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được shop')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_shop'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ShopListResponse;
     },
@@ -924,7 +925,7 @@ export const shopAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Mua hàng thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.buy'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ShopBuyResponse;
     },
@@ -998,7 +999,7 @@ export const skillAPI = {
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/skills`);
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Không tải được kỹ năng')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.load_skills'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ListSkillsResponse;
     },
@@ -1008,7 +1009,7 @@ export const skillAPI = {
         const { response, traceId } = await authFetch(path, { method: 'POST' });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Nâng cấp kỹ năng thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.upgrade_skill'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as UpgradeSkillResponse;
     },
@@ -1021,7 +1022,7 @@ export const skillAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Gán slot thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.assign_slot'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as AssignSlotsResponse;
     },
@@ -1066,7 +1067,7 @@ export const equipmentUpgradeAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Cường hoá thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.upgrade_equipment'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as UpgradeEquipmentResponse;
     },
@@ -1079,7 +1080,7 @@ export const equipmentUpgradeAPI = {
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {
-            throw new Error(`${formatApiError(resData, 'Tách trang bị thất bại')} (trace_id=${traceId || 'n/a'})`);
+            throw new Error(`${formatApiError(resData, t('api.error.extract_equipment'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as ExtractEquipmentResponse;
     },

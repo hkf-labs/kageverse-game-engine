@@ -21,6 +21,21 @@ export const vi: TranslationTable = {
     'auth.login.missing_fields': 'Nhập đủ username/email và mật khẩu.',
     'auth.login.session_restoring': 'Đang khôi phục phiên đăng nhập...',
     'auth.login.session_expired': 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
+    'auth.bootstrap.api_error': 'Không gọi được API nhân vật — vào game thử (kiểm tra server).',
+
+    // NPC names — content-level translation. Hiển thị label trên sprite NPC.
+    'npc.name.npc_genji': 'Trưởng Làng Genji',
+    'npc.name.npc_healer_ayame': 'Y Sĩ Ayame',
+    'npc.name.npc_tetsu': 'Thợ Rèn Tetsu',
+    'npc.name.npc_chef_kuma': 'Bếp Trưởng Kuma',
+    'npc.name.npc_merchant': 'Thương Gia',
+    'npc.name.npc_kura': 'Quản Kho Kura',
+    'npc.name.npc_teleporter': 'Xa Phu Tobi',
+    'npc.name.npc_tsukikage': 'HT Tsukikage',
+    'npc.name.npc_ryota': 'Võ Sư Ryota',
+    'npc.name.npc_tobishima': 'HT Tobishima',
+    'npc.name.npc_kazu': 'Thợ Cung Kazu',
+    'npc.name.npc_hoshi': 'Tinh Luyện Sư Hoshi',
 
     // Auth — register screen
     'auth.register.title': 'NHẬP HỌC',
@@ -139,6 +154,76 @@ export const vi: TranslationTable = {
     // Map / portal
     'map.locked_default': 'Map này chưa mở khoá. Tiếp tục nhiệm vụ chính tuyến để mở.',
     'portal.locked_default': 'Cổng đang khoá. Bạn cần hoàn thành nhiệm vụ để mở.',
+
+    // Map names (registry + scene displayName)
+    'map.name.village_001': 'Làng Sương Khói',
+    'map.name.sword_school_001': 'Trường Mikazuki — Phái Kiếm',
+    'map.name.hayabusa_school_001': 'Trường Hayabusa — Phái Cung',
+    'map.name.combat_field_001': 'Đồng Cỏ Săn Quái',
+    'map.name.bamboo_forest_yatomi': 'Rừng Tre Yatomi',
+    'map.name.rocky_hill_iwagumo': 'Đồi Đá Iwagumo',
+
+    // Portal labels — ngắn gọn, dùng ở scene config.
+    'portal.label.time_pit': 'Hố Sâu Thời Gian',
+    'portal.label.return_village': 'Quay Về Làng',
+    'portal.label.return_combat_field': 'Quay Về Đồng Cỏ',
+    'portal.label.return_bamboo': 'Quay Về Rừng Tre',
+    'portal.label.bamboo_forest': 'Rừng Tre Yatomi',
+    'portal.label.sword_school': 'Trường Mikazuki — Phái Kiếm',
+    'portal.label.bow_school': 'Trường Hayabusa — Phái Cung',
+    'portal.label.rocky_hill': 'Đồi Đá Iwagumo',
+
+    // Portal locked messages (scene-specific gating)
+    'portal.locked.bamboo': 'Cần hoàn thành nhiệm vụ Vào Rừng Tre (lv 8) để mở khoá.',
+    'portal.locked.sword_school': 'Cần hoàn thành Bái Sư (Q11) để vào Trường Mikazuki.',
+    'portal.locked.bow_school': 'Cần hoàn thành Bái Sư (Q11) để vào Trường Hayabusa.',
+    'portal.locked.rocky_hill': 'Cần đạt lv 14 và hoàn thành nhiệm vụ Đồi Đá để mở khoá.',
+
+    // Form validation
+    'validation.username_required': 'Vui lòng nhập username.',
+    'validation.username_too_short': 'Username phải có ít nhất {n} ký tự.',
+    'validation.username_too_long': 'Username không quá {n} ký tự.',
+    'validation.username_alphanum': 'Username chỉ chứa chữ cái và chữ số (a-z, A-Z, 0-9).',
+    'validation.identifier_required': 'Vui lòng nhập username hoặc email.',
+    'validation.email_invalid': 'Email không hợp lệ.',
+    'validation.display_name_required': 'Vui lòng nhập tên hiển thị.',
+    'validation.display_name_too_short': 'Tên hiển thị phải có ít nhất {n} ký tự.',
+    'validation.display_name_too_long': 'Tên hiển thị không quá {n} ký tự.',
+    'validation.display_name_alphanum': 'Tên hiển thị chỉ chứa chữ cái và chữ số (a-z, A-Z, 0-9).',
+
+    // API errors (fallback khi BE không trả message)
+    'api.error.not_logged_in': 'Chưa đăng nhập',
+    'api.error.load_countries': 'Không tải được danh sách quốc gia',
+    'api.error.register': 'Đăng ký thất bại',
+    'api.error.login': 'Đăng nhập thất bại',
+    'api.error.load_characters': 'Không tải được nhân vật',
+    'api.error.create_character': 'Tạo nhân vật thất bại',
+    'api.error.load_wallet': 'Không tải được ví tiền',
+    'api.error.load_inventory': 'Không tải được túi đồ',
+    'api.error.use_item': 'Sử dụng vật phẩm thất bại',
+    'api.error.drop_item': 'Vứt vật phẩm thất bại',
+    'api.error.sort_slots': 'Sắp xếp slot thất bại',
+    'api.error.equip': 'Trang bị thất bại',
+    'api.error.unequip': 'Tháo trang bị thất bại',
+    'api.error.load_equipped': 'Không tải được danh sách trang bị',
+    'api.error.load_npc': 'Không tải được NPC',
+    'api.error.load_quests': 'Không tải được nhiệm vụ',
+    'api.error.accept_quest': 'Nhận nhiệm vụ thất bại',
+    'api.error.load_quest_log': 'Không tải được nhật ký nhiệm vụ',
+    'api.error.load_npc_status': 'Không tải được trạng thái NPC',
+    'api.error.turn_in_quest': 'Trả nhiệm vụ thất bại',
+    'api.error.load_monsters': 'Không tải được danh sách quái',
+    'api.error.attack': 'Tấn công thất bại',
+    'api.error.respawn': 'Hồi sinh thất bại',
+    'api.error.combat_tick': 'Tick combat thất bại',
+    'api.error.death_state': 'Đổi trạng thái thất bại',
+    'api.error.load_shop': 'Không tải được shop',
+    'api.error.buy': 'Mua hàng thất bại',
+    'api.error.load_skills': 'Không tải được kỹ năng',
+    'api.error.upgrade_skill': 'Nâng cấp kỹ năng thất bại',
+    'api.error.assign_slot': 'Gán slot thất bại',
+    'api.error.upgrade_equipment': 'Cường hoá thất bại',
+    'api.error.extract_equipment': 'Tách trang bị thất bại',
 
     // Settings modal
     'settings.title': 'CÀI ĐẶT',

@@ -1,4 +1,6 @@
 import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import { mapDisplayName } from '../maps/registry';
+import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
 export class SwordSchoolScene extends BaseMapScene {
@@ -9,7 +11,7 @@ export class SwordSchoolScene extends BaseMapScene {
     protected getMapConfig(): MapConfig {
         return {
             mapId: 'sword_school_001',
-            displayName: 'Trường Mikazuki — Phái Kiếm',
+            displayName: mapDisplayName('sword_school_001'),
             bgKey: 'map-bg-sword-school-001',
             bgAsset: 'assets/maps/sword_school_001/bg.png',
             colliderKey: 'sword_school_001_colliders',
@@ -18,18 +20,18 @@ export class SwordSchoolScene extends BaseMapScene {
         };
     }
 
-    protected getMapDisplayName(): string { return 'TRƯỜNG MIKAZUKI — PHÁI KIẾM'; }
+    protected getMapDisplayName(): string { return mapDisplayName('sword_school_001').toUpperCase(); }
 
     protected getNpcConfigs(): NpcConfig[] {
         return [
-            { key: 'npc_tsukikage', name: 'HT Tsukikage', x: 1500, y: undefined, offsetY: 0, templateId: 'npc_tsukikage' },
-            { key: 'npc_ryota', name: 'Võ Sư Ryota', x: 2500, y: undefined, offsetY: 0, templateId: 'npc_ryota' },
+            { key: 'npc_tsukikage', name: t('npc.name.npc_tsukikage'), x: 1500, y: undefined, offsetY: 0, templateId: 'npc_tsukikage' },
+            { key: 'npc_ryota', name: t('npc.name.npc_ryota'), x: 2500, y: undefined, offsetY: 0, templateId: 'npc_ryota' },
         ];
     }
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180, label: 'Quay Về Rừng Tre', targetSceneKey: 'BambooForestScene' },
+            { x: 180, label: t('portal.label.return_bamboo'), targetSceneKey: 'BambooForestScene' },
         ];
     }
 
