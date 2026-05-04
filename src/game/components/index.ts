@@ -1,5 +1,6 @@
 export { ActionMenu } from './ActionMenu';
 export type { ActionMenuItem, ActionMenuOpenOptions } from './ActionMenu';
+export { BossHPBar } from './BossHPBar';
 export { BuffIndicator, iconForTemplate, categoryForTemplate } from './BuffIndicator';
 export type { ActiveBuff } from './BuffIndicator';
 export { CharacterInfoModal } from './CharacterInfoModal';

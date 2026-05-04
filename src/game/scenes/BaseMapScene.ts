@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -22,6 +22,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
     protected targetFrame!: MonsterTargetFrame;
+    protected bossHPBar!: BossHPBar;
     protected deathMenu!: DeathMenu;
     private deathState: 'alive' | 'dead' | 'spectating' = 'alive';
     protected questLog!: QuestLogPanel;
@@ -166,12 +167,24 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.targetFrame = new MonsterTargetFrame(this);
         this.targetFrame.create();
 
+        // Boss HP bar — full-width banner top, chỉ engage khi grade=leader/world_boss
+        // (vd Q17 mq_first_trial Kage Tinh Khôi). Disengage khi target cleared
+        // hoặc boss chết.
+        this.bossHPBar = new BossHPBar(this);
+        this.bossHPBar.create();
+
         // Monsters — BE-driven (data từ /maps/:id/monsters per character).
         this.monsters = new MonsterManager(this, this.background, cfg.mapId, {
             onAttackResult: (res) => this.handleAttackResult(res),
             onError: (msg) => this.hud.setStatus(msg, '#ff8a8a'),
-            onTargetSelected: (m) => this.targetFrame?.setTarget(m),
-            onTargetCleared: () => this.targetFrame?.clear(),
+            onTargetSelected: (m) => {
+                this.targetFrame?.setTarget(m);
+                this.bossHPBar?.engage(m); // no-op nếu không phải boss-grade.
+            },
+            onTargetCleared: () => {
+                this.targetFrame?.clear();
+                this.bossHPBar?.disengage();
+            },
             onRetaliation: (r) => this.showRetaliationFloater(r.damage),
             onTickResult: (hp, dead) => this.handleTickResult(hp, dead),
         });
@@ -651,14 +664,20 @@ export abstract class BaseMapScene extends Phaser.Scene {
         const anyDead = res.hits.some((h) => h.dead);
         if (anyDead) {
             void this.questLog?.refresh();
-            // Update target frame fade-out cho con đã chết.
+            // Update target frame + boss HP bar fade-out cho con đã chết.
             for (const h of res.hits) {
-                if (h.dead) this.targetFrame?.onMonsterDead(h.instance_id);
+                if (h.dead) {
+                    this.targetFrame?.onMonsterDead(h.instance_id);
+                    this.bossHPBar?.onBossDead(h.instance_id); // no-op nếu không phải boss đang engage.
+                }
             }
         }
-        // Sync target frame HP cho con đang nhắm.
+        // Sync target frame + boss HP bar cho con đang nhắm còn sống.
         for (const h of res.hits) {
-            if (!h.dead) this.targetFrame?.updateHP(h.instance_id, h.hp_remaining);
+            if (!h.dead) {
+                this.targetFrame?.updateHP(h.instance_id, h.hp_remaining);
+                this.bossHPBar?.updateHP(h.instance_id, h.hp_remaining);
+            }
         }
         // Death check.
         if (res.character_dead || res.character_current_hp <= 0) {
