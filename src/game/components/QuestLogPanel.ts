@@ -1,12 +1,15 @@
 import * as Phaser from 'phaser';
 import { questAPI, type QuestBoardCategoryDTO, type QuestDTO, type QuestObjectiveDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { onLocaleChange, t } from '../../i18n';
 import type { GameComponent } from './types';
 
-const STATUS_LABEL: Record<QuestDTO['status'], string> = {
-    active: 'Đang làm',
-    completed: 'Hoàn thành — chờ trả',
-    claimed: 'Đã trả',
+// Status / objective verb labels resolve qua i18n key. Fallback raw status
+// hoặc raw type nếu thiếu key (defensive — BE có thể trả type mới).
+const STATUS_KEY: Record<QuestDTO['status'], string> = {
+    active: 'quest.log.status_active',
+    completed: 'quest.log.status_completed',
+    claimed: 'quest.log.status_claimed',
 };
 
 const STATUS_COLOR: Record<QuestDTO['status'], string> = {
@@ -15,12 +18,12 @@ const STATUS_COLOR: Record<QuestDTO['status'], string> = {
     claimed: '#7a8a8a',
 };
 
-const OBJECTIVE_VERB: Record<QuestObjectiveDTO['type'], string> = {
-    kill_monster: 'Diệt',
-    talk_npc: 'Gặp',
-    collect_item: 'Thu thập',
-    use_item: 'Sử dụng',
-    buy_item: 'Mua',
+const OBJECTIVE_KEY: Record<QuestObjectiveDTO['type'], string> = {
+    kill_monster: 'quest.log.objective_kill_monster',
+    talk_npc: 'quest.log.objective_talk_npc',
+    collect_item: 'quest.log.objective_collect_item',
+    use_item: 'quest.log.objective_use_item',
+    buy_item: 'quest.log.objective_buy_item',
 };
 
 // I18n key → tên hiển thị (FE-side override; sau này sẽ thay bằng i18n module).
@@ -70,10 +73,10 @@ export function targetDisplayName(targetID: string): string {
 }
 
 type TabKey = 'main' | 'side' | 'event';
-const TAB_LABEL: Record<TabKey, string> = {
-    main: 'Chính tuyến',
-    side: 'Phụ tuyến',
-    event: 'Sự kiện',
+const TAB_KEY: Record<TabKey, string> = {
+    main: 'quest.log.tab_main',
+    side: 'quest.log.tab_side',
+    event: 'quest.log.tab_event',
 };
 
 export class QuestLogPanel implements GameComponent {
@@ -89,6 +92,8 @@ export class QuestLogPanel implements GameComponent {
     private scene: Phaser.Scene;
     private onClosed?: () => void;
     private onQuestsUpdated?: (quests: QuestDTO[]) => void;
+    private localeUnsub?: () => void;
+    private titleEl?: HTMLDivElement;
 
     constructor(
         scene: Phaser.Scene,
@@ -101,6 +106,13 @@ export class QuestLogPanel implements GameComponent {
 
     create(): void {
         this.buildOverlay();
+        // Subscribe locale changes — re-render khi user đổi ngôn ngữ runtime
+        // (vd post-login BE response setLocale, hoặc settings switcher).
+        this.localeUnsub = onLocaleChange(() => {
+            if (this.titleEl) this.titleEl.textContent = t('quest.log.title');
+            this.renderTabs();
+            this.renderBody();
+        });
     }
 
     isVisible(): boolean { return this.visible; }
@@ -127,7 +139,7 @@ export class QuestLogPanel implements GameComponent {
         if (!character) return;
         if (this.loading) return;
         this.loading = true;
-        this.setStatus('Đang tải...', '#aaaaaa');
+        this.setStatus(t('quest.log.loading'), '#aaaaaa');
         try {
             const res = await questAPI.board(character.id);
             this.board = {};
@@ -141,7 +153,7 @@ export class QuestLogPanel implements GameComponent {
             this.setStatus('', '#fff');
             this.onQuestsUpdated?.(this.flatQuests);
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Lỗi tải nhiệm vụ';
+            const msg = err instanceof Error ? err.message : t('quest.log.error');
             this.setStatus(msg, '#ff8a8a');
         } finally {
             this.loading = false;
@@ -154,6 +166,8 @@ export class QuestLogPanel implements GameComponent {
     destroy(): void {
         this.overlay?.remove();
         this.overlay = undefined;
+        this.localeUnsub?.();
+        this.localeUnsub = undefined;
     }
 
     private buildOverlay(): void {
@@ -178,8 +192,9 @@ export class QuestLogPanel implements GameComponent {
             padding: 12px 18px; border-bottom: 1px solid rgba(189,240,160,0.2);
         `;
         const title = document.createElement('div');
-        title.textContent = '📜 Nhật ký Nhiệm vụ';
+        title.textContent = t('quest.log.title');
         title.style.cssText = 'font-size: 17px; font-weight: 600; color: #ffea7a;';
+        this.titleEl = title;
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '✕';
         closeBtn.style.cssText = `
@@ -250,7 +265,7 @@ export class QuestLogPanel implements GameComponent {
                 user-select: none; position: relative;
                 opacity: ${disabled ? '0.6' : '1'};
             `;
-            tab.textContent = TAB_LABEL[key];
+            tab.textContent = t(TAB_KEY[key]);
             if (dot) {
                 const dotEl = document.createElement('span');
                 dotEl.style.cssText = `
@@ -279,7 +294,7 @@ export class QuestLogPanel implements GameComponent {
         if (this.currentTab === 'event') {
             const note = document.createElement('div');
             note.style.cssText = 'padding: 60px; text-align: center; color: #888; font-style: italic;';
-            note.textContent = 'Sự kiện sắp ra mắt.';
+            note.textContent = t('quest.log.event_coming_soon');
             this.bodyEl.appendChild(note);
             return;
         }
@@ -294,8 +309,8 @@ export class QuestLogPanel implements GameComponent {
             const empty = document.createElement('div');
             empty.style.cssText = 'padding: 50px; text-align: center; color: #888;';
             empty.textContent = this.currentTab === 'main'
-                ? 'Chưa có nhiệm vụ chính tuyến nào khả dụng.'
-                : 'Chưa có nhiệm vụ phụ tuyến nào khả dụng.';
+                ? t('quest.log.empty_main')
+                : t('quest.log.empty_side');
             this.bodyEl.appendChild(empty);
             return;
         }
@@ -311,8 +326,8 @@ export class QuestLogPanel implements GameComponent {
     }
 
     private renderNextHint(next: NonNullable<QuestBoardCategoryDTO['next_offered']>): HTMLDivElement {
-        const npcName = next.giver_npc_id ? targetDisplayName(next.giver_npc_id) : 'NPC chưa rõ';
-        const headerLine = `<span style="color:#ff8a8a;font-weight:600;">❗ Tiếp theo —</span> Đến gặp <span style="color:#bdf0a0;">${escapeHtml(npcName)}</span>`;
+        const npcName = next.giver_npc_id ? targetDisplayName(next.giver_npc_id) : t('quest.log.unknown_npc');
+        const headerLine = `<span style="color:#ff8a8a;font-weight:600;">${escapeHtml(t('quest.log.next_label'))}</span> ${escapeHtml(t('quest.log.next_meet'))} <span style="color:#bdf0a0;">${escapeHtml(npcName)}</span>`;
         return this.renderQuestCard({
             title: questDisplayName(next.name_key),
             subtitleHTML: headerLine,
@@ -334,7 +349,7 @@ export class QuestLogPanel implements GameComponent {
             minLevel: q.min_level,
             objectives: q.objectives,
             rewards: q.rewards ?? null,
-            statusBadge: { label: STATUS_LABEL[status], color: STATUS_COLOR[status] },
+            statusBadge: { label: t(STATUS_KEY[status]), color: STATUS_COLOR[status] },
             border: 'rgba(189,240,160,0.25)',
             background: 'rgba(255,255,255,0.04)',
             dashed: false,
@@ -386,12 +401,16 @@ export class QuestLogPanel implements GameComponent {
         body.style.cssText = 'margin-top: 8px; font-size: 13px; color: #d8e0d8; display: flex; flex-direction: column; gap: 3px;';
 
         // Level requirement bullet — luôn hiện, dùng character level để mark done.
+        // Highlight token {level} bằng span — split template + inject HTML.
         const lvLine = document.createElement('div');
-        lvLine.innerHTML = `• Trình độ đạt cấp <span style="color:#ffea7a;">${opts.minLevel}</span>`;
+        const lvText = t('quest.log.level_requirement', { level: '\u0001LV\u0001' });
+        const lvHighlight = `<span style="color:#ffea7a;">${opts.minLevel}</span>`;
+        lvLine.innerHTML = '• ' + escapeHtml(lvText).replace('\u0001LV\u0001', lvHighlight);
         body.appendChild(lvLine);
 
         for (const o of opts.objectives) {
-            const verb = OBJECTIVE_VERB[o.type] ?? o.type;
+            const verbKey = OBJECTIVE_KEY[o.type];
+            const verb = verbKey ? t(verbKey) : o.type;
             const target = targetDisplayName(o.target_id);
             const done = Math.min(o.done, o.count);
             const isDone = done >= o.count;
@@ -406,18 +425,18 @@ export class QuestLogPanel implements GameComponent {
         // Rewards (optional — chỉ hiện cho quest đang active/completed)
         if (opts.rewards) {
             const parts: string[] = [];
-            if (opts.rewards.exp > 0) parts.push(`+${opts.rewards.exp} XP`);
-            if (opts.rewards.yen > 0) parts.push(`+${opts.rewards.yen} Yên`);
-            if (opts.rewards.coin > 0) parts.push(`+${opts.rewards.coin} Xu`);
+            if (opts.rewards.exp > 0) parts.push(t('quest.log.reward_xp', { n: opts.rewards.exp }));
+            if (opts.rewards.yen > 0) parts.push(t('quest.log.reward_yen', { n: opts.rewards.yen }));
+            if (opts.rewards.coin > 0) parts.push(t('quest.log.reward_coin', { n: opts.rewards.coin }));
             if (opts.rewards.items) {
                 for (const it of opts.rewards.items) {
-                    parts.push(`+${it.qty} ${targetDisplayName(it.template_id)}`);
+                    parts.push(t('quest.log.reward_item', { n: it.qty, name: targetDisplayName(it.template_id) }));
                 }
             }
             if (parts.length > 0) {
                 const rewardLine = document.createElement('div');
                 rewardLine.style.cssText = 'margin-top: 8px; font-size: 12px; color: #bbb;';
-                rewardLine.textContent = `Thưởng: ${parts.join(' • ')}`;
+                rewardLine.textContent = `${t('quest.log.rewards_label')}: ${parts.join(' • ')}`;
                 row.appendChild(rewardLine);
             }
         }
