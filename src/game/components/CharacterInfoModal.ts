@@ -1,19 +1,21 @@
 import * as Phaser from 'phaser';
 import { charactersAPI, type CharacterDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
-const CLASS_LABEL: Record<string, string> = {
-    none: 'Tân Thủ',
-    sword: 'Kiếm',
-    bow: 'Cung',
-    katana: 'Đao',
-    fan: 'Quạt',
-    dart: 'Phi Tiêu',
-    kunai: 'Kunai',
+const CLASS_KEY: Record<string, string> = {
+    none: 'class.none',
+    sword: 'class.sword',
+    bow: 'class.bow',
+    katana: 'class.katana',
+    fan: 'class.fan',
+    dart: 'class.dart',
+    kunai: 'class.kunai',
 };
 
 // 6 phái → 3 trường (per docs/business/game-objects/skill.md §1).
+// School names là proper noun (Mikazuki/Hayabusa/Akatsuki) — không cần dịch.
 const CLASS_TO_SCHOOL: Record<string, string> = {
     sword: 'Mikazuki',
     dart: 'Mikazuki',
@@ -23,9 +25,9 @@ const CLASS_TO_SCHOOL: Record<string, string> = {
     fan: 'Akatsuki',
 };
 
-const GENDER_LABEL: Record<string, string> = {
-    male: 'Nam',
-    female: 'Nữ',
+const GENDER_KEY: Record<string, string> = {
+    male: 'gender.male',
+    female: 'gender.female',
 };
 
 interface InfoRow {
@@ -210,11 +212,11 @@ export class CharacterInfoModal implements GameComponent {
     private async load(characterId?: string): Promise<void> {
         if (this.loading) return;
         this.loading = true;
-        this.setStatus('Đang tải...', '#aaa');
+        this.setStatus(t('character_info.loading'), '#aaa');
         try {
             const id = characterId ?? getCurrentCharacter()?.id;
             if (!id) {
-                this.setStatus('Chưa có nhân vật.', '#ff8a8a');
+                this.setStatus(t('character_info.error_no_character'), '#ff8a8a');
                 return;
             }
             // MVP chỉ có endpoint /characters (list của user hiện tại). Khi mở
@@ -222,13 +224,13 @@ export class CharacterInfoModal implements GameComponent {
             const res = await charactersAPI.list();
             const c = res.characters.find((x) => x.id === id);
             if (!c) {
-                this.setStatus('Không tìm thấy nhân vật.', '#ff8a8a');
+                this.setStatus(t('character_info.error_not_found'), '#ff8a8a');
                 return;
             }
             this.render(c);
-            this.setStatus('Mũi tên ↑↓ hoặc kéo chuột để xem thêm', '#888');
+            this.setStatus(t('character_info.scroll_hint'), '#888');
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Lỗi tải thông tin';
+            const msg = err instanceof Error ? err.message : t('character_info.error_load');
             this.setStatus(msg, '#ff8a8a');
         } finally {
             this.loading = false;
@@ -238,26 +240,28 @@ export class CharacterInfoModal implements GameComponent {
     private render(c: CharacterDTO): void {
         if (!this.bodyEl) return;
         // Lớp / Trường fallback khi chưa Bái Sư (class='none').
+        const classKey = CLASS_KEY[c.class];
         const className = c.class === 'none' || !c.class
-            ? 'Chưa vào lớp'
-            : (CLASS_LABEL[c.class] ?? c.class);
-        const school = CLASS_TO_SCHOOL[c.class] ?? 'Chưa vào trường';
-        const gender = GENDER_LABEL[c.gender] ?? c.gender;
+            ? t('character_info.no_class')
+            : (classKey ? t(classKey) : c.class);
+        const school = CLASS_TO_SCHOOL[c.class] ?? t('character_info.no_school');
+        const genderKey = GENDER_KEY[c.gender];
+        const gender = genderKey ? t(genderKey) : c.gender;
         const combatPower = computeCombatPower(c);
         const expPct = c.exp_to_next_level > 0 ? (c.exp / c.exp_to_next_level) * 100 : 0;
 
         this.rows = [
-            { label: 'Nhân vật', value: c.display_name, valueColor: '#bdf0a0' },
-            { label: 'Giới tính', value: gender },
-            { label: 'Trình độ', value: String(c.level) },
-            { label: 'Kinh nghiệm', value: `${c.exp} / ${c.exp_to_next_level} (${expPct.toFixed(2)}%)` },
-            { label: 'Lớp', value: className },
-            { label: 'Trường', value: school },
-            { label: 'Hiệu chiến', value: combatPower.toLocaleString('en-US'), valueColor: '#ffea7a' },
+            { label: t('character_info.row_character'), value: c.display_name, valueColor: '#bdf0a0' },
+            { label: t('character_info.row_gender'), value: gender },
+            { label: t('character_info.row_level'), value: String(c.level) },
+            { label: t('character_info.row_exp'), value: `${c.exp} / ${c.exp_to_next_level} (${expPct.toFixed(2)}%)` },
+            { label: t('character_info.row_class'), value: className },
+            { label: t('character_info.row_school'), value: school },
+            { label: t('character_info.row_combat_power'), value: combatPower.toLocaleString('en-US'), valueColor: '#ffea7a' },
             { label: 'HP', value: `${c.current_hp.toLocaleString('en-US')} / ${c.max_hp.toLocaleString('en-US')}`, valueColor: '#ff8a8a' },
             { label: 'MP', value: `${c.current_mp.toLocaleString('en-US')} / ${c.max_mp.toLocaleString('en-US')}`, valueColor: '#8aaaff' },
-            { label: 'Tấn công', value: `${c.min_attack} – ${c.max_attack}` },
-            { label: 'Phòng thủ', value: String(c.defense) },
+            { label: t('character_info.row_attack'), value: `${c.min_attack} – ${c.max_attack}` },
+            { label: t('character_info.row_defense'), value: String(c.defense) },
         ];
         this.selectedIdx = 0;
 

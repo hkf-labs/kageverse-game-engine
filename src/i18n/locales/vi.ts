@@ -41,6 +41,105 @@ export const vi: TranslationTable = {
     // Character — boot flow
     'character.bootstrap.checking': 'Đang kiểm tra nhân vật...',
 
+    // Class labels (faction)
+    'class.none': 'Tân Thủ',
+    'class.sword': 'Kiếm',
+    'class.bow': 'Cung',
+    'class.katana': 'Đao',
+    'class.fan': 'Quạt',
+    'class.dart': 'Phi Tiêu',
+    'class.kunai': 'Kunai',
+
+    // Gender
+    'gender.male': 'Nam',
+    'gender.female': 'Nữ',
+
+    // Character info modal
+    'character_info.title': 'Thông tin',
+    'character_info.loading': 'Đang tải...',
+    'character_info.error_no_character': 'Chưa có nhân vật.',
+    'character_info.error_not_found': 'Không tìm thấy nhân vật.',
+    'character_info.error_load': 'Lỗi tải thông tin',
+    'character_info.scroll_hint': 'Mũi tên ↑↓ hoặc kéo chuột để xem thêm',
+    'character_info.no_class': 'Chưa vào lớp',
+    'character_info.no_school': 'Chưa vào trường',
+    'character_info.row_character': 'Nhân vật',
+    'character_info.row_gender': 'Giới tính',
+    'character_info.row_level': 'Trình độ',
+    'character_info.row_exp': 'Kinh nghiệm',
+    'character_info.row_class': 'Lớp',
+    'character_info.row_school': 'Trường',
+    'character_info.row_combat_power': 'Hiệu chiến',
+    'character_info.row_attack': 'Tấn công',
+    'character_info.row_defense': 'Phòng thủ',
+
+    // Monster grade
+    'monster.grade.normal': 'Thường',
+    'monster.grade.elite': 'Tinh Anh',
+    'monster.grade.leader': 'Thủ Lĩnh',
+    'monster.grade.world_boss': 'Boss Thế Giới',
+
+    // Combat errors (MonsterManager)
+    'monster.error_no_target': 'Không có quái nào ở gần.',
+    'monster.error_out_of_range': 'Mục tiêu ngoài tầm đánh, lại gần hơn.',
+    'monster.error_attack': 'Lỗi tấn công',
+
+    // Portal
+    'portal.locked_hint': '↵ (Đã khoá)',
+    'portal.enter_hint': '↵ Bước vào',
+
+    // Quest tracker (HUD bottom-left)
+    'quest.tracker.unknown_npc': 'NPC trả nhiệm vụ',
+
+    // Chat panel
+    'chat.input_placeholder': 'Nhập tin nhắn...',
+
+    // Main menu (ESC menu chức năng)
+    'menu.title': 'Menu',
+    'menu.info': 'Thông tin',
+    'menu.inventory': 'Túi đồ',
+    'menu.equipment': 'Trang bị',
+    'menu.quests': 'Nhiệm vụ',
+    'menu.skills': 'Kỹ năng',
+    'menu.suicide': 'Tự sát',
+    'menu.settings': 'Cài đặt',
+    'menu.logout': 'Đăng xuất',
+
+    // Death menu (Kiệt sức overlay)
+    'death.banner': '☠️ BẠN ĐÃ GỤC',
+    'death.btn_collapsed': 'Kiệt sức',
+    'death.options_title': 'KIỆT SỨC',
+    'death.hint_press_enter': 'Nhấn Enter để mở menu',
+    'death.choose_recovery': 'Chọn cách hồi phục:',
+    'death.btn_respawn_village': '🏠 Quay về',
+    'death.btn_respawn_here': '💎 Hồi sinh tại chỗ',
+    'death.btn_spectate': '👁 Đóng',
+    'death.note': '"Đóng" = ngồi nhìn tại chỗ chết. Nhấn Enter mở lại menu.',
+
+    // End-MVP cinematic (Q17 Khảo Hạch Sơ Cấp)
+    'endmvp.title': '⚔️ KHẢO HẠCH SƠ CẤP HOÀN TẤT ⚔️',
+    'endmvp.button': 'Tạm Dừng Tại Đây',
+    'endmvp.title_sword': 'Đệ Tử Sơ Cấp Phái Kiếm Mikazuki',
+    'endmvp.title_bow': 'Đệ Tử Sơ Cấp Phái Cung Hayabusa',
+    'endmvp.title_default': 'Đệ Tử Sơ Cấp',
+    'endmvp.story_html': 'Bạn đã đánh bại <b style="color:#ff8a8a;">Kage Tinh Khôi</b> — bóng tối đầu tiên trên hành trình nhẫn giả.<br/><br/>Hiệu Trưởng nhìn bạn với ánh mắt tự hào, trao danh hiệu <b style="color:#ffea7a;">Đệ Tử Sơ Cấp</b> chính thức.<br/><br/>Câu chuyện ở Sương Khói còn dài, nhưng đêm nay bạn xứng đáng được nghỉ ngơi.<br/><br/><span style="color:#aaa;font-size:13px;">★ Hết Story Arc 1 — Lễ Tốt Nghiệp + Trường Akatsuki sẽ mở ở phiên bản tiếp theo.</span>',
+
+    // Combat / death status
+    'combat.potion_hp_placeholder': 'Đã dùng bình HP! (placeholder)',
+    'combat.potion_mp_placeholder': 'Đã dùng bình MP! (placeholder)',
+    'combat.auto_attack_off': '⚔️ Tự đánh: TẮT',
+    'combat.auto_attack_on': '⚔️ Tự đánh: BẬT — di chuyển để tắt',
+    'combat.auto_attack_off_moving': '⚔️ Tự đánh: TẮT (di chuyển)',
+    'combat.suicide_failed': 'Tự sát thất bại',
+    'combat.respawn_failed': 'Hồi sinh thất bại',
+    'combat.respawn_inplace_soon': 'Hồi sinh tại chỗ — sắp ra mắt.',
+    'combat.death_menu_hint': 'Bấm Enter để mở lại menu hồi sinh.',
+    'combat.death_state_failed': 'Đổi trạng thái thất bại',
+
+    // Map / portal
+    'map.locked_default': 'Map này chưa mở khoá. Tiếp tục nhiệm vụ chính tuyến để mở.',
+    'portal.locked_default': 'Cổng đang khoá. Bạn cần hoàn thành nhiệm vụ để mở.',
+
     // Settings modal
     'settings.title': 'CÀI ĐẶT',
     'settings.close': 'Đóng',

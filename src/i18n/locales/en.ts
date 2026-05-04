@@ -41,6 +41,105 @@ export const en: TranslationTable = {
     // Character — boot flow
     'character.bootstrap.checking': 'Checking character...',
 
+    // Class labels (faction)
+    'class.none': 'Novice',
+    'class.sword': 'Sword',
+    'class.bow': 'Bow',
+    'class.katana': 'Katana',
+    'class.fan': 'Fan',
+    'class.dart': 'Dart',
+    'class.kunai': 'Kunai',
+
+    // Gender
+    'gender.male': 'Male',
+    'gender.female': 'Female',
+
+    // Character info modal
+    'character_info.title': 'Info',
+    'character_info.loading': 'Loading...',
+    'character_info.error_no_character': 'No character.',
+    'character_info.error_not_found': 'Character not found.',
+    'character_info.error_load': 'Failed to load info',
+    'character_info.scroll_hint': 'Arrow ↑↓ or drag to scroll',
+    'character_info.no_class': 'No class yet',
+    'character_info.no_school': 'No school yet',
+    'character_info.row_character': 'Character',
+    'character_info.row_gender': 'Gender',
+    'character_info.row_level': 'Level',
+    'character_info.row_exp': 'Exp',
+    'character_info.row_class': 'Class',
+    'character_info.row_school': 'School',
+    'character_info.row_combat_power': 'Combat Power',
+    'character_info.row_attack': 'Attack',
+    'character_info.row_defense': 'Defense',
+
+    // Monster grade
+    'monster.grade.normal': 'Normal',
+    'monster.grade.elite': 'Elite',
+    'monster.grade.leader': 'Leader',
+    'monster.grade.world_boss': 'World Boss',
+
+    // Combat errors (MonsterManager)
+    'monster.error_no_target': 'No monsters nearby.',
+    'monster.error_out_of_range': 'Target out of range, get closer.',
+    'monster.error_attack': 'Attack error',
+
+    // Portal
+    'portal.locked_hint': '↵ (Locked)',
+    'portal.enter_hint': '↵ Enter',
+
+    // Quest tracker (HUD bottom-left)
+    'quest.tracker.unknown_npc': 'Quest turn-in NPC',
+
+    // Chat panel
+    'chat.input_placeholder': 'Type a message...',
+
+    // Main menu (ESC menu)
+    'menu.title': 'Menu',
+    'menu.info': 'Info',
+    'menu.inventory': 'Inventory',
+    'menu.equipment': 'Equipment',
+    'menu.quests': 'Quests',
+    'menu.skills': 'Skills',
+    'menu.suicide': 'Suicide',
+    'menu.settings': 'Settings',
+    'menu.logout': 'Logout',
+
+    // Death menu (collapsed overlay)
+    'death.banner': '☠️ YOU HAVE FALLEN',
+    'death.btn_collapsed': 'Collapsed',
+    'death.options_title': 'COLLAPSED',
+    'death.hint_press_enter': 'Press Enter to open menu',
+    'death.choose_recovery': 'Choose how to recover:',
+    'death.btn_respawn_village': '🏠 Return',
+    'death.btn_respawn_here': '💎 Respawn here',
+    'death.btn_spectate': '👁 Close',
+    'death.note': '"Close" = stay watching where you fell. Press Enter to reopen menu.',
+
+    // End-MVP cinematic (Q17 First Trial)
+    'endmvp.title': '⚔️ FIRST TRIAL COMPLETE ⚔️',
+    'endmvp.button': 'Pause Here',
+    'endmvp.title_sword': 'Apprentice of Mikazuki Sword School',
+    'endmvp.title_bow': 'Apprentice of Hayabusa Bow School',
+    'endmvp.title_default': 'Apprentice',
+    'endmvp.story_html': 'You have defeated <b style="color:#ff8a8a;">Pristine Kage</b> — the first shadow on your ninja journey.<br/><br/>The Principal looks at you with pride and bestows the official title <b style="color:#ffea7a;">Apprentice</b>.<br/><br/>The tale of Sương Khói is far from over, but tonight you have earned your rest.<br/><br/><span style="color:#aaa;font-size:13px;">★ End of Story Arc 1 — Graduation Ceremony + Akatsuki School open in the next chapter.</span>',
+
+    // Combat / death status
+    'combat.potion_hp_placeholder': 'Used HP potion! (placeholder)',
+    'combat.potion_mp_placeholder': 'Used MP potion! (placeholder)',
+    'combat.auto_attack_off': '⚔️ Auto-attack: OFF',
+    'combat.auto_attack_on': '⚔️ Auto-attack: ON — move to disable',
+    'combat.auto_attack_off_moving': '⚔️ Auto-attack: OFF (moving)',
+    'combat.suicide_failed': 'Suicide failed',
+    'combat.respawn_failed': 'Respawn failed',
+    'combat.respawn_inplace_soon': 'In-place respawn — coming soon.',
+    'combat.death_menu_hint': 'Press Enter to reopen respawn menu.',
+    'combat.death_state_failed': 'Failed to change state',
+
+    // Map / portal
+    'map.locked_default': 'This map is locked. Progress the main story to unlock.',
+    'portal.locked_default': 'Portal is locked. Complete a quest to unlock.',
+
     // Settings modal
     'settings.title': 'SETTINGS',
     'settings.close': 'Close',

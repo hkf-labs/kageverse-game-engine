@@ -1,14 +1,16 @@
 import * as Phaser from 'phaser';
 import type { QuestDTO, QuestObjectiveDTO } from '../../network/api';
 import { questDisplayName, targetDisplayName } from './QuestLogPanel';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
-const OBJECTIVE_VERB: Record<QuestObjectiveDTO['type'], string> = {
-    kill_monster: 'Diệt',
-    talk_npc: 'Gặp',
-    collect_item: 'Thu thập',
-    use_item: 'Sử dụng',
-    buy_item: 'Mua',
+// Objective verb keys — reuse từ QuestLogPanel namespace `quest.log.objective_*`.
+const OBJECTIVE_KEY: Record<QuestObjectiveDTO['type'], string> = {
+    kill_monster: 'quest.log.objective_kill_monster',
+    talk_npc: 'quest.log.objective_talk_npc',
+    collect_item: 'quest.log.objective_collect_item',
+    use_item: 'quest.log.objective_use_item',
+    buy_item: 'quest.log.objective_buy_item',
 };
 
 // Ưu tiên hiển thị: completed (giục turn-in) > main > side > daily > weekly.
@@ -126,10 +128,11 @@ export class QuestTracker implements GameComponent {
         let bodyLine: string;
         if (isCompleted) {
             const turnInNpc = tracked.turn_in_npc_id ?? tracked.giver_npc_id;
-            const npcName = turnInNpc ? targetDisplayName(turnInNpc) : 'NPC trả nhiệm vụ';
+            const npcName = turnInNpc ? targetDisplayName(turnInNpc) : t('quest.tracker.unknown_npc');
             bodyLine = `<div style="color:#ffea7a;font-weight:600;">✅ Hoàn thành — về gặp ${escapeHtml(npcName)}</div>`;
         } else {
-            const verb = OBJECTIVE_VERB[objective.type] ?? objective.type;
+            const verbKey = OBJECTIVE_KEY[objective.type];
+            const verb = verbKey ? t(verbKey) : objective.type;
             const target = targetDisplayName(objective.target_id);
             const done = Math.min(objective.done, objective.count);
             bodyLine =

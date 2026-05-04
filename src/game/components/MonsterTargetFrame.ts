@@ -1,7 +1,10 @@
 import * as Phaser from 'phaser';
 import type { MonsterInstanceDTO } from '../../network/api';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
+// Monster names — content translation, defer iteration sau (cùng pattern
+// QUEST_NAME_VI / SKILL_NAME_VI). Khi mở rộng → namespace `monster.<id>.name`.
 const MONSTER_NAME_VI: Record<string, string> = {
     turtle_gold: 'Rùa Vàng',
     slime_white: 'Slime Trắng',
@@ -14,12 +17,17 @@ const MONSTER_NAME_VI: Record<string, string> = {
     shadow_owl: 'Cú Bóng',
 };
 
-const GRADE_LABEL_VI: Record<string, string> = {
-    normal: '',
-    elite: 'Tinh Anh',
-    leader: 'Thủ Lĩnh',
-    world_boss: 'Boss Thế Giới',
+// Grade label resolve qua i18n key — normal trả empty (suffix optional).
+const GRADE_KEY: Record<string, string> = {
+    elite: 'monster.grade.elite',
+    leader: 'monster.grade.leader',
+    world_boss: 'monster.grade.world_boss',
 };
+
+function gradeLabel(grade: string): string {
+    const key = GRADE_KEY[grade];
+    return key ? t(key) : '';
+}
 
 const GRADE_TINT: Record<string, number> = {
     normal: 0xc0c0c0,
@@ -148,7 +156,8 @@ export class MonsterTargetFrame implements GameComponent {
     private repaint(): void {
         if (!this.currentSnapshot || !this.nameText || !this.hpText) return;
         const s = this.currentSnapshot;
-        const gradeSuffix = GRADE_LABEL_VI[s.grade] ? ` · ${GRADE_LABEL_VI[s.grade]}` : '';
+        const grade = gradeLabel(s.grade);
+        const gradeSuffix = grade ? ` · ${grade}` : '';
         this.nameText.setText(`${s.name} · Lv ${s.level}${gradeSuffix}`);
         const tint = GRADE_TINT[s.grade] ?? 0xffea7a;
         this.nameText.setColor(rgbHex(tint));

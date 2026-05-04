@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
 export type DeathChoice = 'respawn_village' | 'respawn_here' | 'spectate';
@@ -65,17 +66,17 @@ export class DeathMenu implements GameComponent {
 
         const banner = document.createElement('div');
         banner.style.cssText = 'font-size:34px;font-weight:bold;color:#ff8a8a;text-shadow:0 0 12px rgba(255,138,138,0.6),2px 2px 0 #000;letter-spacing:4px;';
-        banner.textContent = '☠️ BẠN ĐÃ GỤC';
+        banner.textContent = t('death.banner');
         this.centerEl.appendChild(banner);
 
-        const btn = this.makeButton('Kiệt sức', '#7a3a3a', '#ff8a8a', () => this.showOptions());
+        const btn = this.makeButton(t('death.btn_collapsed'), '#7a3a3a', '#ff8a8a', () => this.showOptions());
         btn.style.fontSize = '20px';
         btn.style.padding = '14px 36px';
         this.centerEl.appendChild(btn);
 
         const hint = document.createElement('div');
         hint.style.cssText = 'font-size:12px;color:#aaa;margin-top:6px;';
-        hint.textContent = 'Nhấn Enter để mở menu';
+        hint.textContent = t('death.hint_press_enter');
         this.centerEl.appendChild(hint);
     }
 
@@ -87,25 +88,25 @@ export class DeathMenu implements GameComponent {
 
         const title = document.createElement('div');
         title.style.cssText = 'font-size:24px;font-weight:bold;color:#ffea7a;letter-spacing:2px;';
-        title.textContent = 'KIỆT SỨC';
+        title.textContent = t('death.options_title');
         this.centerEl.appendChild(title);
 
         const sub = document.createElement('div');
         sub.style.cssText = 'font-size:13px;color:#ccc;margin-bottom:6px;';
-        sub.textContent = 'Chọn cách hồi phục:';
+        sub.textContent = t('death.choose_recovery');
         this.centerEl.appendChild(sub);
 
         const btnRow = document.createElement('div');
         btnRow.style.cssText = 'display:flex;gap:10px;';
         this.centerEl.appendChild(btnRow);
 
-        btnRow.appendChild(this.makeButton('🏠 Quay về', '#4a7a3a', '#bdf0a0', () => this.callbacks.onChoice('respawn_village')));
-        btnRow.appendChild(this.makeButton('💎 Hồi sinh tại chỗ', '#7a6a2a', '#ffd070', () => this.callbacks.onChoice('respawn_here'), true));
-        btnRow.appendChild(this.makeButton('👁 Đóng', '#444', '#aaa', () => this.callbacks.onChoice('spectate')));
+        btnRow.appendChild(this.makeButton(t('death.btn_respawn_village'), '#4a7a3a', '#bdf0a0', () => this.callbacks.onChoice('respawn_village')));
+        btnRow.appendChild(this.makeButton(t('death.btn_respawn_here'), '#7a6a2a', '#ffd070', () => this.callbacks.onChoice('respawn_here'), true));
+        btnRow.appendChild(this.makeButton(t('death.btn_spectate'), '#444', '#aaa', () => this.callbacks.onChoice('spectate')));
 
         const note = document.createElement('div');
         note.style.cssText = 'font-size:11px;color:#888;margin-top:6px;';
-        note.textContent = '"Đóng" = ngồi nhìn tại chỗ chết. Nhấn Enter mở lại menu.';
+        note.textContent = t('death.note');
         this.centerEl.appendChild(note);
     }
 

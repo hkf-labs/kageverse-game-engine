@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import type { MonsterInstanceDTO } from '../../network/api';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
 // Boss HP bar — full-width banner top-of-screen cho leader / world_boss grade.
@@ -7,6 +8,8 @@ import type { GameComponent } from './types';
 // nhắm (mọi grade), BossHPBar chỉ hiện khi engage boss-grade — gây cảm giác
 // "đại chiến". Q17 mq_first_trial dùng cho Kage Tinh Khôi (lv 20 leader).
 
+// Boss/monster names — content translation, defer iteration sau (cùng pattern
+// MonsterTargetFrame). Khi mở rộng → namespace `monster.<id>.name`.
 const MONSTER_NAME_VI: Record<string, string> = {
     kage_pristine: 'Kage Tinh Khôi',
     living_stone_iwagumo: 'Đá Sống Iwagumo',
@@ -16,9 +19,9 @@ const MONSTER_NAME_VI: Record<string, string> = {
     flame_sprite: 'Tinh Hỏa',
 };
 
-const GRADE_LABEL_VI: Record<string, string> = {
-    leader: 'Thủ Lĩnh',
-    world_boss: 'Boss Thế Giới',
+const GRADE_KEY: Record<string, string> = {
+    leader: 'monster.grade.leader',
+    world_boss: 'monster.grade.world_boss',
 };
 
 const BAR_HEIGHT = 70;
@@ -88,7 +91,8 @@ export class BossHPBar implements GameComponent {
         this.currentMaxHP = m.max_hp;
         this.currentHP = m.current_hp;
         const name = MONSTER_NAME_VI[m.template_id] ?? m.template_id;
-        const gradeLabel = GRADE_LABEL_VI[m.grade] ?? m.grade.toUpperCase();
+        const gradeKey = GRADE_KEY[m.grade];
+        const gradeLabel = gradeKey ? t(gradeKey) : m.grade.toUpperCase();
         this.nameText?.setText(`⚔️ ${name} · Lv ${m.level}`);
         this.gradeText?.setText(`【 ${gradeLabel} 】`);
         this.repaint();

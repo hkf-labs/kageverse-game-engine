@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { combatAPI, type AttackResponse, type MonsterInstanceDTO, type RetaliationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 import type { MapBackground } from './MapBackground';
 
@@ -231,14 +232,14 @@ export class MonsterManager implements GameComponent {
         }
         if (!target) target = this.findNearestAlive(pos.x, pos.y, ATTACK_NEAREST_SCAN_RADIUS_PX);
         if (!target) {
-            this.callbacks.onError?.('Không có quái nào ở gần.');
+            this.callbacks.onError?.(t('monster.error_no_target'));
             return;
         }
         // Auto-select cho UX target frame.
         this.selectMonster(target.dto.instance_id);
 
         if (!this.isInRange(pos, target)) {
-            this.callbacks.onError?.('Mục tiêu ngoài tầm đánh, lại gần hơn.');
+            this.callbacks.onError?.(t('monster.error_out_of_range'));
             return;
         }
         await this.fireAttack(target, skillId, pos);
@@ -252,7 +253,7 @@ export class MonsterManager implements GameComponent {
         const pos = this.getPlayerPos();
         if (!pos) return;
         if (!this.isInRange(pos, target)) {
-            this.callbacks.onError?.('Mục tiêu ngoài tầm đánh, lại gần hơn.');
+            this.callbacks.onError?.(t('monster.error_out_of_range'));
             return;
         }
         void this.fireAttack(target, DEFAULT_SKILL_ID, pos);
@@ -310,7 +311,7 @@ export class MonsterManager implements GameComponent {
             }
             this.callbacks.onAttackResult?.(res);
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Lỗi tấn công';
+            const msg = err instanceof Error ? err.message : t('monster.error_attack');
             this.callbacks.onError?.(msg);
         } finally {
             this.inFlightAttack = false;

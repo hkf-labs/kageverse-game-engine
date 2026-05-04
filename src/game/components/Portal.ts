@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { t } from '../../i18n';
 import type { GameComponent, PortalConfig } from './types';
 import type { MapBackground } from './MapBackground';
 
@@ -58,7 +59,7 @@ export class Portal implements GameComponent {
         this.hint = this.scene.add.text(
             this.centerX,
             this.centerY + this.radiusY + 14,
-            this.locked ? '↵ (Đã khoá)' : '↵ Bước vào',
+            this.locked ? t('portal.locked_hint') : t('portal.enter_hint'),
             {
                 fontSize: '12px', color: '#ffffff',
                 fontFamily: 'system-ui, sans-serif',
@@ -79,14 +80,14 @@ export class Portal implements GameComponent {
 
     setLocked(locked: boolean): void {
         this.locked = locked;
-        this.hint?.setText(locked ? '↵ (Đã khoá)' : '↵ Bước vào');
+        this.hint?.setText(locked ? t('portal.locked_hint') : t('portal.enter_hint'));
     }
 
     updatePortal(playerX: number, playerY: number): void {
         if (this.triggered) return;
 
-        const t = this.scene.time.now / 1000;
-        this.drawPortal(t);
+        const time = this.scene.time.now / 1000;
+        this.drawPortal(time);
 
         const dx = playerX - this.centerX;
         const dy = playerY - this.centerY;

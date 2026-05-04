@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
 export class ChatPanel implements GameComponent {
@@ -76,7 +77,7 @@ export class ChatPanel implements GameComponent {
             `</div>`,
             `<div id="chat-messages" style="flex:1;overflow-y:auto;padding:10px 12px;font-size:13px;line-height:1.5;">${buildMessages(mockCurrentMessages)}</div>`,
             `<div style="display:flex;gap:8px;padding:8px 10px;border-top:2px solid #4d2d13;background:rgba(45,26,10,0.8);flex-shrink:0;">`,
-            `<input id="chat-input" type="text" placeholder="Nhập tin nhắn..." style="flex:1;height:34px;border-radius:6px;border:2px solid #4d2d13;background:#fff5e0;padding:0 10px;font-family:system-ui,sans-serif;font-size:14px;color:#2a1808;outline:none;box-sizing:border-box;" />`,
+            `<input id="chat-input" type="text" placeholder="${t('chat.input_placeholder')}" style="flex:1;height:34px;border-radius:6px;border:2px solid #4d2d13;background:#fff5e0;padding:0 10px;font-family:system-ui,sans-serif;font-size:14px;color:#2a1808;outline:none;box-sizing:border-box;" />`,
             `<button id="chat-send" style="width:70px;height:34px;border-radius:6px;border:2px solid #e29e4a;background:#6b3a14;color:#ffea7a;font-size:14px;font-weight:bold;font-family:system-ui,sans-serif;cursor:pointer;">Gửi</button>`,
             `</div>`,
         ].join('');

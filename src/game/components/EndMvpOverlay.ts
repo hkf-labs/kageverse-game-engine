@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
 // End-MVP cinematic placeholder — fullscreen overlay khi player turn-in Q17
@@ -32,10 +33,10 @@ export class EndMvpOverlay implements GameComponent {
         this.visible = true;
         this.scene.input.keyboard?.disableGlobalCapture();
         const subtitle = className === 'sword'
-            ? 'Đệ Tử Sơ Cấp Phái Kiếm Mikazuki'
+            ? t('endmvp.title_sword')
             : className === 'bow'
-                ? 'Đệ Tử Sơ Cấp Phái Cung Hayabusa'
-                : 'Đệ Tử Sơ Cấp';
+                ? t('endmvp.title_bow')
+                : t('endmvp.title_default');
         this.overlay.querySelector<HTMLDivElement>('.kv-end-subtitle')!.textContent = subtitle;
         this.overlay.style.display = 'flex';
         this.overlay.style.opacity = '0';
@@ -80,7 +81,7 @@ export class EndMvpOverlay implements GameComponent {
         `;
 
         const title = document.createElement('div');
-        title.textContent = '⚔️ KHẢO HẠCH SƠ CẤP HOÀN TẤT ⚔️';
+        title.textContent = t('endmvp.title');
         title.style.cssText = `
             font-size: 28px; font-weight: 700; color: #ffea7a;
             text-shadow: 0 0 20px rgba(255,234,122,0.6);
@@ -95,24 +96,14 @@ export class EndMvpOverlay implements GameComponent {
         `;
 
         const story = document.createElement('div');
-        story.innerHTML = `
-            Bạn đã đánh bại <b style="color:#ff8a8a;">Kage Tinh Khôi</b> — bóng tối
-            đầu tiên trên hành trình nhẫn giả.<br/><br/>
-            Hiệu Trưởng nhìn bạn với ánh mắt tự hào, trao danh hiệu
-            <b style="color:#ffea7a;">Đệ Tử Sơ Cấp</b> chính thức.<br/><br/>
-            Câu chuyện ở Sương Khói còn dài, nhưng đêm nay bạn xứng đáng
-            được nghỉ ngơi.<br/><br/>
-            <span style="color:#aaa;font-size:13px;">
-                ★ Hết Story Arc 1 — Lễ Tốt Nghiệp + Trường Akatsuki sẽ mở ở phiên bản tiếp theo.
-            </span>
-        `;
+        story.innerHTML = t('endmvp.story_html');
         story.style.cssText = `
             font-size: 15px; line-height: 1.7; color: #ddd;
             margin-bottom: 30px; text-align: left;
         `;
 
         const button = document.createElement('button');
-        button.textContent = 'Tạm Dừng Tại Đây';
+        button.textContent = t('endmvp.button');
         button.style.cssText = `
             padding: 12px 32px; font-size: 15px; font-weight: 600;
             background: linear-gradient(180deg, #ffea7a, #d4b95a);

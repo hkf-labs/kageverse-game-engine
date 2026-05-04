@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { t } from '../../i18n';
 import {
     ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
@@ -208,8 +209,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Controls
         this.controls = new GameControls(this, {
             onInteract: () => this.handleInteract(),
-            onHpPotion: () => this.hud.setStatus('Đã dùng bình HP! (placeholder)', '#ff8a8a'),
-            onMpPotion: () => this.hud.setStatus('Đã dùng bình MP! (placeholder)', '#8aaaff'),
+            onHpPotion: () => this.hud.setStatus(t('combat.potion_hp_placeholder'), '#ff8a8a'),
+            onMpPotion: () => this.hud.setStatus(t('combat.potion_mp_placeholder'), '#8aaaff'),
             onCycleTarget: () => this.npcs.cycleSelectedNpc(),
             onDirLeft: () => {
                 if (this.actionMenu.isOpen()) this.actionMenu.navigate('left');
@@ -484,7 +485,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     p.setLocked(true);
                     // Giữ lockedMessage gốc của scene nếu có — nhiều thông tin hơn message generic.
                     if (!p.getLockedMessage()) {
-                        p.setLockedMessage('Map này chưa mở khoá. Tiếp tục nhiệm vụ chính tuyến để mở.');
+                        p.setLockedMessage(t('map.locked_default'));
                     }
                 }
             });
@@ -565,11 +566,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
             const now = Date.now();
             if (this.autoAttackEnabled) {
                 // Bất kỳ Enter nào → tắt auto.
-                this.setAutoAttack(false, '⚔️ Tự đánh: TẮT');
+                this.setAutoAttack(false, t('combat.auto_attack_off'));
                 this.lastEnterAt = 0;
             } else if (now - this.lastEnterAt < this.DOUBLE_TAP_MS) {
                 // Enter thứ 2 trong cửa sổ 1.5s → bật auto.
-                this.setAutoAttack(true, '⚔️ Tự đánh: BẬT — di chuyển để tắt');
+                this.setAutoAttack(true, t('combat.auto_attack_on'));
                 this.lastEnterAt = 0;
             } else {
                 this.lastEnterAt = now;
@@ -589,7 +590,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // movement frame này.
         if (this.autoAttackEnabled) {
             if (moveLeft || moveRight || moveUp) {
-                this.setAutoAttack(false, '⚔️ Tự đánh: TẮT (di chuyển)');
+                this.setAutoAttack(false, t('combat.auto_attack_off_moving'));
             } else {
                 void this.monsters.swing();
             }
@@ -634,7 +635,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         const portal = this.portals.find((p) => p.isPlayerInRange());
         if (portal) {
             if (portal.isLocked()) {
-                const msg = portal.getLockedMessage() ?? 'Cổng đang khoá. Bạn cần hoàn thành nhiệm vụ để mở.';
+                const msg = portal.getLockedMessage() ?? t('portal.locked_default');
                 this.hud.setStatus(msg, '#ff8a8a');
                 return;
             }
@@ -825,7 +826,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.hud.setHP(0, this.lastKnownStats.max_hp);
             this.handleDeath();
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Tự sát thất bại';
+            const msg = err instanceof Error ? err.message : t('combat.suicide_failed');
             this.hud.setStatus(msg, '#ff8a8a');
         }
     }
@@ -868,21 +869,21 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     this.deathMenu.hide();
                     this.scene.start('VillageScene');
                 } catch (err) {
-                    const msg = err instanceof Error ? err.message : 'Hồi sinh thất bại';
+                    const msg = err instanceof Error ? err.message : t('combat.respawn_failed');
                     this.hud.setStatus(msg, '#ff8a8a');
                 }
                 break;
             case 'respawn_here':
-                this.hud.setStatus('Hồi sinh tại chỗ — sắp ra mắt.', '#ffd070');
+                this.hud.setStatus(t('combat.respawn_inplace_soon'), '#ffd070');
                 break;
             case 'spectate':
                 try {
                     await combatAPI.setDeathState(character.id, 'spectate');
                     this.deathState = 'spectating';
                     this.deathMenu.hide();
-                    this.hud.setStatus('Bấm Enter để mở lại menu hồi sinh.', '#aaa');
+                    this.hud.setStatus(t('combat.death_menu_hint'), '#aaa');
                 } catch (err) {
-                    const msg = err instanceof Error ? err.message : 'Đổi trạng thái thất bại';
+                    const msg = err instanceof Error ? err.message : t('combat.death_state_failed');
                     this.hud.setStatus(msg, '#ff8a8a');
                 }
                 break;
@@ -920,16 +921,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     private openMainMenu(): void {
         this.actionMenu.open({
-            title: 'Menu',
+            title: t('menu.title'),
             items: [
-                { key: 'info', label: 'Thông tin', icon: '📋', action: () => this.characterInfo.open() },
-                { key: 'inventory', label: 'Túi đồ', icon: '🎒', action: () => this.inventory.toggle() },
-                { key: 'equipment', label: 'Trang bị', icon: '⚔️', action: () => this.equipment.toggle() },
-                { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.questLog.open() },
-                { key: 'skills', label: 'Kỹ năng', icon: '⚡', action: () => this.skillModal.open() },
-                { key: 'suicide', label: 'Tự sát', icon: '☠️', action: () => void this.handleSuicide() },
-                { key: 'settings', label: 'Cài đặt', icon: '⚙️', action: () => this.settingsModal.open() },
-                { key: 'logout', label: 'Đăng xuất', icon: '🚪', action: () => this.handleLogout() },
+                { key: 'info', label: t('menu.info'), icon: '📋', action: () => this.characterInfo.open() },
+                { key: 'inventory', label: t('menu.inventory'), icon: '🎒', action: () => this.inventory.toggle() },
+                { key: 'equipment', label: t('menu.equipment'), icon: '⚔️', action: () => this.equipment.toggle() },
+                { key: 'quests', label: t('menu.quests'), icon: '📜', action: () => this.questLog.open() },
+                { key: 'skills', label: t('menu.skills'), icon: '⚡', action: () => this.skillModal.open() },
+                { key: 'suicide', label: t('menu.suicide'), icon: '☠️', action: () => void this.handleSuicide() },
+                { key: 'settings', label: t('menu.settings'), icon: '⚙️', action: () => this.settingsModal.open() },
+                { key: 'logout', label: t('menu.logout'), icon: '🚪', action: () => this.handleLogout() },
             ],
         });
     }
