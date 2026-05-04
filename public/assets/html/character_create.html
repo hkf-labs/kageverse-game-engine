@@ -10,30 +10,30 @@
     box-shadow: 0 0 16px rgba(0,0,0,0.45);
     box-sizing: border-box;
 ">
-    <h2 style="text-align: center; font-size: 18px; margin: 0 0 14px 0; color: #9ecbff;">Tạo nhân vật</h2>
-    <p style="font-size: 12px; color: #aaa; margin: 0 0 12px 0; line-height: 1.4;">
+    <h2 data-i18n="character.create.title" style="text-align: center; font-size: 18px; margin: 0 0 14px 0; color: #9ecbff;">Tạo nhân vật</h2>
+    <p data-i18n="character.create.help" style="font-size: 12px; color: #aaa; margin: 0 0 12px 0; line-height: 1.4;">
         Tên hiển thị là tên người chơi khác thấy trong game (khác username đăng nhập).
     </p>
-    <label style="display:block; font-size: 12px; margin-bottom: 4px; color:#ccc;">Tên hiển thị</label>
-    <input type="text" name="char-display-name" maxlength="32" placeholder="Ví dụ: Hạ Ảnh" style="width: 100%; padding: 10px; margin-bottom: 14px; background: #1c1c28; border: 1px solid #444; color: white; box-sizing: border-box; border-radius: 6px;" />
+    <label data-i18n="character.create.display_name_label" style="display:block; font-size: 12px; margin-bottom: 4px; color:#ccc;">Tên hiển thị</label>
+    <input type="text" name="char-display-name" maxlength="32" data-i18n="character.create.display_name_placeholder" data-i18n-attr="placeholder" placeholder="Ví dụ: Hạ Ảnh" style="width: 100%; padding: 10px; margin-bottom: 14px; background: #1c1c28; border: 1px solid #444; color: white; box-sizing: border-box; border-radius: 6px;" />
 
-    <div style="font-size: 12px; margin-bottom: 6px; color:#ccc;">Giới tính</div>
+    <div data-i18n="character.create.gender_label" style="font-size: 12px; margin-bottom: 6px; color:#ccc;">Giới tính</div>
     <div style="display: flex; gap: 12px; margin-bottom: 14px; justify-content: center;">
         <div id="pick-male" data-gender="male" class="gender-card" style="cursor:pointer; text-align:center; padding:8px; border:2px solid #333; border-radius:8px; width:46%; background:#151520;">
-            <img src="/assets/game/characters/ninja-full-body-male.png" alt="Nam" style="width:100%; max-height:220px; object-fit:contain; border-radius:6px; display:block;" />
-            <div style="margin-top:6px; font-weight:600;">Nam</div>
+            <img src="/assets/game/characters/ninja-full-body-male.png" data-i18n="character.create.gender_male" data-i18n-attr="alt" alt="Nam" style="width:100%; max-height:220px; object-fit:contain; border-radius:6px; display:block;" />
+            <div data-i18n="character.create.gender_male" style="margin-top:6px; font-weight:600;">Nam</div>
         </div>
         <div id="pick-female" data-gender="female" class="gender-card" style="cursor:pointer; text-align:center; padding:8px; border:2px solid #333; border-radius:8px; width:46%; background:#151520;">
-            <img src="/assets/game/characters/ninja-full-body-female.png" alt="Nữ" style="width:100%; max-height:220px; object-fit:contain; border-radius:6px; display:block;" />
-            <div style="margin-top:6px; font-weight:600;">Nữ</div>
+            <img src="/assets/game/characters/ninja-full-body-female.png" data-i18n="character.create.gender_female" data-i18n-attr="alt" alt="Nữ" style="width:100%; max-height:220px; object-fit:contain; border-radius:6px; display:block;" />
+            <div data-i18n="character.create.gender_female" style="margin-top:6px; font-weight:600;">Nữ</div>
         </div>
     </div>
 
-    <div style="font-size: 12px; margin-bottom: 6px; color:#ccc;">Màu trang phục chủ đạo</div>
+    <div data-i18n="character.create.color_label" style="font-size: 12px; margin-bottom: 6px; color:#ccc;">Màu trang phục chủ đạo</div>
     <div style="display:flex; gap:10px; margin-bottom: 16px;">
-        <button type="button" id="pick-color-blue" data-color="blue" class="color-btn" style="flex:1; padding:10px; border-radius:6px; border:2px solid #1e4d8b; background:#0d2137; color:#8ec5ff; cursor:pointer; font-weight:600;">Xanh</button>
-        <button type="button" id="pick-color-red" data-color="red" class="color-btn" style="flex:1; padding:10px; border-radius:6px; border:2px solid #8b1e1e; background:#370d0d; color:#ff8e8e; cursor:pointer; font-weight:600;">Đỏ</button>
+        <button type="button" id="pick-color-blue" data-color="blue" class="color-btn" data-i18n="character.create.color_blue" style="flex:1; padding:10px; border-radius:6px; border:2px solid #1e4d8b; background:#0d2137; color:#8ec5ff; cursor:pointer; font-weight:600;">Xanh</button>
+        <button type="button" id="pick-color-red" data-color="red" class="color-btn" data-i18n="character.create.color_red" style="flex:1; padding:10px; border-radius:6px; border:2px solid #8b1e1e; background:#370d0d; color:#ff8e8e; cursor:pointer; font-weight:600;">Đỏ</button>
     </div>
 
-    <button id="btn-create-character" type="button" style="width: 100%; padding: 12px; background: linear-gradient(180deg, #3d5a80, #2c4566); color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 8px; font-size: 14px;">Bắt đầu hành trình</button>
+    <button id="btn-create-character" type="button" data-i18n="character.create.submit" style="width: 100%; padding: 12px; background: linear-gradient(180deg, #3d5a80, #2c4566); color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 8px; font-size: 14px;">Bắt đầu hành trình</button>
 </div>

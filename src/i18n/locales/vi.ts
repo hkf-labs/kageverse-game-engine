@@ -45,4 +45,19 @@ export const vi: TranslationTable = {
 
     // Character — boot flow
     'character.bootstrap.checking': 'Đang kiểm tra nhân vật...',
+
+    // Character create
+    'character.create.title': 'Tạo nhân vật',
+    'character.create.help': 'Tên hiển thị là tên người chơi khác thấy trong game (khác username đăng nhập).',
+    'character.create.display_name_label': 'Tên hiển thị',
+    'character.create.display_name_placeholder': 'Ví dụ: Hạ Ảnh',
+    'character.create.gender_label': 'Giới tính',
+    'character.create.gender_male': 'Nam',
+    'character.create.gender_female': 'Nữ',
+    'character.create.color_label': 'Màu trang phục chủ đạo',
+    'character.create.color_blue': 'Xanh',
+    'character.create.color_red': 'Đỏ',
+    'character.create.submit': 'Bắt đầu hành trình',
+    'character.create.in_progress': 'Đang tạo nhân vật...',
+    'character.create.failed': 'Tạo nhân vật thất bại',
 };

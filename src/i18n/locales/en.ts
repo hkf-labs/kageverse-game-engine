@@ -45,4 +45,19 @@ export const en: TranslationTable = {
 
     // Character — boot flow
     'character.bootstrap.checking': 'Checking character...',
+
+    // Character create
+    'character.create.title': 'Create Character',
+    'character.create.help': 'Display name is what other players see in-game (different from login username).',
+    'character.create.display_name_label': 'Display Name',
+    'character.create.display_name_placeholder': 'e.g. Shadow',
+    'character.create.gender_label': 'Gender',
+    'character.create.gender_male': 'Male',
+    'character.create.gender_female': 'Female',
+    'character.create.color_label': 'Primary Costume Color',
+    'character.create.color_blue': 'Blue',
+    'character.create.color_red': 'Red',
+    'character.create.submit': 'Begin Journey',
+    'character.create.in_progress': 'Creating character...',
+    'character.create.failed': 'Failed to create character',
 };

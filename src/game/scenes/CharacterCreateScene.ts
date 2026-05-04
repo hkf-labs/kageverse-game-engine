@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI } from '../../network/api';
 import { validateDisplayName } from '../../lib/validation';
 import { saveCurrentCharacter } from '../playerSession';
+import { applyDomTranslations, onLocaleChange, t } from '../../i18n';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
 
@@ -11,6 +12,7 @@ export class CharacterCreateScene extends Phaser.Scene {
     private statusText?: Phaser.GameObjects.Text;
     private selectedGender: 'male' | 'female' = 'male';
     private selectedColor: 'blue' | 'red' = 'blue';
+    private localeUnsub?: () => void;
 
     constructor() {
         super('CharacterCreateScene');
@@ -63,7 +65,22 @@ export class CharacterCreateScene extends Phaser.Scene {
 
         this.refreshGenderStyles();
         this.refreshColorStyles();
+        this.applyTranslations();
+        this.localeUnsub = onLocaleChange(() => this.applyTranslations());
+
         this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanup());
+        this.events.once(Phaser.Scenes.Events.DESTROY, () => this.cleanup());
+    }
+
+    private cleanup() {
+        this.localeUnsub?.();
+        this.localeUnsub = undefined;
+    }
+
+    private applyTranslations() {
+        const root = this.domElement?.node as HTMLElement | undefined;
+        applyDomTranslations(root);
     }
 
     private handleResize(gameSize: Phaser.Structs.Size) {
@@ -107,7 +124,7 @@ export class CharacterCreateScene extends Phaser.Scene {
         }
 
         try {
-            this.statusText?.setText('Đang tạo nhân vật...').setColor('#aaa');
+            this.statusText?.setText(t('character.create.in_progress')).setColor('#aaa');
             const created = await charactersAPI.create({
                 display_name: displayName,
                 gender: this.selectedGender,
@@ -118,7 +135,7 @@ export class CharacterCreateScene extends Phaser.Scene {
             this.statusText?.setText('');
             this.scene.start('VillageScene');
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : 'Tạo nhân vật thất bại';
+            const msg = e instanceof Error ? e.message : t('character.create.failed');
             this.statusText?.setText(msg).setColor('#ff6b6b');
         }
     }
