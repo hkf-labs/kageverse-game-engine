@@ -46,6 +46,30 @@ export const en: TranslationTable = {
     // Character — boot flow
     'character.bootstrap.checking': 'Checking character...',
 
+    // Shop modal
+    'shop.title': 'SHOP',
+    'shop.title_with_npc': 'SHOP — {npc}',
+    'shop.amount_label': 'Amount:',
+    'shop.btn_buy': 'Buy',
+    'shop.loading_listings': 'Loading items...',
+    'shop.empty_npc': 'This NPC has nothing to sell.',
+    'shop.detail_pick': 'Pick an item to see details.',
+    'shop.required_level': 'Requires Lv {n}',
+    'shop.heal_food_buff': 'Restores <b style="color:#ff8a8a;">{hp}</b> HP + <b style="color:#8aaaff;">{mp}</b> MP per second — lasts <b style="color:#ffea7a;">{dur} min</b>.',
+    'shop.heal_food_buff_note': 'Eating a new dish replaces current buff.',
+    'shop.heal_hp': 'Restores <b style="color:#ff8a8a;">{n}</b> HP',
+    'shop.heal_mp': 'Restores <b style="color:#8aaaff;">{n}</b> MP',
+    'shop.unit_price': 'Unit price:',
+    'shop.total_price': 'Total (x{n}):',
+    'shop.payment_label': 'Pay with:',
+    'shop.balance_loading': 'Loading balance...',
+    'shop.error_no_character': 'No character.',
+    'shop.error_load': 'Failed to load shop',
+    'shop.error_no_payment': 'No payment method picked.',
+    'shop.processing': 'Processing...',
+    'shop.bought': 'Bought {amount} {name}. Remaining {icon} {balance}.',
+    'shop.error_buy': 'Failed to buy',
+
     // Equipment modal
     'equipment.title': 'EQUIPMENT',
     'equipment.slot_hat': 'Hat',

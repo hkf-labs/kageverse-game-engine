@@ -46,6 +46,30 @@ export const vi: TranslationTable = {
     // Character — boot flow
     'character.bootstrap.checking': 'Đang kiểm tra nhân vật...',
 
+    // Shop modal
+    'shop.title': 'CỬA HÀNG',
+    'shop.title_with_npc': 'CỬA HÀNG — {npc}',
+    'shop.amount_label': 'Số lượng:',
+    'shop.btn_buy': 'Mua',
+    'shop.loading_listings': 'Đang tải hàng...',
+    'shop.empty_npc': 'NPC này chưa bán hàng nào.',
+    'shop.detail_pick': 'Chọn một vật phẩm để xem chi tiết.',
+    'shop.required_level': 'Yêu cầu Lv {n}',
+    'shop.heal_food_buff': 'Mỗi giây hồi <b style="color:#ff8a8a;">{hp}</b> HP + <b style="color:#8aaaff;">{mp}</b> MP — kéo dài <b style="color:#ffea7a;">{dur} phút</b>.',
+    'shop.heal_food_buff_note': 'Dùng món mới sẽ thay thế buff hiện tại.',
+    'shop.heal_hp': 'Hồi <b style="color:#ff8a8a;">{n}</b> HP',
+    'shop.heal_mp': 'Hồi <b style="color:#8aaaff;">{n}</b> MP',
+    'shop.unit_price': 'Đơn giá:',
+    'shop.total_price': 'Tổng (x{n}):',
+    'shop.payment_label': 'Thanh toán:',
+    'shop.balance_loading': 'Đang tải số dư...',
+    'shop.error_no_character': 'Chưa có nhân vật.',
+    'shop.error_load': 'Không tải được shop',
+    'shop.error_no_payment': 'Chưa chọn loại thanh toán.',
+    'shop.processing': 'Đang xử lý...',
+    'shop.bought': 'Đã mua {amount} {name}. Còn lại {icon} {balance}.',
+    'shop.error_buy': 'Mua hàng thất bại',
+
     // Equipment modal
     'equipment.title': 'TRANG BỊ',
     'equipment.slot_hat': 'Nón',

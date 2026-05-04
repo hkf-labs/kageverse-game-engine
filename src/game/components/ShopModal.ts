@@ -9,6 +9,7 @@ import {
     type WalletDTO,
 } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { onLocaleChange, t } from '../../i18n';
 import type { GameComponent } from './types';
 
 const COLS = 4;
@@ -20,11 +21,12 @@ const TYPE_BORDER: Record<InventoryItemType, string> = {
     quest: '#a050d0',
 };
 
-const TYPE_LABEL: Record<InventoryItemType, string> = {
-    equipment: 'Trang bị',
-    consumable: 'Tiêu hao',
-    material: 'Nguyên liệu',
-    quest: 'Nhiệm vụ',
+// Reuse inventory.type_* keys — cùng concept item type label.
+const TYPE_KEY: Record<InventoryItemType, string> = {
+    equipment: 'inventory.type_equipment',
+    consumable: 'inventory.type_consumable',
+    material: 'inventory.type_material',
+    quest: 'inventory.type_quest',
 };
 
 const DEFAULT_ICON: Record<InventoryItemType, string> = {
@@ -41,10 +43,11 @@ const DEFAULT_BG: Record<InventoryItemType, string> = {
     quest: '#3a1a4a',
 };
 
-const CURRENCY_META: Record<ShopCurrencyType, { icon: string; label: string; color: string }> = {
-    coin: { icon: '🪙', label: 'Xu', color: '#ffd070' },
-    gold: { icon: '💰', label: 'Vàng', color: '#f0b020' },
-    gem: { icon: '💎', label: 'Kim Cương', color: '#6cd0ff' },
+// Reuse inventory.currency_* keys — cùng concept ví tiền player.
+const CURRENCY_META: Record<ShopCurrencyType, { icon: string; labelKey: string; color: string }> = {
+    coin: { icon: '🪙', labelKey: 'inventory.currency_coin', color: '#ffd070' },
+    gold: { icon: '💰', labelKey: 'inventory.currency_gold', color: '#f0b020' },
+    gem: { icon: '💎', labelKey: 'inventory.currency_gem', color: '#6cd0ff' },
 };
 
 const SUBTYPE_ICON: Record<string, string> = {
@@ -79,6 +82,7 @@ export class ShopModal implements GameComponent {
     private npcTemplateId = '';
     private npcName = '';
     private wallet: WalletDTO | null = null;
+    private localeUnsub?: () => void;
 
     private scene: Phaser.Scene;
 
@@ -136,11 +140,27 @@ export class ShopModal implements GameComponent {
         closeBtn.addEventListener('click', () => this.close());
         this.buyBtn.addEventListener('click', () => void this.handleBuy());
         this.amountInput.addEventListener('input', () => this.renderDetail());
+
+        // Re-render mọi text khi locale đổi runtime.
+        this.localeUnsub = onLocaleChange(() => {
+            // Rebuild static labels (number input label, buy button) bằng cách
+            // re-write innerHTML container. Đơn giản hơn track từng node.
+            this.renderHeader();
+            this.renderGrid();
+            this.renderDetail();
+            this.renderBalance();
+            // amount label + buy button — locate qua DOM query.
+            const amountLabel = this.overlay?.querySelector('label[data-shop-amount-label]') as HTMLLabelElement | null;
+            if (amountLabel) amountLabel.textContent = t('shop.amount_label');
+            if (this.buyBtn) this.buyBtn.textContent = t('shop.btn_buy');
+        });
     }
 
     destroy(): void {
         this.overlay?.remove();
         this.overlay = undefined;
+        this.localeUnsub?.();
+        this.localeUnsub = undefined;
     }
 
     isOpen(): boolean { return this.visible; }
@@ -173,7 +193,7 @@ export class ShopModal implements GameComponent {
         return [
             // Header
             `<div id="shop-header" style="display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;">`,
-            `  <div style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">CỬA HÀNG</div>`,
+            `  <div style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">${escapeHtml(t('shop.title'))}</div>`,
             `  <div id="shop-close" style="width:40px;text-align:center;cursor:pointer;font-size:18px;font-weight:bold;color:#ff8a8a;padding:10px 0;flex-shrink:0;">&#10005;</div>`,
             `</div>`,
             // Grid
@@ -186,9 +206,9 @@ export class ShopModal implements GameComponent {
             `<div id="shop-balance" style="display:flex;justify-content:space-around;align-items:center;padding:8px 14px;border-top:2px solid #4d2d13;background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;"></div>`,
             // Buy controls
             `<div style="display:flex;gap:8px;padding:10px 14px;border-top:2px solid #4d2d13;background:#1a0f04;align-items:center;flex-shrink:0;">`,
-            `  <label style="font-size:12px;color:#ffe4c4;">Số lượng:</label>`,
+            `  <label data-shop-amount-label style="font-size:12px;color:#ffe4c4;">${escapeHtml(t('shop.amount_label'))}</label>`,
             `  <input id="shop-amount" type="number" min="1" max="99" value="1" style="width:60px;height:32px;border-radius:6px;border:2px solid #4d2d13;background:#2a1808;color:#ffe4c4;font-size:13px;text-align:center;font-family:inherit;" />`,
-            `  <button id="shop-buy" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:inherit;opacity:0.5;">Mua</button>`,
+            `  <button id="shop-buy" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:inherit;opacity:0.5;">${escapeHtml(t('shop.btn_buy'))}</button>`,
             `</div>`,
             // Feedback
             `<div id="shop-feedback" style="padding:6px 14px;background:#1a0f04;color:#ffd070;font-size:12px;text-align:center;min-height:18px;flex-shrink:0;"></div>`,
@@ -199,7 +219,9 @@ export class ShopModal implements GameComponent {
         if (!this.headerEl) return;
         const titleSpan = this.headerEl.querySelector('div') as HTMLDivElement | null;
         if (titleSpan) {
-            titleSpan.textContent = `CỬA HÀNG — ${this.npcName.toUpperCase()}`;
+            titleSpan.textContent = this.npcName
+                ? t('shop.title_with_npc', { npc: this.npcName.toUpperCase() })
+                : t('shop.title');
         }
     }
 
@@ -220,7 +242,7 @@ export class ShopModal implements GameComponent {
     private async loadListings(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
-            this.setFeedback('Chưa có nhân vật.', 'error');
+            this.setFeedback(t('shop.error_no_character'), 'error');
             return;
         }
         this.loading = true;
@@ -231,7 +253,7 @@ export class ShopModal implements GameComponent {
             this.listings = res.items;
         } catch (err) {
             this.listings = [];
-            this.setFeedback(err instanceof Error ? err.message : 'Không tải được shop', 'error');
+            this.setFeedback(err instanceof Error ? err.message : t('shop.error_load'), 'error');
         } finally {
             this.loading = false;
             this.renderGrid();
@@ -243,11 +265,11 @@ export class ShopModal implements GameComponent {
     private renderGrid(): void {
         if (!this.gridEl) return;
         if (this.loading) {
-            this.gridEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#aaa;padding:14px;font-style:italic;">Đang tải hàng...</div>`;
+            this.gridEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#aaa;padding:14px;font-style:italic;">${escapeHtml(t('shop.loading_listings'))}</div>`;
             return;
         }
         if (this.listings.length === 0) {
-            this.gridEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#888;padding:14px;font-style:italic;">NPC này chưa bán hàng nào.</div>`;
+            this.gridEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#888;padding:14px;font-style:italic;">${escapeHtml(t('shop.empty_npc'))}</div>`;
             return;
         }
 
@@ -324,7 +346,7 @@ export class ShopModal implements GameComponent {
         if (!this.detailEl) return;
         const item = this.findSelected();
         if (!item) {
-            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">Chọn một vật phẩm để xem chi tiết.</div>`;
+            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('shop.detail_pick'))}</div>`;
             this.setBuyEnabled(false);
             return;
         }
@@ -338,32 +360,33 @@ export class ShopModal implements GameComponent {
                 const hpRate = item.base_stats?.heal_hp_per_sec ?? 0;
                 const mpRate = item.base_stats?.heal_mp_per_sec ?? 0;
                 const dur = Math.round((item.base_stats?.duration_sec ?? 0) / 60);
-                return `Mỗi giây hồi <b style="color:#ff8a8a;">${hpRate}</b> HP + <b style="color:#8aaaff;">${mpRate}</b> MP — kéo dài <b style="color:#ffea7a;">${dur} phút</b>.`
-                    + `<br/><span style="color:#aaa;font-size:11px;">Dùng món mới sẽ thay thế buff hiện tại.</span>`;
+                // shop.heal_food_buff template chứa <b> markup → KHÔNG escape.
+                return t('shop.heal_food_buff', { hp: hpRate, mp: mpRate, dur })
+                    + `<br/><span style="color:#aaa;font-size:11px;">${escapeHtml(t('shop.heal_food_buff_note'))}</span>`;
             })()
             : item.base_stats?.heal_hp
-            ? `Hồi <b style="color:#ff8a8a;">${item.base_stats.heal_hp}</b> HP`
+            ? t('shop.heal_hp', { n: item.base_stats.heal_hp })
             : item.base_stats?.heal_mp
-            ? `Hồi <b style="color:#8aaaff;">${item.base_stats.heal_mp}</b> MP`
+            ? t('shop.heal_mp', { n: item.base_stats.heal_mp })
             : '';
 
         const currencyChooser = item.prices.length > 1
             ? this.renderCurrencyChooser(item.prices)
             : selectedPrice
                 ? `<div style="margin-top:4px;font-size:12px;color:#ffe4c4;">`
-                    + `Đơn giá: <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${selectedPrice.price.toLocaleString('en-US')}</span>`
+                    + `${escapeHtml(t('shop.unit_price'))} <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${selectedPrice.price.toLocaleString('en-US')}</span>`
                     + `</div>`
                 : '';
 
         const totalLine = selectedPrice
-            ? `<div style="margin-top:4px;font-size:12px;color:#ffe4c4;">Tổng (x${amount}): <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${total.toLocaleString('en-US')}</span></div>`
+            ? `<div style="margin-top:4px;font-size:12px;color:#ffe4c4;">${escapeHtml(t('shop.total_price', { n: amount }))} <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${total.toLocaleString('en-US')}</span></div>`
             : '';
 
         this.detailEl.innerHTML = [
             `<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">`,
-            `  <span style="font-size:14px;font-weight:bold;color:#ffea7a;">${item.name_key}</span>`,
-            `  <span style="font-size:11px;color:${TYPE_BORDER[item.item_type]};">[${TYPE_LABEL[item.item_type]}]</span>`,
-            `  <span style="font-size:11px;color:#aaa;">Yêu cầu Lv ${item.required_level}</span>`,
+            `  <span style="font-size:14px;font-weight:bold;color:#ffea7a;">${escapeHtml(item.name_key)}</span>`,
+            `  <span style="font-size:11px;color:${TYPE_BORDER[item.item_type]};">[${escapeHtml(t(TYPE_KEY[item.item_type]))}]</span>`,
+            `  <span style="font-size:11px;color:#aaa;">${escapeHtml(t('shop.required_level', { n: item.required_level }))}</span>`,
             `</div>`,
             heal ? `<div style="margin-top:4px;">${heal}</div>` : '',
             currencyChooser,
@@ -400,11 +423,11 @@ export class ShopModal implements GameComponent {
                 + `">`
                 + `<span>${cur.icon}</span>`
                 + `<span>${p.price.toLocaleString('en-US')}</span>`
-                + `<span style="font-size:10px;color:#aaa;font-weight:normal;">${cur.label}</span>`
+                + `<span style="font-size:10px;color:#aaa;font-weight:normal;">${escapeHtml(t(cur.labelKey))}</span>`
                 + `</div>`;
         }).join('');
         return `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">`
-            + `<span style="font-size:11px;color:#aaa;">Thanh toán:</span>`
+            + `<span style="font-size:11px;color:#aaa;">${escapeHtml(t('shop.payment_label'))}</span>`
             + buttons
             + `</div>`;
     }
@@ -422,19 +445,19 @@ export class ShopModal implements GameComponent {
         if (!this.balanceEl) return;
         if (!this.wallet) {
             this.balanceEl.innerHTML =
-                `<span style="font-size:11px;color:#888;font-style:italic;">Đang tải số dư...</span>`;
+                `<span style="font-size:11px;color:#888;font-style:italic;">${escapeHtml(t('shop.balance_loading'))}</span>`;
             return;
         }
         const fmt = (n: number) => n.toLocaleString('en-US');
         const item = (icon: string, label: string, value: number, color: string) =>
-            `<div style="display:flex;align-items:center;gap:6px;" title="${label}">` +
+            `<div style="display:flex;align-items:center;gap:6px;" title="${escapeHtml(label)}">` +
             `  <span style="font-size:16px;">${icon}</span>` +
             `  <span style="color:${color};font-weight:bold;">${fmt(value)}</span>` +
             `</div>`;
         this.balanceEl.innerHTML = [
-            item('🪙', 'Xu', this.wallet.coin, '#ffd070'),
-            item('💰', 'Vàng', this.wallet.gold, '#f0b020'),
-            item('💎', 'Kim Cương', this.wallet.gem, '#6cd0ff'),
+            item('🪙', t('inventory.currency_coin'), this.wallet.coin, '#ffd070'),
+            item('💰', t('inventory.currency_gold'), this.wallet.gold, '#f0b020'),
+            item('💎', t('inventory.currency_gem'), this.wallet.gem, '#6cd0ff'),
         ].join('');
     }
 
@@ -468,18 +491,18 @@ export class ShopModal implements GameComponent {
         if (!item || this.actionInFlight) return;
         const price = this.findSelectedPrice(item);
         if (!price) {
-            this.setFeedback('Chưa chọn loại thanh toán.', 'error');
+            this.setFeedback(t('shop.error_no_payment'), 'error');
             return;
         }
         const character = getCurrentCharacter();
         if (!character) {
-            this.setFeedback('Chưa có nhân vật.', 'error');
+            this.setFeedback(t('shop.error_no_character'), 'error');
             return;
         }
         const amount = this.getAmount();
         this.actionInFlight = true;
         this.setBuyEnabled(false);
-        this.setFeedback('Đang xử lý...', 'ok');
+        this.setFeedback(t('shop.processing'), 'ok');
         try {
             const res = await shopAPI.buy(character.id, {
                 map_id: this.mapId,
@@ -495,16 +518,27 @@ export class ShopModal implements GameComponent {
                 this.renderBalance();
             }
             this.setFeedback(
-                `Đã mua ${amount} ${item.name_key}. Còn lại ${cur.icon} ${res.currency.balance_after.toLocaleString('en-US')}.`,
+                t('shop.bought', {
+                    amount,
+                    name: item.name_key,
+                    icon: cur.icon,
+                    balance: res.currency.balance_after.toLocaleString('en-US'),
+                }),
                 'ok',
             );
             // Sync lại 3 loại tiền (đề phòng tickets / quest cùng lúc).
             void this.loadWallet();
         } catch (err) {
-            this.setFeedback(err instanceof Error ? err.message : 'Mua hàng thất bại', 'error');
+            this.setFeedback(err instanceof Error ? err.message : t('shop.error_buy'), 'error');
         } finally {
             this.actionInFlight = false;
             this.renderDetail();
         }
     }
+}
+
+function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c] ?? c));
 }
