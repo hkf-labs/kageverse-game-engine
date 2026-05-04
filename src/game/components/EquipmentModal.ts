@@ -74,13 +74,18 @@ export class EquipmentModal implements GameComponent {
     private actionInFlight = false;
     private scene: Phaser.Scene;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
+    private onEquipmentChanged?: () => void;
 
     constructor(
         scene: Phaser.Scene,
-        callbacks?: { onStatsChanged?: (stats: CharacterStatsSnapshot) => void },
+        callbacks?: {
+            onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
+            onEquipmentChanged?: () => void;
+        },
     ) {
         this.scene = scene;
         this.onStatsChanged = callbacks?.onStatsChanged;
+        this.onEquipmentChanged = callbacks?.onEquipmentChanged;
     }
 
     create(): void {
@@ -339,6 +344,9 @@ export class EquipmentModal implements GameComponent {
             await inventoryAPI.unequip(character.id, def.beSlotId);
             this.setStatus(`Đã tháo ${def.label}.`, '#bdf0a0');
             await this.refresh();
+            // equip_item objective state có thể thay đổi (vd Q3 require equip
+            // weapon — unequip khiến progress reset). Báo scene refresh.
+            this.onEquipmentChanged?.();
             // BE tự cập nhật stat character → fetch lại HUD nếu callback có.
             if (this.onStatsChanged) {
                 const { charactersAPI } = await import('../../network/api');

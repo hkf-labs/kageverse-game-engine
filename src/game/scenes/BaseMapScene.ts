@@ -237,6 +237,14 @@ export abstract class BaseMapScene extends Phaser.Scene {
             },
             onEquipmentChanged: () => {
                 if (this.equipment?.isOpen()) void this.equipment.refresh();
+                // equip_item objective (vd Q3 mq_first_swing) — refresh quest
+                // tracker + NPC badge. questLog.refresh() chain qua
+                // onQuestsUpdated → tracker.setQuests + npcs.refreshBadges.
+                void this.questLog?.refresh();
+            },
+            onItemUsed: () => {
+                // use_item objective (vd Q4 mq_slime_purge use 1 potion).
+                void this.questLog?.refresh();
             },
         });
         this.inventory.create();
@@ -251,6 +259,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     max_mp: stats.max_mp,
                     level: this.lastKnownLevel,
                 });
+            },
+            onEquipmentChanged: () => {
+                // Unequip ở EquipmentModal cũng có thể đổi state Q3 progress.
+                void this.questLog?.refresh();
             },
         });
         this.equipment.create();

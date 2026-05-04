@@ -134,6 +134,7 @@ export class InventoryModal implements GameComponent {
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
     private onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
     private onEquipmentChanged?: () => void;
+    private onItemUsed?: () => void;
 
     constructor(
         scene: Phaser.Scene,
@@ -141,12 +142,14 @@ export class InventoryModal implements GameComponent {
             onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
             onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
             onEquipmentChanged?: () => void;
+            onItemUsed?: () => void;
         },
     ) {
         this.scene = scene;
         this.onStatsChanged = callbacks?.onStatsChanged;
         this.onFoodBuffStarted = callbacks?.onFoodBuffStarted;
         this.onEquipmentChanged = callbacks?.onEquipmentChanged;
+        this.onItemUsed = callbacks?.onItemUsed;
     }
 
     create(): void {
@@ -527,6 +530,9 @@ export class InventoryModal implements GameComponent {
                 this.onFoodBuffStarted(res.effects.food_buff_started);
             }
             await this.loadInventory();
+            // use_item objective (vd Q4 mq_slime_purge: use 1 potion) — báo scene
+            // refresh quest tracker / badge ❓ trên NPC turn-in.
+            this.onItemUsed?.();
         } catch (err) {
             this.errorMessage = err instanceof Error ? err.message : 'Sử dụng vật phẩm thất bại';
             this.renderDetail();
