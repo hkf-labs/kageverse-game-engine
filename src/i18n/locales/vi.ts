@@ -38,13 +38,16 @@ export const vi: TranslationTable = {
     'auth.register.missing_country': 'Chọn quốc gia (hoặc đợi tải xong danh sách).',
     'auth.register.country_load_error': 'Không tải được danh sách quốc gia',
 
-    // Language picker
-    'auth.language.label': 'Ngôn ngữ',
-    'auth.language.vi': 'Tiếng Việt',
-    'auth.language.en': 'English',
-
     // Character — boot flow
     'character.bootstrap.checking': 'Đang kiểm tra nhân vật...',
+
+    // Settings modal
+    'settings.title': 'CÀI ĐẶT',
+    'settings.close': 'Đóng',
+    'settings.section_language': 'Ngôn ngữ',
+    'settings.language_hint': 'Ngôn ngữ giao diện game. Một số ngôn ngữ chưa hoàn thiện sẽ hiện tiếng Anh ở những phần thiếu dịch.',
+    'settings.language_saved': 'Đã đổi ngôn ngữ.',
+    'settings.coming_soon_section': 'Các mục khác — sắp ra mắt.',
 
     // NPC dialogue / menu
     'npc.action_talk': 'Trò chuyện',

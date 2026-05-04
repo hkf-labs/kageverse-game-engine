@@ -10,17 +10,6 @@
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
     box-sizing: border-box;
 ">
-    <!-- Language picker — visible cho cả login/register, override trước khi
-         có user.preferred_language từ BE. Sau register/login response BE sẽ
-         setLocale lại theo preferred_language của user. -->
-    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 10px;">
-        <label for="auth-locale" data-i18n="auth.language.label" style="color: #bbb;">Ngôn ngữ</label>
-        <select id="auth-locale" style="flex: 1; padding: 6px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box; font-size: 10px;">
-            <option value="vi" data-i18n="auth.language.vi">Tiếng Việt</option>
-            <option value="en" data-i18n="auth.language.en">English</option>
-        </select>
-    </div>
-
     <div id="login-view">
         <h2 data-i18n="auth.login.title" style="text-align: center; font-size: 16px; margin-bottom: 20px;">CỔNG HỌC VIỆN</h2>
         <input type="text" name="identifier" data-i18n="auth.login.identifier_placeholder" data-i18n-attr="placeholder" placeholder="Username hoặc Email" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />

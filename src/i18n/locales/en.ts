@@ -38,13 +38,16 @@ export const en: TranslationTable = {
     'auth.register.missing_country': 'Pick a country (or wait for list to load).',
     'auth.register.country_load_error': 'Failed to load country list',
 
-    // Language picker
-    'auth.language.label': 'Language',
-    'auth.language.vi': 'Tiếng Việt',
-    'auth.language.en': 'English',
-
     // Character — boot flow
     'character.bootstrap.checking': 'Checking character...',
+
+    // Settings modal
+    'settings.title': 'SETTINGS',
+    'settings.close': 'Close',
+    'settings.section_language': 'Language',
+    'settings.language_hint': 'In-game UI language. Untranslated parts fall back to English.',
+    'settings.language_saved': 'Language changed.',
+    'settings.coming_soon_section': 'Other options — coming soon.',
 
     // NPC dialogue / menu
     'npc.action_talk': 'Talk',

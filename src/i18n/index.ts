@@ -23,9 +23,12 @@ import {
 
 const LOCALE_STORAGE_KEY = 'kageverse_locale';
 
-const tables: Record<Locale, TranslationTable> = {
-    vi,
+// Bundle map — chỉ chứa locale có file dịch thật. Locale còn lại
+// (zh-CN/zh-TW/ja/ko/th/de/fr/es/pt-BR) thiếu key sẽ fallback sang en
+// trong t() (chain: current → en → raw key).
+const tables: Partial<Record<Locale, TranslationTable>> = {
     en,
+    vi,
 };
 
 let currentLocale: Locale = readInitialLocale();
@@ -75,21 +78,20 @@ export function onLocaleChange(cb: (locale: Locale) => void): () => void {
     };
 }
 
-// Translate key → string theo locale hiện tại. Missing key:
-//   1. Fallback sang vi (native).
-//   2. Vẫn missing → trả raw key (visible in dev) + console.warn.
+// Translate key → string theo locale hiện tại. Lookup chain:
+//   1. tables[currentLocale][key] — bundle ngôn ngữ hiện chọn.
+//   2. tables[DEFAULT_LOCALE][key] — fallback en nếu locale chưa có file dịch
+//      (vd zh-CN/ja/ko/...) hoặc key thiếu trong bundle hiện tại.
+//   3. Raw key + console.warn — visible bug để dev phát hiện key sót.
 // Param interpolation: '{name}' replace bằng params.name. Param missing → giữ literal '{name}'.
 export function t(key: string, params?: TranslationParams): string {
-    const table = tables[currentLocale] ?? tables[DEFAULT_LOCALE];
-    let template = table[key];
+    const localeTable = tables[currentLocale];
+    const defaultTable = tables[DEFAULT_LOCALE];
+    let template: string | undefined = localeTable?.[key];
+    if (template === undefined) template = defaultTable?.[key];
     if (template === undefined) {
-        const fallback = tables[DEFAULT_LOCALE][key];
-        if (fallback !== undefined) {
-            template = fallback;
-        } else {
-            console.warn(`[i18n] missing key: ${key}`);
-            return key;
-        }
+        console.warn(`[i18n] missing key: ${key}`);
+        return key;
     }
     if (!params) return template;
     return template.replace(/\{(\w+)\}/g, (match, name: string) => {
@@ -118,5 +120,5 @@ export function applyDomTranslations(root: HTMLElement | null | undefined): void
     });
 }
 
-export { SUPPORTED_LOCALES, DEFAULT_LOCALE } from './types';
+export { SUPPORTED_LOCALES, DEFAULT_LOCALE, LOCALE_DISPLAY_NAMES } from './types';
 export type { Locale } from './types';

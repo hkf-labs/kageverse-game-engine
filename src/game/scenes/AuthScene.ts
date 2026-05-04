@@ -3,7 +3,7 @@ import { authAPI, charactersAPI, clearTokens, getAccessToken, setTokens } from '
 import { validateLoginIdentifier, validateUsername } from '../../lib/validation';
 import { resolveSceneKeyForMap } from '../maps/registry';
 import { saveCurrentCharacter, saveUserPrefs } from '../playerSession';
-import { applyDomTranslations, getLocale, onLocaleChange, setLocale, t } from '../../i18n';
+import { applyDomTranslations, onLocaleChange, t } from '../../i18n';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
 
@@ -51,9 +51,10 @@ export class AuthScene extends Phaser.Scene {
                 }
             });
             this.applyTranslations();
-            this.bindLocalePicker();
-            // Re-apply translations khi locale đổi runtime (vd post-login BE
-            // response setLocale, hoặc user đổi language picker tay).
+            // Re-apply translations khi locale đổi runtime — chỉ trigger sau
+            // register/login khi BE response set lại theo user.preferred_language
+            // (auth form không có manual switcher; user đổi locale qua Settings
+            // modal in-game).
             this.localeUnsub = onLocaleChange(() => this.applyTranslations());
         }
 
@@ -71,25 +72,11 @@ export class AuthScene extends Phaser.Scene {
     }
 
     // applyTranslations walk DOM cây auth form replace data-i18n elements.
-    // Sync select#auth-locale với locale hiện tại để tránh drift sau setLocale.
+    // Status text không track key — best-effort skip re-render khi locale đổi
+    // mid-prompt (rare edge case).
     private applyTranslations() {
         const root = this.domElement?.node as HTMLElement | undefined;
         applyDomTranslations(root);
-        const localeSelect = this.domElement?.getChildByID('auth-locale') as HTMLSelectElement | null;
-        if (localeSelect) {
-            localeSelect.value = getLocale();
-        }
-        // Status text re-render nếu đang hiển thị key (best-effort: không track raw key →
-        // chỉ clear nếu locale changed AND text khớp 1 trong các key prompt — skip MVP).
-    }
-
-    private bindLocalePicker() {
-        const select = this.domElement?.getChildByID('auth-locale') as HTMLSelectElement | null;
-        if (!select) return;
-        select.value = getLocale();
-        select.addEventListener('change', () => {
-            setLocale(select.value);
-        });
     }
 
     private async bootstrapSession() {

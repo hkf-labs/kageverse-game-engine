@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -33,6 +33,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected characterInfo!: CharacterInfoModal;
     protected skillModal!: SkillModal;
     protected skillHotbar!: SkillHotbar;
+    protected settingsModal!: SettingsModal;
     protected portals: Portal[] = [];
     private autoAttackEnabled = false;
     private lastEnterAt = 0;
@@ -311,6 +312,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.skillHotbar = new SkillHotbar(this);
         this.skillHotbar.create();
 
+        // Settings modal — Menu chức năng → Cài đặt. Locale switcher (11 ngôn
+        // ngữ) là feature MVP duy nhất; các option khác placeholder.
+        this.settingsModal = new SettingsModal(this);
+        this.settingsModal.create();
+
         // Death menu (Kiệt sức) — overlay khi character HP=0.
         this.deathMenu = new DeathMenu(this, {
             onChoice: (c) => void this.handleDeathChoice(c),
@@ -342,6 +348,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.characterInfo?.destroy();
             this.skillModal?.destroy();
             this.skillHotbar?.destroy();
+            this.settingsModal?.destroy();
             this.inventory?.destroy();
             this.shop?.destroy();
             this.chat?.destroy();
@@ -516,7 +523,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen() || this.characterInfo?.isOpen() || this.skillModal?.isOpen()) {
+        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen() || this.characterInfo?.isOpen() || this.skillModal?.isOpen() || this.settingsModal?.isOpen()) {
             player.body?.setVelocityX(0);
             // CharacterInfoModal đang mở → forward arrow keys cho scroll content.
             this.characterInfo?.update();
@@ -526,6 +533,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 else if (this.equipment?.isOpen()) this.equipment.close();
                 else if (this.characterInfo?.isOpen()) this.characterInfo.close();
                 else if (this.skillModal?.isOpen()) this.skillModal.close();
+                else if (this.settingsModal?.isOpen()) this.settingsModal.close();
             }
             return;
         }
@@ -920,7 +928,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 { key: 'quests', label: 'Nhiệm vụ', icon: '📜', action: () => this.questLog.open() },
                 { key: 'skills', label: 'Kỹ năng', icon: '⚡', action: () => this.skillModal.open() },
                 { key: 'suicide', label: 'Tự sát', icon: '☠️', action: () => void this.handleSuicide() },
-                { key: 'settings', label: 'Cài đặt', icon: '⚙️', action: () => this.hud.setStatus('Cài Đặt (placeholder)', '#ffea7a') },
+                { key: 'settings', label: 'Cài đặt', icon: '⚙️', action: () => this.settingsModal.open() },
                 { key: 'logout', label: 'Đăng xuất', icon: '🚪', action: () => this.handleLogout() },
             ],
         });
