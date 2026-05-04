@@ -39,7 +39,7 @@ const TOP_OFFSET_X = 3;
 const BOTTOM_OFFSET_X = 0;
 // Scale toàn body container — chỉnh chỗ này để phóng to / thu nhỏ nhân vật.
 // Scale tác động lên cả offset → seam vẫn khớp ở mọi giá trị.
-const BODY_SCALE = 0.75;
+const BODY_SCALE = 1;
 // Name text không thuộc container nên không tự scale — derive Y từ head top
 // (-39 - 38 = -77 local) để name luôn cách đỉnh đầu 13px ở mọi BODY_SCALE.
 const NAME_OFFSET_Y = (HEAD_OFFSET_Y - 38) * BODY_SCALE - 13;
