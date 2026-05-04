@@ -2,8 +2,10 @@ import type { MapConfig, NpcConfig, PortalConfig } from '../components';
 import { BaseMapScene } from './BaseMapScene';
 
 /**
- * Trường Hayabusa — phái Cung. Phase 2 placeholder: dùng asset SwordSchool đến
- * khi có art riêng. NPC: HT Tobishima + Thợ Cung Kazu (seed BE).
+ * Trường Hayabusa — phái Cung. Asset hiện tại là placeholder copy từ
+ * sword_school_001 (xem `public/assets/maps/hayabusa_school_001/`).
+ * Designer thay file ở folder đó khi có art riêng — không cần sửa code.
+ * NPC: HT Tobishima + Thợ Cung Kazu (seed BE).
  */
 export class HayabusaSchoolScene extends BaseMapScene {
     constructor() {
@@ -15,9 +17,9 @@ export class HayabusaSchoolScene extends BaseMapScene {
             mapId: 'hayabusa_school_001',
             displayName: 'Trường Hayabusa — Phái Cung',
             bgKey: 'map-bg-hayabusa-school-001',
-            bgAsset: 'assets/maps/sword_school_001/bg.png', // placeholder asset
+            bgAsset: 'assets/maps/hayabusa_school_001/bg.png',
             colliderKey: 'hayabusa_school_001_colliders',
-            colliderAsset: 'assets/maps/sword_school_001/colliders.json',
+            colliderAsset: 'assets/maps/hayabusa_school_001/colliders.json',
             tiledOriginalHeight: 1440,
         };
     }

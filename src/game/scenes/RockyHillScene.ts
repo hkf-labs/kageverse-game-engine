@@ -7,8 +7,10 @@ import { BaseMapScene } from './BaseMapScene';
  * Khôi (lv 20, leader grade) ở x=4000. Stat lookup: BE `monster_spawns`
  * cho `rocky_hill_iwagumo`.
  *
- * NOTE: bg.png + colliders.json thêm sau (placeholder path). Map nên
- * rộng hơn Rừng Tre vì có boss arena cuối map.
+ * Asset hiện tại là placeholder copy từ bamboo_forest_yatomi
+ * (xem `public/assets/maps/rocky_hill_iwagumo/`). Colliders đã tinh
+ * giảm platform cho boss arena rộng. Designer thay bg.png khi có art
+ * riêng — không cần sửa code.
  */
 export class RockyHillScene extends BaseMapScene {
     constructor() {
