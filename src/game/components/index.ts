@@ -7,6 +7,7 @@ export { CharacterInfoModal } from './CharacterInfoModal';
 export { ChatPanel } from './ChatPanel';
 export { DeathMenu } from './DeathMenu';
 export type { DeathChoice } from './DeathMenu';
+export { EndMvpOverlay, detectEndMvpClass } from './EndMvpOverlay';
 export { EquipmentModal } from './EquipmentModal';
 export { GameControls } from './GameControls';
 export { HoshiUpgradeModal } from './HoshiUpgradeModal';

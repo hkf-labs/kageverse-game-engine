@@ -4,6 +4,7 @@ import { getCurrentCharacter } from '../playerSession';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
+import { detectEndMvpClass } from './EndMvpOverlay';
 import type { HoshiUpgradeModal } from './HoshiUpgradeModal';
 import type { MapBackground } from './MapBackground';
 import type { NpcChatBubble } from './NpcChatBubble';
@@ -74,6 +75,7 @@ export class NpcManager implements GameComponent {
     private onStatusMessage?: (text: string, color: string) => void;
     private onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
     private onLevelUp?: (levelUp: LevelUpDTO) => void;
+    private onEndMvp?: (className: 'sword' | 'bow') => void;
     private dialogueKeyByTemplate = new Map<string, string | null>();
     private teleportDestinations: TeleportDestinationDTO[] = [];
     private offeredQuestIDs: string[] = [];
@@ -93,6 +95,7 @@ export class NpcManager implements GameComponent {
             onStatusMessage?: (text: string, color: string) => void;
             onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
             onLevelUp?: (levelUp: LevelUpDTO) => void;
+            onEndMvp?: (className: 'sword' | 'bow') => void;
         },
     ) {
         this.scene = scene;
@@ -107,6 +110,7 @@ export class NpcManager implements GameComponent {
         this.onStatusMessage = deps?.onStatusMessage;
         this.onQuestRewarded = deps?.onQuestRewarded;
         this.onLevelUp = deps?.onLevelUp;
+        this.onEndMvp = deps?.onEndMvp;
     }
 
     create(): void {
@@ -504,6 +508,13 @@ export class NpcManager implements GameComponent {
                 // không cần re-fetch GET /characters.
                 if (res.level_up) {
                     this.onLevelUp?.(res.level_up);
+                }
+                // End-MVP detect: Q17 (mq_first_trial_*) là quest cuối arc 1
+                // — BE đã set characters.mvp_flags.mvp_arc1_complete=true qua
+                // set_flag side effect. FE trigger overlay cinematic.
+                const endClass = detectEndMvpClass(questID);
+                if (endClass) {
+                    this.onEndMvp?.(endClass);
                 }
                 void this.questLog?.refresh();
             })

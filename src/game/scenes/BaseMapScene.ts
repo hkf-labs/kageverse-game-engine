@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -29,6 +29,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected questTracker!: QuestTracker;
     protected equipment!: EquipmentModal;
     protected hoshiUpgradeModal!: HoshiUpgradeModal;
+    protected endMvpOverlay!: EndMvpOverlay;
     protected characterInfo!: CharacterInfoModal;
     protected skillModal!: SkillModal;
     protected skillHotbar!: SkillHotbar;
@@ -136,6 +137,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
         });
         this.hoshiUpgradeModal.create();
 
+        // End-MVP cinematic overlay — show khi Q17 turn-in (mq_first_trial_*).
+        this.endMvpOverlay = new EndMvpOverlay(this);
+        this.endMvpOverlay.create();
+
         // NPC
         this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), {
             mapId: cfg.mapId,
@@ -147,6 +152,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onStatusMessage: (text, color) => this.hud.setStatus(text, color),
             onQuestRewarded: (questName, rewards) => this.showQuestRewardFloater(questName, rewards),
             onLevelUp: (levelUp) => this.applyLevelUp(levelUp),
+            onEndMvp: (className) => this.endMvpOverlay.show(className),
         });
         this.npcs.create();
         this.npcs.setPlayerPositionGetter(() => {
