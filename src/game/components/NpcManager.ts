@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { npcAPI, questAPI, type LevelUpDTO, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { t } from '../../i18n';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
@@ -12,13 +13,13 @@ import { questDisplayName } from './QuestLogPanel';
 import type { QuestLogPanel } from './QuestLogPanel';
 import type { ShopModal } from './ShopModal';
 
-const ACTION_LABEL_VI: Record<string, string> = {
-    talk: 'Trò chuyện',
-    buy_shop: 'Mua dược phẩm',
-    upgrade_equipment: 'Nâng cấp đồ',
-    view_quests: 'Nhiệm vụ',
-    open_stash: 'Mở rương',
-    teleport: 'Dịch chuyển',
+const ACTION_KEY: Record<string, string> = {
+    talk: 'npc.action_talk',
+    buy_shop: 'npc.action_buy_shop',
+    upgrade_equipment: 'npc.action_upgrade_equipment',
+    view_quests: 'npc.action_view_quests',
+    open_stash: 'npc.action_open_stash',
+    teleport: 'npc.action_teleport',
 };
 
 const ACTION_ICON: Record<string, string> = {
@@ -31,10 +32,12 @@ const ACTION_ICON: Record<string, string> = {
 };
 
 function actionLabel(a: NpcActionDTO): string {
-    return ACTION_LABEL_VI[a.action] || a.label_key;
+    const key = ACTION_KEY[a.action];
+    return key ? t(key) : a.label_key;
 }
 
-// Map dialogue_key (BE trả về) → text VN client-side. Khi có i18n thật sẽ thay.
+// Map dialogue_key (BE trả về) → text VN client-side. TODO: chuyển sang i18n
+// bundles theo namespace `dialogue.<id>` khi mở rộng dialog tree.
 const DIALOGUE_TEXT_VI: Record<string, string> = {
     'dialogue.ayame.greet':
         'Chào nhẫn giả trẻ! Ta là Ayame. Cần dược phẩm gì cứ chọn "Mua dược phẩm" nhé.',
@@ -44,7 +47,7 @@ const DIALOGUE_TEXT_VI: Record<string, string> = {
 
 function dialogueText(key: string | null | undefined, npcName: string): string {
     if (key && DIALOGUE_TEXT_VI[key]) return DIALOGUE_TEXT_VI[key];
-    return `${npcName}: Chào nhẫn giả!`;
+    return t('npc.dialogue.fallback_greet', { npc: npcName });
 }
 
 export class NpcManager implements GameComponent {
@@ -335,7 +338,7 @@ export class NpcManager implements GameComponent {
         const showLoading = () => {
             this.actionMenu?.open({
                 title: npc.name,
-                items: [{ key: 'loading', label: 'Đang tải...', disabled: true, action: () => {} }],
+                items: [{ key: 'loading', label: t('npc.menu_loading'), disabled: true, action: () => {} }],
                 onClose: () => this.handleMenuClosed(),
             });
         };
@@ -359,7 +362,7 @@ export class NpcManager implements GameComponent {
                     if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
                     this.offeredQuestIDs = [];
                     this.turnInQuestIDs = [];
-                    const msg = err instanceof Error ? err.message : 'Không tải được menu NPC';
+                    const msg = err instanceof Error ? err.message : t('npc.menu_error_load');
                     this.onStatusMessage?.(msg, '#ff8a8a');
                     this.openMenuMock(npc);
                 });
@@ -378,7 +381,7 @@ export class NpcManager implements GameComponent {
         for (const questID of this.turnInQuestIDs) {
             items.push({
                 key: `turn_in_${questID}`,
-                label: `Trả: ${questDisplayName(`quest.${questID}.name`)}`,
+                label: t('npc.quest.turn_in', { name: questDisplayName(`quest.${questID}.name`) }),
                 icon: '🏆',
                 action: () => this.runQuestTurnIn(npc, questID),
             });
@@ -386,7 +389,7 @@ export class NpcManager implements GameComponent {
         for (const questID of this.offeredQuestIDs) {
             items.push({
                 key: `accept_${questID}`,
-                label: `Nhận: ${questDisplayName(`quest.${questID}.name`)}`,
+                label: t('npc.quest.accept', { name: questDisplayName(`quest.${questID}.name`) }),
                 icon: '❗',
                 action: () => this.runQuestAccept(npc, questID),
             });
@@ -400,7 +403,7 @@ export class NpcManager implements GameComponent {
                 action: () => this.runAction(npc, a.action),
             });
         }
-        items.push({ key: 'leave', label: 'Rời đi', icon: '🚪', action: () => {} });
+        items.push({ key: 'leave', label: t('npc.action_leave'), icon: '🚪', action: () => {} });
         this.actionMenu.open({
             title: npc.name,
             items,
@@ -414,18 +417,18 @@ export class NpcManager implements GameComponent {
             title: npc.name,
             items: [
                 {
-                    key: 'talk', label: 'Trò chuyện', icon: ACTION_ICON.talk,
-                    action: () => this.onStatusMessage?.(`${npc.name}: Chào mừng đến với Kageverse!`, '#fff'),
+                    key: 'talk', label: t('npc.mock.action_talk'), icon: ACTION_ICON.talk,
+                    action: () => this.onStatusMessage?.(t('npc.mock.welcome', { npc: npc.name }), '#fff'),
                 },
                 {
-                    key: 'view_quests', label: 'Nhiệm vụ', icon: ACTION_ICON.view_quests,
-                    action: () => this.onStatusMessage?.('Chưa có nhiệm vụ.', '#aaaaaa'),
+                    key: 'view_quests', label: t('npc.mock.action_view_quests'), icon: ACTION_ICON.view_quests,
+                    action: () => this.onStatusMessage?.(t('npc.mock.no_quest'), '#aaaaaa'),
                 },
                 {
-                    key: 'buy_shop', label: 'Giao dịch', icon: ACTION_ICON.buy_shop,
-                    action: () => this.onStatusMessage?.('NPC này chưa có cửa hàng.', '#aaaaaa'),
+                    key: 'buy_shop', label: t('npc.mock.action_buy_shop'), icon: ACTION_ICON.buy_shop,
+                    action: () => this.onStatusMessage?.(t('npc.mock.no_shop'), '#aaaaaa'),
                 },
-                { key: 'leave', label: 'Rời đi', icon: '🚪', action: () => {} },
+                { key: 'leave', label: t('npc.action_leave'), icon: '🚪', action: () => {} },
             ],
             onClose: () => this.handleMenuClosed(),
         });
@@ -448,7 +451,7 @@ export class NpcManager implements GameComponent {
                         npcName: npc.name,
                     });
                 } else {
-                    this.onStatusMessage?.('Cửa hàng chưa sẵn sàng.', '#aaaaaa');
+                    this.onStatusMessage?.(t('npc.run.shop_unavailable'), '#aaaaaa');
                 }
                 break;
             case 'teleport':
@@ -458,37 +461,40 @@ export class NpcManager implements GameComponent {
                 if (this.questLog) {
                     this.questLog.open();
                 } else {
-                    this.onStatusMessage?.('Nhật ký nhiệm vụ chưa sẵn sàng.', '#aaaaaa');
+                    this.onStatusMessage?.(t('npc.run.questlog_unavailable'), '#aaaaaa');
                 }
                 break;
             case 'upgrade_equipment':
                 if (this.hoshiUpgradeModal) {
                     this.hoshiUpgradeModal.open();
                 } else {
-                    this.onStatusMessage?.('Tinh luyện sư chưa sẵn sàng.', '#aaaaaa');
+                    this.onStatusMessage?.(t('npc.run.hoshi_unavailable'), '#aaaaaa');
                 }
                 break;
-            case 'open_stash':
-                this.onStatusMessage?.(`Chức năng "${ACTION_LABEL_VI[action] || action}" sắp ra mắt.`, '#aaaaaa');
+            case 'open_stash': {
+                const actionKey = ACTION_KEY[action];
+                const actionName = actionKey ? t(actionKey) : action;
+                this.onStatusMessage?.(t('npc.run.coming_soon', { name: actionName }), '#aaaaaa');
                 break;
+            }
             default:
-                this.onStatusMessage?.(`Hành động "${action}" chưa hỗ trợ.`, '#aaaaaa');
+                this.onStatusMessage?.(t('npc.run.action_unsupported', { name: action }), '#aaaaaa');
         }
     }
 
     private runQuestAccept(npc: NpcEntry, questID: string): void {
         const character = getCurrentCharacter();
         if (!character || !npc.templateId) {
-            this.onStatusMessage?.('Không thể nhận nhiệm vụ.', '#ff8a8a');
+            this.onStatusMessage?.(t('npc.quest.cannot_accept'), '#ff8a8a');
             return;
         }
         void questAPI.accept(character.id, questID, npc.templateId)
             .then((res) => {
-                this.onStatusMessage?.(`Đã nhận nhiệm vụ: ${questDisplayName(res.quest.name_key)}`, '#bdf0a0');
+                this.onStatusMessage?.(t('npc.quest.accept_success', { name: questDisplayName(res.quest.name_key) }), '#bdf0a0');
                 void this.questLog?.refresh();
             })
             .catch((err) => {
-                const msg = err instanceof Error ? err.message : 'Nhận nhiệm vụ thất bại';
+                const msg = err instanceof Error ? err.message : t('npc.quest.accept_failed');
                 this.onStatusMessage?.(msg, '#ff8a8a');
             });
     }
@@ -496,7 +502,7 @@ export class NpcManager implements GameComponent {
     private runQuestTurnIn(npc: NpcEntry, questID: string): void {
         const character = getCurrentCharacter();
         if (!character || !npc.templateId) {
-            this.onStatusMessage?.('Không thể trả nhiệm vụ.', '#ff8a8a');
+            this.onStatusMessage?.(t('npc.quest.cannot_turn_in'), '#ff8a8a');
             return;
         }
         void questAPI.turnIn(character.id, questID, npc.templateId)
@@ -519,7 +525,7 @@ export class NpcManager implements GameComponent {
                 void this.questLog?.refresh();
             })
             .catch((err) => {
-                const msg = err instanceof Error ? err.message : 'Trả nhiệm vụ thất bại';
+                const msg = err instanceof Error ? err.message : t('npc.quest.turn_in_failed');
                 this.onStatusMessage?.(msg, '#ff8a8a');
             });
     }
@@ -528,19 +534,21 @@ export class NpcManager implements GameComponent {
         if (!this.actionMenu) return;
         const dests = this.teleportDestinations;
         if (dests.length === 0) {
-            this.onStatusMessage?.('Hiện chưa có nơi nào để dịch chuyển.', '#aaaaaa');
+            this.onStatusMessage?.(t('npc.teleport.empty'), '#aaaaaa');
             return;
         }
         const items: ActionMenuItem[] = dests.map((d) => ({
             key: `teleport_${d.map_id}`,
-            label: d.is_current ? `${mapDisplayName(d.map_id)} (đang ở đây)` : mapDisplayName(d.map_id),
+            label: d.is_current
+                ? t('npc.teleport.current_here', { name: mapDisplayName(d.map_id) })
+                : mapDisplayName(d.map_id),
             icon: '🗺️',
             disabled: d.is_current,
             action: () => this.scene.scene.start(resolveSceneKeyForMap(d.map_id)),
         }));
-        items.push({ key: 'cancel', label: 'Huỷ', icon: '↩️', action: () => {} });
+        items.push({ key: 'cancel', label: t('npc.teleport.cancel'), icon: '↩️', action: () => {} });
         this.actionMenu.open({
-            title: 'Dịch Chuyển',
+            title: t('npc.teleport.title'),
             items,
         });
     }
