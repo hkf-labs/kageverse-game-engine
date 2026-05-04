@@ -8,6 +8,7 @@ import {
     type InventoryItemType,
 } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { onLocaleChange, t } from '../../i18n';
 import type { GameComponent } from './types';
 
 interface InventoryItem {
@@ -52,11 +53,11 @@ const TYPE_BORDER: Record<InventoryItemType, string> = {
     quest: '#a050d0',
 };
 
-const TYPE_LABEL: Record<InventoryItemType, string> = {
-    equipment: 'Trang bị',
-    consumable: 'Tiêu hao',
-    material: 'Nguyên liệu',
-    quest: 'Nhiệm vụ',
+const TYPE_KEY: Record<InventoryItemType, string> = {
+    equipment: 'inventory.type_equipment',
+    consumable: 'inventory.type_consumable',
+    material: 'inventory.type_material',
+    quest: 'inventory.type_quest',
 };
 
 const DEFAULT_ICON: Record<InventoryItemType, string> = {
@@ -130,6 +131,8 @@ export class InventoryModal implements GameComponent {
     private errorMessage: string | null = null;
     private actionInFlight = false;
     private currencies: CharacterCurrencies = { ...ZERO_CURRENCIES };
+    private titleEl?: HTMLDivElement;
+    private localeUnsub?: () => void;
     private scene: Phaser.Scene;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
     private onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
@@ -190,6 +193,7 @@ export class InventoryModal implements GameComponent {
         root.innerHTML = this.buildHTML();
         this.overlay.appendChild(root);
 
+        this.titleEl = root.querySelector('#inv-title') as HTMLDivElement;
         this.gridEl = root.querySelector('#inv-grid') as HTMLDivElement;
         this.tabsEl = root.querySelector('#inv-tabs') as HTMLDivElement;
         this.counterEl = root.querySelector('#inv-counter') as HTMLDivElement;
@@ -210,6 +214,16 @@ export class InventoryModal implements GameComponent {
         this.renderDetail();
         this.renderCounter();
         this.renderCurrencies();
+
+        // Re-render mọi text khi locale đổi runtime (vd post-login BE response).
+        this.localeUnsub = onLocaleChange(() => {
+            if (this.titleEl) this.titleEl.textContent = t('inventory.title');
+            this.renderTabs();
+            this.renderGrid();
+            this.renderDetail();
+            this.renderCounter();
+            this.renderCurrencies();
+        });
     }
 
     destroy(): void {
@@ -220,6 +234,9 @@ export class InventoryModal implements GameComponent {
         this.counterEl = undefined;
         this.detailEl = undefined;
         this.currenciesEl = undefined;
+        this.titleEl = undefined;
+        this.localeUnsub?.();
+        this.localeUnsub = undefined;
     }
 
     toggle(): void {
@@ -255,7 +272,7 @@ export class InventoryModal implements GameComponent {
         return [
             // Header
             `<div style="display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;">`,
-            `  <div style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">TÚI ĐỒ</div>`,
+            `  <div id="inv-title" style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">${escapeHtml(t('inventory.title'))}</div>`,
             `  <div id="inv-counter" style="padding:10px 12px;font-size:12px;color:#ffe4c4;"></div>`,
             `  <div id="inv-close" style="width:40px;text-align:center;cursor:pointer;font-size:18px;font-weight:bold;color:#ff8a8a;padding:10px 0;flex-shrink:0;">&#10005;</div>`,
             `</div>`,
@@ -271,9 +288,9 @@ export class InventoryModal implements GameComponent {
             `<div id="inv-currencies" style="display:flex;justify-content:space-around;align-items:center;padding:8px 14px;border-top:2px solid #4d2d13;background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;"></div>`,
             // Footer buttons
             `<div style="display:flex;gap:8px;padding:10px 14px;border-top:2px solid #4d2d13;background:#1a0f04;flex-shrink:0;">`,
-            `  <button id="inv-use" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">Sử dụng</button>`,
-            `  <button id="inv-equip" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a6a2a;background:#3a3014;color:#ffd070;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">Trang bị</button>`,
-            `  <button id="inv-drop" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a3a3a;background:#4a1a1a;color:#f0a0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">Vứt</button>`,
+            `  <button id="inv-use" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">${escapeHtml(t('inventory.btn_use'))}</button>`,
+            `  <button id="inv-equip" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a6a2a;background:#3a3014;color:#ffd070;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">${escapeHtml(t('inventory.btn_equip'))}</button>`,
+            `  <button id="inv-drop" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a3a3a;background:#4a1a1a;color:#f0a0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">${escapeHtml(t('inventory.btn_drop'))}</button>`,
             `</div>`,
         ].join('');
     }
@@ -281,7 +298,7 @@ export class InventoryModal implements GameComponent {
     private async loadInventory(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
-            this.errorMessage = 'Chưa có nhân vật. Vui lòng tạo nhân vật trước.';
+            this.errorMessage = t('inventory.error_no_character');
             this.items = [];
             this.renderGrid();
             this.renderDetail();
@@ -301,7 +318,7 @@ export class InventoryModal implements GameComponent {
                 .map(mapBeItem)
                 .filter((it): it is InventoryItem => it !== null);
         } catch (err) {
-            this.errorMessage = err instanceof Error ? err.message : 'Không tải được túi đồ';
+            this.errorMessage = err instanceof Error ? err.message : t('inventory.error_load');
             this.items = [];
         } finally {
             this.loading = false;
@@ -376,38 +393,38 @@ export class InventoryModal implements GameComponent {
     private renderDetail(): void {
         if (!this.detailEl) return;
         if (this.loading) {
-            this.detailEl.innerHTML = `<div style="color:#aaa;font-style:italic;">Đang tải túi đồ...</div>`;
+            this.detailEl.innerHTML = `<div style="color:#aaa;font-style:italic;">${escapeHtml(t('inventory.detail_loading'))}</div>`;
             this.setButtonsEnabled(false, false);
             return;
         }
         if (this.errorMessage) {
-            this.detailEl.innerHTML = `<div style="color:#ff8a8a;">⚠ ${this.errorMessage}</div>`;
+            this.detailEl.innerHTML = `<div style="color:#ff8a8a;">⚠ ${escapeHtml(this.errorMessage)}</div>`;
             this.setButtonsEnabled(false, false);
             return;
         }
         if (this.currentPage !== DATA_PAGE) {
-            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">Túi mở rộng — sắp ra mắt.</div>`;
+            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('inventory.detail_locked_page'))}</div>`;
             this.setButtonsEnabled(false, false);
             return;
         }
 
         const item = this.findSelectedItem();
         if (!item) {
-            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">Chọn một vật phẩm để xem chi tiết.</div>`;
+            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('inventory.detail_pick'))}</div>`;
             this.setButtonsEnabled(false, false);
             return;
         }
-        const lockBadge = item.isBound ? `<span style="margin-left:6px;color:#ff8a8a;font-size:11px;">🔒 Khóa</span>` : '';
+        const lockBadge = item.isBound ? `<span style="margin-left:6px;color:#ff8a8a;font-size:11px;">${escapeHtml(t('inventory.bound_badge'))}</span>` : '';
         const upgradeBadge = item.upgradeLevel > 0 ? `<span style="margin-left:6px;color:#ffea7a;">+${item.upgradeLevel}</span>` : '';
         this.detailEl.innerHTML = [
             `<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">`,
-            `  <span style="font-size:14px;font-weight:bold;color:#ffea7a;">${item.name}</span>`,
+            `  <span style="font-size:14px;font-weight:bold;color:#ffea7a;">${escapeHtml(item.name)}</span>`,
             upgradeBadge,
-            `  <span style="font-size:11px;color:${TYPE_BORDER[item.type]};">[${TYPE_LABEL[item.type]}]</span>`,
+            `  <span style="font-size:11px;color:${TYPE_BORDER[item.type]};">[${escapeHtml(t(TYPE_KEY[item.type]))}]</span>`,
             lockBadge,
             `</div>`,
-            `<div style="margin-top:4px;color:#ffe4c4;">${item.description}</div>`,
-            `<div style="margin-top:4px;color:#aaa;font-size:11px;">Số lượng: ${item.amount} / ${item.maxStack}</div>`,
+            `<div style="margin-top:4px;color:#ffe4c4;">${escapeHtml(item.description)}</div>`,
+            `<div style="margin-top:4px;color:#aaa;font-size:11px;">${escapeHtml(t('inventory.amount_label', { amount: item.amount, max: item.maxStack }))}</div>`,
         ].join('');
 
         const canUse = !this.actionInFlight && item.type === 'consumable';
@@ -417,21 +434,22 @@ export class InventoryModal implements GameComponent {
             && item.subType !== null
             && SUBTYPE_TO_SLOT[item.subType] !== undefined;
         const canEquip = !this.actionInFlight && isEquippable;
-        const equipLabel = item.isEquipped ? 'Tháo' : 'Trang bị';
+        const equipLabel = item.isEquipped ? t('inventory.btn_unequip') : t('inventory.btn_equip');
         this.setButtonsEnabled(canUse, canDrop, canEquip, equipLabel);
     }
 
     private renderCounter(): void {
         if (!this.counterEl) return;
         if (this.currentPage !== DATA_PAGE) {
-            this.counterEl.textContent = `Trang ${this.currentPage}: chưa mở khóa`;
+            this.counterEl.textContent = t('inventory.counter_locked', { n: this.currentPage });
             return;
         }
         const usedThisPage = this.items.filter((it) => it.page === this.currentPage).length;
-        this.counterEl.textContent = `Trang ${this.currentPage}: ${usedThisPage} / ${this.maxSlots}`;
+        this.counterEl.textContent = t('inventory.counter_used', { n: this.currentPage, used: usedThisPage, max: this.maxSlots });
     }
 
-    private setButtonsEnabled(use: boolean, drop: boolean, equip: boolean = false, equipLabel: string = 'Trang bị'): void {
+    private setButtonsEnabled(use: boolean, drop: boolean, equip: boolean = false, equipLabel?: string): void {
+        const equipText = equipLabel ?? t('inventory.btn_equip');
         if (this.useBtn) {
             this.useBtn.disabled = !use;
             this.useBtn.style.opacity = use ? '1' : '0.5';
@@ -441,7 +459,7 @@ export class InventoryModal implements GameComponent {
             this.equipBtn.disabled = !equip;
             this.equipBtn.style.opacity = equip ? '1' : '0.5';
             this.equipBtn.style.cursor = equip ? 'pointer' : 'not-allowed';
-            this.equipBtn.textContent = equipLabel;
+            this.equipBtn.textContent = equipText;
         }
         if (this.dropBtn) {
             this.dropBtn.disabled = !drop;
@@ -474,7 +492,7 @@ export class InventoryModal implements GameComponent {
                 borderTopRightRadius: '6px',
                 userSelect: 'none',
             });
-            tab.textContent = `Trang ${p}`;
+            tab.textContent = t('inventory.tab_page', { n: p });
             tab.addEventListener('click', () => this.setPage(p));
             this.tabsEl.appendChild(tab);
         }
@@ -484,14 +502,14 @@ export class InventoryModal implements GameComponent {
         if (!this.currenciesEl) return;
         const fmt = (n: number) => n.toLocaleString('en-US');
         const item = (icon: string, label: string, value: number, color: string) =>
-            `<div style="display:flex;align-items:center;gap:6px;" title="${label}">` +
+            `<div style="display:flex;align-items:center;gap:6px;" title="${escapeHtml(label)}">` +
             `  <span style="font-size:16px;">${icon}</span>` +
             `  <span style="color:${color};font-weight:bold;">${fmt(value)}</span>` +
             `</div>`;
         this.currenciesEl.innerHTML = [
-            item('🪙', 'Xu', this.currencies.coin, '#ffd070'),
-            item('💰', 'Vàng', this.currencies.gold, '#f0b020'),
-            item('💎', 'Kim Cương', this.currencies.gem, '#6cd0ff'),
+            item('🪙', t('inventory.currency_coin'), this.currencies.coin, '#ffd070'),
+            item('💰', t('inventory.currency_gold'), this.currencies.gold, '#f0b020'),
+            item('💎', t('inventory.currency_gem'), this.currencies.gem, '#6cd0ff'),
         ].join('');
     }
 
@@ -534,7 +552,7 @@ export class InventoryModal implements GameComponent {
             // refresh quest tracker / badge ❓ trên NPC turn-in.
             this.onItemUsed?.();
         } catch (err) {
-            this.errorMessage = err instanceof Error ? err.message : 'Sử dụng vật phẩm thất bại';
+            this.errorMessage = err instanceof Error ? err.message : t('inventory.error_use');
             this.renderDetail();
         } finally {
             this.actionInFlight = false;
@@ -553,9 +571,9 @@ export class InventoryModal implements GameComponent {
             if (item.isEquipped && item.equippedSlot) {
                 await inventoryAPI.unequip(character.id, item.equippedSlot);
             } else {
-                if (!item.subType) throw new Error('Vật phẩm thiếu sub_type');
+                if (!item.subType) throw new Error(t('inventory.error_missing_subtype'));
                 const slot = SUBTYPE_TO_SLOT[item.subType];
-                if (!slot) throw new Error(`Sub_type "${item.subType}" không equippable`);
+                if (!slot) throw new Error(t('inventory.error_not_equippable', { sub: item.subType }));
                 await inventoryAPI.equip(character.id, item.userItemId, slot);
             }
             await this.loadInventory();
@@ -572,7 +590,7 @@ export class InventoryModal implements GameComponent {
                 });
             }
         } catch (err) {
-            this.errorMessage = err instanceof Error ? err.message : 'Trang bị thất bại';
+            this.errorMessage = err instanceof Error ? err.message : t('inventory.error_equip');
             this.renderDetail();
         } finally {
             this.actionInFlight = false;
@@ -592,10 +610,16 @@ export class InventoryModal implements GameComponent {
             this.selectedSlot = null;
             await this.loadInventory();
         } catch (err) {
-            this.errorMessage = err instanceof Error ? err.message : 'Vứt vật phẩm thất bại';
+            this.errorMessage = err instanceof Error ? err.message : t('inventory.error_drop');
             this.renderDetail();
         } finally {
             this.actionInFlight = false;
         }
     }
+}
+
+function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c] ?? c));
 }
