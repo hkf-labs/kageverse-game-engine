@@ -645,4 +645,10 @@ export const vi: TranslationTable = {
     'character.create.submit': 'Bắt đầu hành trình',
     'character.create.in_progress': 'Đang tạo nhân vật...',
     'character.create.failed': 'Tạo nhân vật thất bại',
+
+    // Realtime
+    'realtime.error.session_replaced': 'Tài khoản đã đăng nhập ở thiết bị khác. Bạn đã bị ngắt kết nối.',
+    'realtime.error.map_locked': 'Bản đồ này chưa mở.',
+    'realtime.error.out_of_bounds': 'Vị trí ngoài bản đồ.',
+    'realtime.error.max_speed_exceeded': 'Di chuyển quá nhanh — đồng bộ lại vị trí.',
 };

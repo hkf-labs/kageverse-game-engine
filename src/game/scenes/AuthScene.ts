@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { authAPI, charactersAPI, clearTokens, getAccessToken, setTokens } from '../../network/api';
+import { bootstrapRealtimeForGameEntry } from '../realtimeBootstrap';
 import { validateLoginIdentifier, validateUsername } from '../../lib/validation';
 import { resolveSceneKeyForMap } from '../maps/registry';
 import { saveCurrentCharacter, saveUserPrefs } from '../playerSession';
@@ -69,6 +70,12 @@ export class AuthScene extends Phaser.Scene {
     private cleanup() {
         this.localeUnsub?.();
         this.localeUnsub = undefined;
+    }
+
+    // bootstrapRealtime — connect WS singleton sau khi đã setTokens + có ít
+    // nhất 1 character. Idempotent (wsClient.connect no-op khi đã open).
+    private bootstrapRealtime() {
+        bootstrapRealtimeForGameEntry(this);
     }
 
     // applyTranslations walk DOM cây auth form replace data-i18n elements.
@@ -163,15 +170,16 @@ export class AuthScene extends Phaser.Scene {
             if (this.statusText?.active) this.statusText.setText(t('character.bootstrap.checking')).setColor('#aaaaaa');
             const list = await charactersAPI.list();
             const max = list.max_characters_per_user ?? 1;
-            
+
             if (this.statusText?.active) this.statusText.setText('');
-            
+
             if (list.characters.length === 0) {
                 localStorage.removeItem(FIRST_MAP_ONBOARDING_DONE_KEY);
                 this.scene.start('CharacterCreateScene');
                 return;
             }
             saveCurrentCharacter(list.characters[0]);
+            this.bootstrapRealtime();
 
             const onboardingDone = localStorage.getItem(FIRST_MAP_ONBOARDING_DONE_KEY) === 'true';
             if (!onboardingDone) {

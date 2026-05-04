@@ -1,42 +1,10 @@
 import * as Phaser from 'phaser';
-import { WebSocketClient } from '../../network/WebSocketClient';
+import { wsClient } from '../../network/WebSocketClient';
 import { getCurrentCharacter } from '../playerSession';
-
-function normalizeWsBase(rawBase: string): string {
-    const trimmed = rawBase.trim();
-    const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)
-        ? trimmed
-        : `${window.location.protocol}//${trimmed}`;
-    const url = new URL(withProtocol);
-
-    if (url.protocol === 'http:') url.protocol = 'ws:';
-    if (url.protocol === 'https:') url.protocol = 'wss:';
-
-    // Browser chay tren HTTPS thi khong nen mo ws:// (mixed/insecure).
-    if (window.location.protocol === 'https:' && url.protocol === 'ws:') {
-        url.protocol = 'wss:';
-    }
-
-    // Render thuong expose qua 443, port 8080 hay bi fail tu browser public.
-    if (url.hostname.endsWith('.onrender.com') && url.port === '8080') {
-        url.port = '';
-    }
-
-    return `${url.protocol}//${url.host}`;
-}
-
-function buildWsUrl(token: string): string {
-    const envWsBase = String(import.meta.env.VITE_WS_BASE_URL || '').trim();
-    const envApiBase = String(import.meta.env.VITE_API_BASE_URL || '').trim();
-    const base = envWsBase || envApiBase || window.location.origin;
-    const normalizedBase = normalizeWsBase(base);
-    return `${normalizedBase}/ws?token=${encodeURIComponent(token)}`;
-}
 
 export class MainScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private wsClient!: WebSocketClient;
     private lastSentPosition = { x: 0, y: 0 };
     private worldGrid?: Phaser.GameObjects.Grid;
 
@@ -50,10 +18,11 @@ export class MainScene extends Phaser.Scene {
             this.scene.start('AuthScene');
             return;
         }
-
-        const wsUrl = buildWsUrl(token);
-        this.wsClient = new WebSocketClient(wsUrl);
-        this.wsClient.connect();
+        // WS singleton — connect ở AuthScene sau login. Scene fallback chỉ
+        // ensure đã có connection (idempotent).
+        if (wsClient.getState() === 'idle' || wsClient.getState() === 'closed') {
+            // Caller (AuthScene) thường đã connect. Skip — tránh thiếu callbacks.
+        }
     }
 
     preload() {
@@ -140,7 +109,8 @@ export class MainScene extends Phaser.Scene {
         );
 
         if (dist > 1) { // Threshold to prevent spamming
-            this.wsClient.sendPosition(Math.round(this.player.x), Math.round(this.player.y));
+            // MainScene là fallback scene (no map_id) — không gửi move qua WS
+            // (BE sẽ reject not_in_map). Update local state only.
             this.lastSentPosition.x = this.player.x;
             this.lastSentPosition.y = this.player.y;
         }

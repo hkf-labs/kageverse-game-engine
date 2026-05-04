@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI } from '../../network/api';
 import { validateDisplayName } from '../../lib/validation';
 import { saveCurrentCharacter } from '../playerSession';
+import { bootstrapRealtimeForGameEntry } from '../realtimeBootstrap';
 import { applyDomTranslations, onLocaleChange, t } from '../../i18n';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
@@ -133,6 +134,11 @@ export class CharacterCreateScene extends Phaser.Scene {
             saveCurrentCharacter(created.character);
             localStorage.setItem(FIRST_MAP_ONBOARDING_DONE_KEY, 'false');
             this.statusText?.setText('');
+            // Bootstrap WS realtime trước khi vào game scene đầu — nếu thiếu
+            // chỗ này, user mới sẽ KHÔNG connect WS và không nhìn / hiện cho
+            // player khác trong map (presence broadcast yêu cầu cả 2 đều
+            // join_map qua WS).
+            bootstrapRealtimeForGameEntry(this);
             this.scene.start('VillageScene');
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : t('character.create.failed');

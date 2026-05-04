@@ -1,9 +1,10 @@
 import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
+import { disconnectRealtime, wsClient } from '../../network/realtime';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, SettingsModal, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -36,6 +37,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected skillHotbar!: SkillHotbar;
     protected settingsModal!: SettingsModal;
     protected portals: Portal[] = [];
+    protected remotePlayers!: RemotePlayerManager;
     private autoAttackEnabled = false;
     private lastEnterAt = 0;
     private readonly DOUBLE_TAP_MS = 1500;
@@ -44,10 +46,20 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private escKey?: Phaser.Input.Keyboard.Key;
     private questKey?: Phaser.Input.Keyboard.Key;
     private lastKnownLevel = 1;
+    private lastKnownExp = { exp: 0, expToNext: 1 };
     private lastKnownStats = { max_hp: 100, max_mp: 50 };
     private positionSaveTimer?: number;
     private beforeUnloadHandler?: () => void;
     private readonly POSITION_SAVE_INTERVAL_MS = 30_000;
+
+    // Realtime WS — danh sách unsubscribe trả về từ wsClient.events.on(...).
+    // Cleanup ở shutdown để không leak listener qua scene transitions.
+    private rtUnsubs: Array<() => void> = [];
+    private rtMoveSendThrottleAt = 0;
+    private rtLastSentPos = { x: 0, y: 0, dir: 'right' as 'left' | 'right' };
+    private rtJoined = false;
+    private readonly RT_MOVE_THROTTLE_MS = 33; // ~30 Hz cap
+    private readonly RT_MOVE_DELTA_PX = 1; // Send only when meaningful move
 
     constructor(sceneKey: string) {
         super(sceneKey);
@@ -338,13 +350,20 @@ export abstract class BaseMapScene extends Phaser.Scene {
             }).setOrigin(0.5).setScrollFactor(0);
         }
 
+        // Remote players — render player khác trong map. Tạo trước
+        // setupRealtimeListeners để snapshot/joined event có target để gọi.
+        this.remotePlayers = new RemotePlayerManager(this);
+        this.remotePlayers.create();
+
         void this.loadInitialCharacterState();
         this.startPositionAutosave();
+        this.setupRealtimeListeners();
 
         // Scene shutdown (portal / scene.start) → destroy DOM overlays để không
         // tích tụ qua mỗi lần chuyển map. Phaser tự cleanup GameObjects nhưng
         // <div> append vào canvas parent thì phải tự xoá.
         this.events.once('shutdown', () => {
+            this.teardownRealtimeListeners();
             this.questTracker?.destroy();
             this.questLog?.destroy();
             this.equipment?.destroy();
@@ -357,9 +376,147 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.chat?.destroy();
             this.deathMenu?.destroy();
             this.targetFrame?.destroy();
+            this.remotePlayers?.destroy();
         });
 
         this.onMapReady();
+    }
+
+    // ---- Realtime ----------------------------------------------------------
+
+    // setupRealtimeListeners subscribe tới WS event sau khi scene mount xong.
+    // Personal channel (char_stats / char_level_up / snapshot_position) cập
+    // nhật HUD; map room (map_snapshot / player_joined / player_moved /
+    // player_left) update RemotePlayerManager.
+    //
+    // Gửi join_map ngay; server sẽ trả map_snapshot. Nếu WS chưa open, send()
+    // queue lại — flush khi onopen.
+    private setupRealtimeListeners(): void {
+        const character = getCurrentCharacter();
+        if (!character) return;
+        this.remotePlayers.setOwnCharacterID(character.id);
+
+        // F1 — char_stats: HP/MP/EXP update từ use_item, retaliation, respawn,
+        // level_up. Reuse hud.setStats với cached level.
+        this.rtUnsubs.push(
+            wsClient.events.on('char_stats', (p) => {
+                const exp = p.exp ?? this.lastKnownExp.exp;
+                const expNext = p.exp_to_next_level ?? this.lastKnownExp.expToNext;
+                if (p.exp !== undefined) this.lastKnownExp.exp = p.exp;
+                if (p.exp_to_next_level !== undefined) this.lastKnownExp.expToNext = p.exp_to_next_level;
+                this.lastKnownStats.max_hp = p.max_hp;
+                this.lastKnownStats.max_mp = p.max_mp;
+                this.hud.setStats({
+                    current_hp: p.current_hp,
+                    max_hp: p.max_hp,
+                    current_mp: p.current_mp,
+                    max_mp: p.max_mp,
+                    level: this.lastKnownLevel,
+                });
+                if (expNext > 0) this.hud.setExpPercent((exp / expNext) * 100);
+            }),
+        );
+
+        // F2 — char_level_up: cascade. Update level cache + HUD + show banner.
+        this.rtUnsubs.push(
+            wsClient.events.on('char_level_up', (p) => {
+                this.lastKnownLevel = p.to_level;
+                this.lastKnownStats.max_hp = p.new_max_hp;
+                this.lastKnownStats.max_mp = p.new_max_mp;
+                this.hud.setStats({
+                    current_hp: p.current_hp,
+                    max_hp: p.new_max_hp,
+                    current_mp: p.current_mp,
+                    max_mp: p.new_max_mp,
+                    level: p.to_level,
+                });
+                this.showLevelUpBanner(p.from_level, p.to_level);
+            }),
+        );
+
+        // Snapshot position — server reject move (out_of_bounds / max_speed) → rollback.
+        this.rtUnsubs.push(
+            wsClient.events.on('snapshot_position', (p) => {
+                const player = this.playerCtrl?.getPlayer();
+                if (player) player.setPosition(p.x, p.y);
+                this.rtLastSentPos = { x: p.x, y: p.y, dir: this.rtLastSentPos.dir };
+            }),
+        );
+
+        // F3 — map presence.
+        this.rtUnsubs.push(
+            wsClient.events.on('map_snapshot', (p) => {
+                this.remotePlayers.applySnapshot(p);
+            }),
+        );
+        this.rtUnsubs.push(
+            wsClient.events.on('player_joined', (p) => {
+                this.remotePlayers.addPlayer(p);
+            }),
+        );
+        this.rtUnsubs.push(
+            wsClient.events.on('player_moved', (p) => {
+                this.remotePlayers.updatePosition(p);
+            }),
+        );
+        this.rtUnsubs.push(
+            wsClient.events.on('player_left', (p) => {
+                this.remotePlayers.handleLeft(p);
+            }),
+        );
+
+        // sendJoinMap lùi tới khi loadInitialCharacterState restore xong
+        // position. Listeners đã sẵn sàng → nếu BE đẩy event sớm vẫn nhận.
+    }
+
+    private teardownRealtimeListeners(): void {
+        for (const unsub of this.rtUnsubs) {
+            try { unsub(); } catch { /* ignore */ }
+        }
+        this.rtUnsubs = [];
+        if (this.rtJoined) {
+            wsClient.send({ t: 'leave_map', p: {} });
+            this.rtJoined = false;
+        }
+    }
+
+    private sendJoinMap(): void {
+        const cfg = this.getMapConfig();
+        const player = this.playerCtrl?.getPlayer();
+        if (!player) return;
+        const x = player.x;
+        const y = player.y;
+        const dir = this.rtLastSentPos.dir;
+        wsClient.send({
+            t: 'join_map',
+            p: { map_id: cfg.mapId, x, y, dir },
+        });
+        this.rtLastSentPos = { x, y, dir };
+        this.rtJoined = true;
+    }
+
+    // sendMoveIfNeeded gọi từ scene.update() — throttle 30 Hz + delta check.
+    // Direction infer từ player velocity (chuyển facing).
+    private sendMoveIfNeeded(): void {
+        if (!this.rtJoined) return;
+        const player = this.playerCtrl?.getPlayer();
+        if (!player) return;
+        const now = performance.now();
+        if (now - this.rtMoveSendThrottleAt < this.RT_MOVE_THROTTLE_MS) return;
+        const x = player.x;
+        const y = player.y;
+        const dx = x - this.rtLastSentPos.x;
+        const dy = y - this.rtLastSentPos.y;
+        // Detect direction từ velocity X (nếu đang đứng yên giữ dir cũ).
+        const vx = player.body?.velocity.x ?? 0;
+        let dir: 'left' | 'right' = this.rtLastSentPos.dir;
+        if (vx < -1) dir = 'left';
+        else if (vx > 1) dir = 'right';
+        const dirChanged = dir !== this.rtLastSentPos.dir;
+        if (Math.abs(dx) < this.RT_MOVE_DELTA_PX && Math.abs(dy) < this.RT_MOVE_DELTA_PX && !dirChanged) return;
+        wsClient.send({ t: 'move', p: { x, y, dir } });
+        this.rtLastSentPos = { x, y, dir };
+        this.rtMoveSendThrottleAt = now;
     }
 
     /**
@@ -472,6 +629,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     player.setPosition(c.last_pos_x, c.last_pos_y);
                 }
             }
+
+            // Cache exp baseline cho char_stats (BE chỉ gửi exp khi reason
+            // đụng EXP — use_item / respawn không gửi, FE giữ value cũ).
+            this.lastKnownExp.exp = c.exp;
+            this.lastKnownExp.expToNext = c.exp_to_next_level || 1;
+
+            // Position đã restore → giờ mới send join_map cho BE biết vị trí
+            // chính xác. Nếu fail trước đây (race) BE không broadcast presence
+            // tới player khác; sau load này thì OK.
+            this.sendJoinMap();
 
             // Portal lock theo unlocked_maps: portal đến map đã unlock → mở khoá;
             // chưa unlock → khoá kèm message gợi quest. Note: scene config có thể
@@ -622,9 +789,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
 
         this.playerCtrl.update();
+        this.remotePlayers?.update();
+        this.sendMoveIfNeeded();
     }
 
     private handleLogout(): void {
+        disconnectRealtime();
         logout();
         this.scene.start('AuthScene');
     }

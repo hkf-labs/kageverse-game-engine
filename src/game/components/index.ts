@@ -24,6 +24,7 @@ export type { CharacterAppearance } from './PlayerController';
 export { Portal } from './Portal';
 export { QuestLogPanel, questDisplayName, targetDisplayName } from './QuestLogPanel';
 export { QuestTracker } from './QuestTracker';
+export { RemotePlayerManager } from './RemotePlayerManager';
 export { SettingsModal } from './SettingsModal';
 export { ShopModal } from './ShopModal';
 export { SkillHotbar } from './SkillHotbar';

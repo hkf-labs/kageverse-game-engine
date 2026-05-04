@@ -29,20 +29,23 @@ export const DEFAULT_CHARACTER_APPEARANCE_ASSETS: Record<string, string> = {
 // head 84×76 → top 88×44 → bottom 60×32. Overlap 10px ở mỗi seam (head↔body
 // và body↔legs) — hair / chin gối lên collar gi, belt knot gối lên waistband.
 // Edge-to-edge stack lộ vệt nền do alpha falloff ở mép từng part.
-const HEAD_OFFSET_Y = -39;
-const TOP_OFFSET_Y = 11;
-const BOTTOM_OFFSET_Y = 39;
+//
+// Export để RemotePlayerManager tái dùng cùng layout — đảm bảo player local
+// và remote render đồng nhất, không lệch khi tương lai mặc đồ khác.
+export const HEAD_OFFSET_Y = -39;
+export const TOP_OFFSET_Y = 11;
+export const BOTTOM_OFFSET_Y = 39;
 // Bù lệch ngang cho từng part — art body bị lệch trục so với head/legs nên
 // shift phải vài pixel để ngực thẳng cột với đầu + chân.
-const HEAD_OFFSET_X = 5;
-const TOP_OFFSET_X = 3;
-const BOTTOM_OFFSET_X = 0;
+export const HEAD_OFFSET_X = 5;
+export const TOP_OFFSET_X = 3;
+export const BOTTOM_OFFSET_X = 0;
 // Scale toàn body container — chỉnh chỗ này để phóng to / thu nhỏ nhân vật.
 // Scale tác động lên cả offset → seam vẫn khớp ở mọi giá trị.
-const BODY_SCALE = 1;
+export const BODY_SCALE = 1;
 // Name text không thuộc container nên không tự scale — derive Y từ head top
 // (-39 - 38 = -77 local) để name luôn cách đỉnh đầu 13px ở mọi BODY_SCALE.
-const NAME_OFFSET_Y = (HEAD_OFFSET_Y - 38) * BODY_SCALE - 13;
+export const NAME_OFFSET_Y = (HEAD_OFFSET_Y - 38) * BODY_SCALE - 13;
 
 export class PlayerController implements GameComponent {
     private player?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;

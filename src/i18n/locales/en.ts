@@ -635,4 +635,10 @@ export const en: TranslationTable = {
     'character.create.submit': 'Begin Journey',
     'character.create.in_progress': 'Creating character...',
     'character.create.failed': 'Failed to create character',
+
+    // Realtime
+    'realtime.error.session_replaced': 'Your account is logged in on another device. You have been disconnected.',
+    'realtime.error.map_locked': 'This map is locked.',
+    'realtime.error.out_of_bounds': 'Position out of map bounds.',
+    'realtime.error.max_speed_exceeded': 'Moving too fast — resyncing position.',
 };
