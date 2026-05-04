@@ -343,6 +343,7 @@ export type InventoryItemDTO = {
     amount: number;
     max_stack: number;
     upgrade_level: number;
+    upgrade_category: 'weapon' | 'jewelry' | 'apparel' | null;
     durability: number | null;
     is_bound: boolean;
     is_equipped: boolean;
@@ -1023,5 +1024,63 @@ export const skillAPI = {
             throw new Error(`${formatApiError(resData, 'Gán slot thất bại')} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as AssignSlotsResponse;
+    },
+};
+
+// ----- Equipment Upgrade (Hoshi) -----
+
+export type EnchantStatBonus = {
+    atk: number;
+    def: number;
+    hp: number;
+    mp: number;
+};
+
+export type UpgradeEquipmentResponse = {
+    user_item_id: string;
+    item_template_id: string;
+    old_enchant_level: number;
+    new_enchant_level: number;
+    stones_consumed: number;
+    yen_consumed: number;
+    hidden_tier_unlock: number;
+    new_bonus: EnchantStatBonus;
+};
+
+export type ExtractEquipmentResponse = {
+    user_item_id: string;
+    item_template_id: string;
+    old_enchant_level: number;
+    new_enchant_level: number;
+    stones_refunded: number;
+    yen_refunded: number;
+    hidden_tiers_lost: number[];
+};
+
+export const equipmentUpgradeAPI = {
+    async upgrade(characterId: string, userItemId: string): Promise<UpgradeEquipmentResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/equipment/upgrade`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_item_id: userItemId }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Cường hoá thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as UpgradeEquipmentResponse;
+    },
+
+    async extract(characterId: string, userItemId: string): Promise<ExtractEquipmentResponse> {
+        const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/equipment/extract`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_item_id: userItemId }),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, 'Tách trang bị thất bại')} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as ExtractEquipmentResponse;
     },
 };

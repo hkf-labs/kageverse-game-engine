@@ -8,6 +8,7 @@ export { DeathMenu } from './DeathMenu';
 export type { DeathChoice } from './DeathMenu';
 export { EquipmentModal } from './EquipmentModal';
 export { GameControls } from './GameControls';
+export { HoshiUpgradeModal } from './HoshiUpgradeModal';
 export { HUD } from './HUD';
 export { InventoryModal } from './InventoryModal';
 export { MapBackground } from './MapBackground';

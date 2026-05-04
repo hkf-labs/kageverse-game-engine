@@ -4,6 +4,7 @@ import { getCurrentCharacter } from '../playerSession';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
+import type { HoshiUpgradeModal } from './HoshiUpgradeModal';
 import type { MapBackground } from './MapBackground';
 import type { NpcChatBubble } from './NpcChatBubble';
 import { questDisplayName } from './QuestLogPanel';
@@ -69,6 +70,7 @@ export class NpcManager implements GameComponent {
     private shopModal?: ShopModal;
     private chatBubble?: NpcChatBubble;
     private questLog?: QuestLogPanel;
+    private hoshiUpgradeModal?: HoshiUpgradeModal;
     private onStatusMessage?: (text: string, color: string) => void;
     private onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
     private onLevelUp?: (levelUp: LevelUpDTO) => void;
@@ -87,6 +89,7 @@ export class NpcManager implements GameComponent {
             shopModal?: ShopModal;
             chatBubble?: NpcChatBubble;
             questLog?: QuestLogPanel;
+            hoshiUpgradeModal?: HoshiUpgradeModal;
             onStatusMessage?: (text: string, color: string) => void;
             onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
             onLevelUp?: (levelUp: LevelUpDTO) => void;
@@ -100,6 +103,7 @@ export class NpcManager implements GameComponent {
         this.shopModal = deps?.shopModal;
         this.chatBubble = deps?.chatBubble;
         this.questLog = deps?.questLog;
+        this.hoshiUpgradeModal = deps?.hoshiUpgradeModal;
         this.onStatusMessage = deps?.onStatusMessage;
         this.onQuestRewarded = deps?.onQuestRewarded;
         this.onLevelUp = deps?.onLevelUp;
@@ -454,6 +458,12 @@ export class NpcManager implements GameComponent {
                 }
                 break;
             case 'upgrade_equipment':
+                if (this.hoshiUpgradeModal) {
+                    this.hoshiUpgradeModal.open();
+                } else {
+                    this.onStatusMessage?.('Tinh luyện sư chưa sẵn sàng.', '#aaaaaa');
+                }
+                break;
             case 'open_stash':
                 this.onStatusMessage?.(`Chức năng "${ACTION_LABEL_VI[action] || action}" sắp ra mắt.`, '#aaaaaa');
                 break;

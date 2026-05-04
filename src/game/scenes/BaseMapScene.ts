@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { charactersAPI, logout } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import {
-    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EquipmentModal, GameControls, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -27,6 +27,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected questLog!: QuestLogPanel;
     protected questTracker!: QuestTracker;
     protected equipment!: EquipmentModal;
+    protected hoshiUpgradeModal!: HoshiUpgradeModal;
     protected characterInfo!: CharacterInfoModal;
     protected skillModal!: SkillModal;
     protected skillHotbar!: SkillHotbar;
@@ -127,6 +128,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.questTracker = new QuestTracker(this, () => this.questLog.open());
         this.questTracker.create();
 
+        // Hoshi cường hoá modal — wired vào NPC action 'upgrade_equipment'.
+        // onUpgraded refresh quest log để Q13 item_upgraded objective tăng tiến độ.
+        this.hoshiUpgradeModal = new HoshiUpgradeModal(this, {
+            onUpgraded: () => void this.questLog?.refresh(),
+        });
+        this.hoshiUpgradeModal.create();
+
         // NPC
         this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), {
             mapId: cfg.mapId,
@@ -134,6 +142,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             shopModal: this.shop,
             chatBubble: this.npcChatBubble,
             questLog: this.questLog,
+            hoshiUpgradeModal: this.hoshiUpgradeModal,
             onStatusMessage: (text, color) => this.hud.setStatus(text, color),
             onQuestRewarded: (questName, rewards) => this.showQuestRewardFloater(questName, rewards),
             onLevelUp: (levelUp) => this.applyLevelUp(levelUp),
