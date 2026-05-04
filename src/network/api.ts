@@ -625,6 +625,10 @@ export type AcceptQuestResponse = { quest: QuestDTO };
 export type TurnInQuestResponse = {
     quest: QuestDTO;
     granted_rewards: QuestRewardsDTO;
+    // Set khi grant_xp / rewards.exp khiến cascade level up. FE consume để
+    // update HUD + show banner mà không phải re-fetch character. Mirror combat
+    // AttackResponse.level_up shape.
+    level_up?: LevelUpDTO;
 };
 
 export type NpcQuestListsDTO = {

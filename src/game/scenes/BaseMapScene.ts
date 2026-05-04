@@ -136,6 +136,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             questLog: this.questLog,
             onStatusMessage: (text, color) => this.hud.setStatus(text, color),
             onQuestRewarded: (questName, rewards) => this.showQuestRewardFloater(questName, rewards),
+            onLevelUp: (levelUp) => this.applyLevelUp(levelUp),
         });
         this.npcs.create();
         this.npcs.setPlayerPositionGetter(() => {
@@ -618,6 +619,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.showLevelUpBanner(res.level_up.from_level, res.level_up.to_level);
         }
         if (res.xp_gained > 0) this.showXPFloater(res.xp_gained);
+        // Note: applyLevelUp() là path tương đương cho quest reward XP — combat
+        // path tự xử lý ở trên vì AttackResponse có thêm character_current_hp/mp
+        // (không heal-full). Quest turn-in luôn heal-full khi level up nên dùng
+        // helper riêng.
         if (res.character_exp_to_next_level > 0) {
             this.hud.setExpPercent((res.character_exp / res.character_exp_to_next_level) * 100);
         }
@@ -646,6 +651,26 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (dead || currentHP <= 0) {
             this.handleDeath();
         }
+    }
+
+    /**
+     * Apply level-up từ quest turn-in path. Quest reward XP heal-full HP/MP
+     * (xem BE quest/infrastructure/repository/actions.go grantXP) → HUD reflect
+     * max + show banner. Khác combat path: combat trả character_current_hp riêng
+     * (có thể không = max nếu vừa bị retaliate), nên combat tự handle.
+     */
+    private applyLevelUp(levelUp: import('../../network/api').LevelUpDTO): void {
+        this.lastKnownStats.max_hp = levelUp.new_max_hp;
+        this.lastKnownStats.max_mp = levelUp.new_max_mp;
+        this.lastKnownLevel = levelUp.to_level;
+        this.hud.setStats({
+            current_hp: levelUp.new_max_hp,
+            max_hp: levelUp.new_max_hp,
+            current_mp: levelUp.new_max_mp,
+            max_mp: levelUp.new_max_mp,
+            level: levelUp.to_level,
+        });
+        this.showLevelUpBanner(levelUp.from_level, levelUp.to_level);
     }
 
     private showRetaliationFloater(damage: number): void {

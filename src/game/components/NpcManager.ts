@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { npcAPI, questAPI, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
+import { npcAPI, questAPI, type LevelUpDTO, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
@@ -71,6 +71,7 @@ export class NpcManager implements GameComponent {
     private questLog?: QuestLogPanel;
     private onStatusMessage?: (text: string, color: string) => void;
     private onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
+    private onLevelUp?: (levelUp: LevelUpDTO) => void;
     private dialogueKeyByTemplate = new Map<string, string | null>();
     private teleportDestinations: TeleportDestinationDTO[] = [];
     private offeredQuestIDs: string[] = [];
@@ -88,6 +89,7 @@ export class NpcManager implements GameComponent {
             questLog?: QuestLogPanel;
             onStatusMessage?: (text: string, color: string) => void;
             onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
+            onLevelUp?: (levelUp: LevelUpDTO) => void;
         },
     ) {
         this.scene = scene;
@@ -100,6 +102,7 @@ export class NpcManager implements GameComponent {
         this.questLog = deps?.questLog;
         this.onStatusMessage = deps?.onStatusMessage;
         this.onQuestRewarded = deps?.onQuestRewarded;
+        this.onLevelUp = deps?.onLevelUp;
     }
 
     create(): void {
@@ -486,6 +489,12 @@ export class NpcManager implements GameComponent {
             .then((res) => {
                 const questName = questDisplayName(res.quest.name_key);
                 this.onQuestRewarded?.(questName, res.granted_rewards);
+                // Quest reward XP có thể trigger cascade level up. BE trả level_up
+                // DTO (mirror combat shape) → scene update HUD + show banner mà
+                // không cần re-fetch GET /characters.
+                if (res.level_up) {
+                    this.onLevelUp?.(res.level_up);
+                }
                 void this.questLog?.refresh();
             })
             .catch((err) => {
