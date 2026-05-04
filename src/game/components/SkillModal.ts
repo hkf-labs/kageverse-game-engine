@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { skillAPI, type SkillDTO, type ListSkillsResponse } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { onLocaleChange, t } from '../../i18n';
 import type { GameComponent } from './types';
 
 // Tên VN cho skill — placeholder cho i18n module sau này.
@@ -106,10 +107,10 @@ function skillIconURL(skillID: string): string | null {
     return `/assets/game/skills/icon_${skillID.replace('.', '_')}.png`;
 }
 
-const TYPE_LABEL_VI: Record<string, string> = {
-    active_attack: 'Chủ động — tấn công',
-    active_buff: 'Chủ động — hỗ trợ',
-    passive: 'Bị động',
+const TYPE_KEY: Record<string, string> = {
+    active_attack: 'skill.type_active_attack',
+    active_buff: 'skill.type_active_buff',
+    passive: 'skill.type_passive',
 };
 
 function skillName(key: string): string { return SKILL_NAME_VI[key] ?? key; }
@@ -155,6 +156,9 @@ export class SkillModal implements GameComponent {
     private board?: ListSkillsResponse;
     private selectedSkillID: string | null = null;
     private onSlotsChanged?: (slots: (string | null)[]) => void;
+    private titleEl?: HTMLDivElement;
+    private spLabelEl?: HTMLSpanElement;
+    private localeUnsub?: () => void;
 
     constructor(scene: Phaser.Scene, opts?: { onSlotsChanged?: (slots: (string | null)[]) => void }) {
         this.scene = scene;
@@ -199,17 +203,19 @@ export class SkillModal implements GameComponent {
         header.style.cssText = 'display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;';
         header.innerHTML =
             `<div style="width:34px;text-align:center;color:#7a5a3a;cursor:not-allowed;font-size:16px;padding:8px 0;user-select:none;">◄</div>`
-            + `<div style="flex:1;text-align:center;padding:8px 0;font-size:14px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">KỸ NĂNG</div>`
+            + `<div data-title style="flex:1;text-align:center;padding:8px 0;font-size:14px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">${escapeHtml(t('skill.modal.title'))}</div>`
             + `<div style="width:34px;text-align:center;color:#7a5a3a;cursor:not-allowed;font-size:16px;padding:8px 0;user-select:none;">►</div>`
             + `<div data-close style="width:36px;text-align:center;cursor:pointer;font-size:16px;font-weight:bold;color:#ff8a8a;padding:8px 0;flex-shrink:0;">✕</div>`;
         root.appendChild(header);
+        this.titleEl = header.querySelector('[data-title]') as HTMLDivElement;
 
         // SP counter row.
         const spRow = document.createElement('div');
         spRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(45,26,10,0.6);border-bottom:1px solid #4d2d13;font-size:13px;';
-        spRow.innerHTML = `<span style="color:#a89070;">Điểm kỹ năng:</span> <span data-sp style="color:#bdf0a0;font-weight:bold;">—</span>`;
+        spRow.innerHTML = `<span data-sp-label style="color:#a89070;">${escapeHtml(t('skill.modal.sp_label'))}</span> <span data-sp style="color:#bdf0a0;font-weight:bold;">—</span>`;
         root.appendChild(spRow);
         this.spEl = spRow.querySelector('[data-sp]') as HTMLDivElement;
+        this.spLabelEl = spRow.querySelector('[data-sp-label]') as HTMLSpanElement;
 
         // Icon strip — horizontal scroll.
         const strip = document.createElement('div');
@@ -248,11 +254,20 @@ export class SkillModal implements GameComponent {
         this.statusEl = status;
 
         (header.querySelector('[data-close]') as HTMLDivElement).addEventListener('click', () => this.close());
+
+        // Re-render text khi locale đổi runtime.
+        this.localeUnsub = onLocaleChange(() => {
+            if (this.titleEl) this.titleEl.textContent = t('skill.modal.title');
+            if (this.spLabelEl) this.spLabelEl.textContent = t('skill.modal.sp_label');
+            this.render();
+        });
     }
 
     destroy(): void {
         this.overlay?.remove();
         this.overlay = undefined;
+        this.localeUnsub?.();
+        this.localeUnsub = undefined;
     }
 
     isOpen(): boolean { return this.visible; }
@@ -278,12 +293,12 @@ export class SkillModal implements GameComponent {
     async refresh(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
-            this.setStatus('Chưa có nhân vật.', '#ff8a8a');
+            this.setStatus(t('skill.modal.error_no_character'), '#ff8a8a');
             return;
         }
         if (this.loading) return;
         this.loading = true;
-        this.setStatus('Đang tải...', '#aaa');
+        this.setStatus(t('skill.modal.loading'), '#aaa');
         try {
             this.board = await skillAPI.list(character.id);
             // Default select: skill đã learned đầu tiên, fallback skill đầu list.
@@ -294,7 +309,7 @@ export class SkillModal implements GameComponent {
             this.render();
             this.setStatus('', '#aaa');
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Lỗi tải kỹ năng';
+            const msg = err instanceof Error ? err.message : t('skill.modal.error_load');
             this.setStatus(msg, '#ff8a8a');
         } finally {
             this.loading = false;
@@ -350,50 +365,70 @@ export class SkillModal implements GameComponent {
         if (!s) return;
 
         const rows: Array<{ label: string; value: string; valueColor?: string }> = [];
-        rows.push({ label: 'Loại', value: TYPE_LABEL_VI[s.skill_type] ?? s.skill_type });
-        rows.push({ label: 'Cấp tối đa', value: String(s.max_skill_level) });
+        const typeKey = TYPE_KEY[s.skill_type];
+        rows.push({ label: t('skill.label_type'), value: typeKey ? t(typeKey) : s.skill_type });
+        rows.push({ label: t('skill.label_max_level'), value: String(s.max_skill_level) });
         if (s.learned) {
-            rows.push({ label: 'Cấp hiện tại', value: `Cấp ${s.current_skill_level}`, valueColor: '#bdf0a0' });
+            rows.push({
+                label: t('skill.label_current_level'),
+                value: t('skill.value_current_level', { n: s.current_skill_level }),
+                valueColor: '#bdf0a0',
+            });
         } else {
-            rows.push({ label: 'Trạng thái', value: 'Chưa học', valueColor: '#ff8a8a' });
+            rows.push({ label: t('skill.label_status'), value: t('skill.value_not_learned'), valueColor: '#ff8a8a' });
         }
-        rows.push({ label: 'Yêu cầu', value: `Trình độ cấp ${s.required_level}` });
+        rows.push({
+            label: t('skill.label_requirement'),
+            value: t('skill.value_required_char_level', { n: s.required_level }),
+        });
         if (!s.prerequisites_met && s.missing_prerequisites) {
             for (const p of s.missing_prerequisites) {
                 rows.push({
-                    label: 'Cần kỹ năng',
-                    value: `${skillName(`skill.${p.skill_id.replace('.', '_')}.name`)} cấp ${p.need_level} (hiện ${p.current_level})`,
+                    label: t('skill.label_prerequisite'),
+                    value: t('skill.value_prereq', {
+                        name: skillName(`skill.${p.skill_id.replace('.', '_')}.name`),
+                        need: p.need_level,
+                        cur: p.current_level,
+                    }),
                     valueColor: '#ff8a8a',
                 });
             }
         }
-        if (s.mp_cost > 0) rows.push({ label: 'MP mất', value: String(s.mp_cost) });
-        if (s.cooldown_ms > 0) rows.push({ label: 'Hồi chiêu', value: `${(s.cooldown_ms / 1000).toFixed(1)}s` });
+        if (s.mp_cost > 0) rows.push({ label: t('skill.label_mp_cost'), value: String(s.mp_cost) });
+        if (s.cooldown_ms > 0) {
+            rows.push({
+                label: t('skill.label_cooldown'),
+                value: t('skill.value_cooldown_sec', { n: (s.cooldown_ms / 1000).toFixed(1) }),
+            });
+        }
         if (s.range_px > 0 && s.skill_type !== 'passive') {
-            rows.push({ label: 'Tầm', value: `${s.range_px}px` });
+            rows.push({
+                label: t('skill.label_range'),
+                value: t('skill.value_range_px', { n: s.range_px }),
+            });
         }
         // Show damage_multiplier / atk_bonus stats nếu có.
         if (s.current_stats.damage_multiplier !== undefined) {
             rows.push({
-                label: 'Hệ số sát thương',
-                value: `${(s.current_stats.damage_multiplier * 100).toFixed(0)}%`,
+                label: t('skill.label_damage_multi'),
+                value: t('skill.value_percent', { n: (s.current_stats.damage_multiplier * 100).toFixed(0) }),
                 valueColor: '#ffea7a',
             });
         }
         if (s.current_stats.atk_bonus !== undefined && s.current_stats.atk_bonus > 0) {
             rows.push({
-                label: 'Sát thương cộng thêm',
-                value: `+${s.current_stats.atk_bonus.toFixed(0)}`,
+                label: t('skill.label_atk_bonus'),
+                value: t('skill.value_atk_plus', { n: s.current_stats.atk_bonus.toFixed(0) }),
                 valueColor: '#bdf0a0',
             });
         }
         if (s.next_upgrade) {
             const lockBadge = s.next_upgrade.ready
-                ? `<span style="color:#bdf0a0">Sẵn sàng</span>`
-                : `<span style="color:#ff8a8a">Cần lv ${s.next_upgrade.min_char_level}</span>`;
+                ? `<span style="color:#bdf0a0">${escapeHtml(t('skill.lock_ready'))}</span>`
+                : `<span style="color:#ff8a8a">${escapeHtml(t('skill.lock_need_level', { n: s.next_upgrade.min_char_level }))}</span>`;
             rows.push({
-                label: `Cấp ${s.next_upgrade.to_level}`,
-                value: `${s.next_upgrade.sp_cost} SP — ${lockBadge}`,
+                label: t('skill.label_next_level', { n: s.next_upgrade.to_level }),
+                value: t('skill.value_next_upgrade', { cost: s.next_upgrade.sp_cost, lock: lockBadge }),
             });
         }
 
@@ -422,12 +457,12 @@ export class SkillModal implements GameComponent {
         // Upgrade button.
         const upgradeReady = s.learned && s.next_upgrade?.ready === true;
         const upgradeLabel = !s.learned
-            ? 'Chưa học'
+            ? t('skill.btn_not_learned')
             : !s.upgradable
-                ? 'Không nâng cấp được'
+                ? t('skill.btn_not_upgradable')
                 : !s.next_upgrade
-                    ? 'Đã max'
-                    : `Nâng cấp (${s.next_upgrade.sp_cost} SP)`;
+                    ? t('skill.btn_maxed')
+                    : t('skill.btn_upgrade', { sp: s.next_upgrade.sp_cost });
         const upgradeBtn = this.makeButton(upgradeLabel, '#7a6a2a', '#ffd070', upgradeReady, async () => {
             await this.handleUpgrade(s.skill_id);
         });
@@ -435,7 +470,7 @@ export class SkillModal implements GameComponent {
 
         // Slot dropdown — chỉ active skill.
         if (s.skill_type !== 'passive' && s.learned) {
-            const slotBtn = this.makeButton('Gán slot ▼', '#4a7a3a', '#bdf0a0', true, () => {
+            const slotBtn = this.makeButton(t('skill.btn_assign_slot'), '#4a7a3a', '#bdf0a0', true, () => {
                 this.openSlotPicker(s.skill_id);
             });
             this.actionsEl.appendChild(slotBtn);
@@ -447,13 +482,16 @@ export class SkillModal implements GameComponent {
         const character = getCurrentCharacter();
         if (!character) return;
         this.actionInFlight = true;
-        this.setStatus('Đang nâng cấp...', '#aaa');
+        this.setStatus(t('skill.modal.upgrading'), '#aaa');
         try {
             const res = await skillAPI.upgrade(character.id, skillID);
-            this.setStatus(`Lên cấp ${res.to_level}! Còn ${res.skill_points_remaining} SP.`, '#bdf0a0');
+            this.setStatus(
+                t('skill.modal.upgrade_success', { n: res.to_level, sp: res.skill_points_remaining }),
+                '#bdf0a0',
+            );
             await this.refresh();
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Nâng cấp thất bại';
+            const msg = err instanceof Error ? err.message : t('skill.modal.error_upgrade');
             this.setStatus(msg, '#ff8a8a');
         } finally {
             this.actionInFlight = false;
@@ -470,7 +508,9 @@ export class SkillModal implements GameComponent {
             const cur = slots[i];
             const btn = document.createElement('button');
             btn.textContent = String(i + 1);
-            btn.title = cur ? `Slot ${i + 1}: ${cur}` : `Slot ${i + 1}: trống`;
+            btn.title = cur
+                ? t('skill.slot_filled', { n: i + 1, cur })
+                : t('skill.slot_empty', { n: i + 1 });
             btn.style.cssText = `
                 width:36px;height:36px;border-radius:6px;
                 border:2px solid ${cur === skillID ? '#ffea7a' : '#4a7a3a'};
@@ -501,15 +541,16 @@ export class SkillModal implements GameComponent {
         const newSlots = [...this.board.skill_slots];
         newSlots[slotIndex] = skillID;
         this.actionInFlight = true;
-        this.setStatus(`Đang gán slot ${slotIndex + 1}...`, '#aaa');
+        this.setStatus(t('skill.modal.assigning_slot', { n: slotIndex + 1 }), '#aaa');
         try {
             const res = await skillAPI.assignSlots(character.id, newSlots);
             this.board.skill_slots = res.skill_slots;
-            this.setStatus(`Đã gán ${skillName(this.board.skills.find((sk) => sk.skill_id === skillID)?.name_key ?? skillID)} vào slot ${slotIndex + 1}.`, '#bdf0a0');
+            const name = skillName(this.board.skills.find((sk) => sk.skill_id === skillID)?.name_key ?? skillID);
+            this.setStatus(t('skill.modal.assign_success', { name, n: slotIndex + 1 }), '#bdf0a0');
             this.render();
             this.onSlotsChanged?.(res.skill_slots);
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Gán slot thất bại';
+            const msg = err instanceof Error ? err.message : t('skill.modal.error_assign');
             this.setStatus(msg, '#ff8a8a');
         } finally {
             this.actionInFlight = false;
