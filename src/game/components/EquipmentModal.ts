@@ -47,8 +47,8 @@ const BOTTOM_ROW: SlotDef[] = Array.from({ length: 6 }, (_, i) => ({
     locked: true,
 }));
 
-const PLACEHOLDER_FEMALE = 'assets/game/characters/placeholder-ninja-female.jpg';
-const PLACEHOLDER_MALE = 'assets/game/characters/placeholder-ninja-male.jpg';
+const PLACEHOLDER_FEMALE = 'assets/game/characters/ninja-full-body-female.png';
+const PLACEHOLDER_MALE = 'assets/game/characters/ninja-full-body-male.png';
 
 // Tên VN cho stat trong tooltip (rolled_stats keys khớp `equipment-system.md`).
 const STAT_LABEL_VI: Record<string, string> = {
