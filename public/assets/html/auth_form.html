@@ -10,24 +10,35 @@
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
     box-sizing: border-box;
 ">
+    <!-- Language picker — visible cho cả login/register, override trước khi
+         có user.preferred_language từ BE. Sau register/login response BE sẽ
+         setLocale lại theo preferred_language của user. -->
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 10px;">
+        <label for="auth-locale" data-i18n="auth.language.label" style="color: #bbb;">Ngôn ngữ</label>
+        <select id="auth-locale" style="flex: 1; padding: 6px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box; font-size: 10px;">
+            <option value="vi" data-i18n="auth.language.vi">Tiếng Việt</option>
+            <option value="en" data-i18n="auth.language.en">English</option>
+        </select>
+    </div>
+
     <div id="login-view">
-        <h2 style="text-align: center; font-size: 16px; margin-bottom: 20px;">ACADEMY GATES</h2>
-        <input type="text" name="identifier" placeholder="Username hoặc Email" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
-        <input type="password" name="password" placeholder="Mật khẩu" style="width: 100%; padding: 10px; margin-bottom: 20px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
-        <button id="btn-login" style="width: 100%; padding: 10px; background: #4caf50; color: white; border: none; cursor: pointer; font-weight: bold; margin-bottom: 10px;">VÀO GAME</button>
-        <div style="text-align: center; font-size: 12px; cursor: pointer; color: #888;" id="switch-to-register">Tập sự mới? Đăng ký.</div>
+        <h2 data-i18n="auth.login.title" style="text-align: center; font-size: 16px; margin-bottom: 20px;">CỔNG HỌC VIỆN</h2>
+        <input type="text" name="identifier" data-i18n="auth.login.identifier_placeholder" data-i18n-attr="placeholder" placeholder="Username hoặc Email" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <input type="password" name="password" data-i18n="auth.login.password_placeholder" data-i18n-attr="placeholder" placeholder="Mật khẩu" style="width: 100%; padding: 10px; margin-bottom: 20px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <button id="btn-login" data-i18n="auth.login.submit" style="width: 100%; padding: 10px; background: #4caf50; color: white; border: none; cursor: pointer; font-weight: bold; margin-bottom: 10px;">VÀO GAME</button>
+        <div data-i18n="auth.login.switch_to_register" style="text-align: center; font-size: 12px; cursor: pointer; color: #888;" id="switch-to-register">Tập sự mới? Đăng ký.</div>
     </div>
 
     <div id="register-view" style="display: none;">
-        <h2 style="text-align: center; font-size: 16px; margin-bottom: 20px;">NHẬP HỌC</h2>
-        <input type="text" name="reg-username" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
-        <input type="email" name="reg-email" placeholder="Email" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
-        <input type="password" name="reg-password" placeholder="Mật khẩu (tối thiểu 6)" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
-        <label style="display:block; font-size: 10px; margin-bottom: 4px; color:#bbb;">Quốc gia (server gán ngôn ngữ)</label>
+        <h2 data-i18n="auth.register.title" style="text-align: center; font-size: 16px; margin-bottom: 20px;">NHẬP HỌC</h2>
+        <input type="text" name="reg-username" data-i18n="auth.register.username_placeholder" data-i18n-attr="placeholder" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <input type="email" name="reg-email" data-i18n="auth.register.email_placeholder" data-i18n-attr="placeholder" placeholder="Email" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <input type="password" name="reg-password" data-i18n="auth.register.password_placeholder" data-i18n-attr="placeholder" placeholder="Mật khẩu (tối thiểu 6)" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;" />
+        <label data-i18n="auth.register.country_label" style="display:block; font-size: 10px; margin-bottom: 4px; color:#bbb;">Quốc gia (server gán ngôn ngữ)</label>
         <select name="reg-country-code" id="reg-country-code" style="width: 100%; padding: 10px; margin-bottom: 16px; background: #222; border: 1px solid #444; color: white; box-sizing: border-box;">
-            <option value="">Đang tải...</option>
+            <option value="" data-i18n="auth.register.country_loading">Đang tải...</option>
         </select>
-        <button id="btn-register" style="width: 100%; padding: 10px; background: #2196f3; color: white; border: none; cursor: pointer; font-weight: bold; margin-bottom: 10px;">ĐĂNG KÝ</button>
-        <div style="text-align: center; font-size: 12px; cursor: pointer; color: #888;" id="switch-to-login">Đã có tài khoản? Quay lại cổng.</div>
+        <button id="btn-register" data-i18n="auth.register.submit" style="width: 100%; padding: 10px; background: #2196f3; color: white; border: none; cursor: pointer; font-weight: bold; margin-bottom: 10px;">ĐĂNG KÝ</button>
+        <div data-i18n="auth.register.switch_to_login" style="text-align: center; font-size: 12px; cursor: pointer; color: #888;" id="switch-to-login">Đã có tài khoản? Quay lại cổng.</div>
     </div>
 </div>

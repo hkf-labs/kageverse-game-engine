@@ -2,7 +2,8 @@ import * as Phaser from 'phaser';
 import { authAPI, charactersAPI, clearTokens, getAccessToken, setTokens } from '../../network/api';
 import { validateLoginIdentifier, validateUsername } from '../../lib/validation';
 import { resolveSceneKeyForMap } from '../maps/registry';
-import { saveCurrentCharacter } from '../playerSession';
+import { saveCurrentCharacter, saveUserPrefs } from '../playerSession';
+import { applyDomTranslations, getLocale, onLocaleChange, setLocale, t } from '../../i18n';
 
 const FIRST_MAP_ONBOARDING_DONE_KEY = 'kageverse_first_map_onboarding_done';
 
@@ -10,6 +11,7 @@ export class AuthScene extends Phaser.Scene {
     private domElement?: Phaser.GameObjects.DOMElement;
     private statusText?: Phaser.GameObjects.Text;
     private countriesLoaded = false;
+    private localeUnsub?: () => void;
 
     constructor() {
         super('AuthScene');
@@ -48,12 +50,46 @@ export class AuthScene extends Phaser.Scene {
                     void this.handleRegister();
                 }
             });
+            this.applyTranslations();
+            this.bindLocalePicker();
+            // Re-apply translations khi locale đổi runtime (vd post-login BE
+            // response setLocale, hoặc user đổi language picker tay).
+            this.localeUnsub = onLocaleChange(() => this.applyTranslations());
         }
 
         this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanup());
+        this.events.once(Phaser.Scenes.Events.DESTROY, () => this.cleanup());
         if (hasSession) {
             void this.bootstrapSession();
         }
+    }
+
+    private cleanup() {
+        this.localeUnsub?.();
+        this.localeUnsub = undefined;
+    }
+
+    // applyTranslations walk DOM cây auth form replace data-i18n elements.
+    // Sync select#auth-locale với locale hiện tại để tránh drift sau setLocale.
+    private applyTranslations() {
+        const root = this.domElement?.node as HTMLElement | undefined;
+        applyDomTranslations(root);
+        const localeSelect = this.domElement?.getChildByID('auth-locale') as HTMLSelectElement | null;
+        if (localeSelect) {
+            localeSelect.value = getLocale();
+        }
+        // Status text re-render nếu đang hiển thị key (best-effort: không track raw key →
+        // chỉ clear nếu locale changed AND text khớp 1 trong các key prompt — skip MVP).
+    }
+
+    private bindLocalePicker() {
+        const select = this.domElement?.getChildByID('auth-locale') as HTMLSelectElement | null;
+        if (!select) return;
+        select.value = getLocale();
+        select.addEventListener('change', () => {
+            setLocale(select.value);
+        });
     }
 
     private async bootstrapSession() {
@@ -61,13 +97,13 @@ export class AuthScene extends Phaser.Scene {
 
         try {
             if (this.statusText?.active) {
-                this.statusText.setText('Đang khôi phục phiên đăng nhập...').setColor('#aaaaaa');
+                this.statusText.setText(t('auth.login.session_restoring')).setColor('#aaaaaa');
             }
             await this.goToGameOrCharacterCreate();
         } catch {
             clearTokens();
             if (this.statusText && this.statusText.active) {
-                this.statusText.setText('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.').setColor('#ff5555');
+                this.statusText.setText(t('auth.login.session_expired')).setColor('#ff5555');
             }
         }
     }
@@ -103,7 +139,7 @@ export class AuthScene extends Phaser.Scene {
         select.innerHTML = '';
         const loading = document.createElement('option');
         loading.value = '';
-        loading.textContent = 'Đang tải danh sách...';
+        loading.textContent = t('common.loading');
         select.appendChild(loading);
 
         try {
@@ -118,6 +154,8 @@ export class AuthScene extends Phaser.Scene {
                 for (const r of rows) {
                     const o = document.createElement('option');
                     o.value = r.country_code;
+                    // Country code + lang code là technical identifiers; không
+                    // dịch — show as-is để user nhìn thấy chính xác giá trị BE.
                     o.textContent = `${r.country_code} — ${r.preferred_language}`;
                     select.appendChild(o);
                 }
@@ -127,7 +165,7 @@ export class AuthScene extends Phaser.Scene {
             select.innerHTML = '';
             const o = document.createElement('option');
             o.value = 'VN';
-            o.textContent = 'VN — vi (offline)';
+            o.textContent = t('auth.register.country_loading_offline', { code: 'VN', lang: 'vi' });
             select.appendChild(o);
             this.countriesLoaded = true;
         }
@@ -135,7 +173,7 @@ export class AuthScene extends Phaser.Scene {
 
     private async goToGameOrCharacterCreate() {
         try {
-            if (this.statusText?.active) this.statusText.setText('Đang kiểm tra nhân vật...').setColor('#aaaaaa');
+            if (this.statusText?.active) this.statusText.setText(t('character.bootstrap.checking')).setColor('#aaaaaa');
             const list = await charactersAPI.list();
             const max = list.max_characters_per_user ?? 1;
             
@@ -179,7 +217,7 @@ export class AuthScene extends Phaser.Scene {
         const password = passwordInput?.value;
 
         if (!identifier || !password) {
-            if (this.statusText?.active) this.statusText.setText('Nhập đủ username/email và mật khẩu.');
+            if (this.statusText?.active) this.statusText.setText(t('auth.login.missing_fields'));
             return;
         }
         const identifierError = validateLoginIdentifier(identifier);
@@ -189,17 +227,29 @@ export class AuthScene extends Phaser.Scene {
         }
 
         try {
-            if (this.statusText?.active) this.statusText.setText('Đang đăng nhập...').setColor('#aaaaaa');
+            if (this.statusText?.active) this.statusText.setText(t('auth.login.in_progress')).setColor('#aaaaaa');
             const response = await authAPI.login({ identifier, password });
 
             if (response.access_token) {
                 setTokens(response.access_token, response.refresh_token);
+                this.applyUserPrefsFromResponse(response.user);
                 await this.goToGameOrCharacterCreate();
             }
         } catch (error: unknown) {
-            const msg = error instanceof Error ? error.message : 'Đăng nhập thất bại';
+            const msg = error instanceof Error ? error.message : t('auth.login.failed');
             if (this.statusText?.active) this.statusText.setText(msg).setColor('#ff5555');
         }
+    }
+
+    // Đọc preferred_language + country_code từ user response BE → persist +
+    // setLocale runtime. Defensive: BE có thể không trả field nếu legacy
+    // user (account cũ tạo trước migration) — fallback to current locale.
+    private applyUserPrefsFromResponse(user: Record<string, unknown> | undefined) {
+        if (!user || typeof user !== 'object') return;
+        const preferredLanguage = typeof user.preferred_language === 'string' ? user.preferred_language : '';
+        const countryCode = typeof user.country_code === 'string' ? user.country_code : undefined;
+        if (!preferredLanguage) return;
+        saveUserPrefs({ preferredLanguage, countryCode });
     }
 
     private async handleRegister() {
@@ -214,7 +264,7 @@ export class AuthScene extends Phaser.Scene {
         const country_code = countrySelect?.value?.trim().toUpperCase();
 
         if (!username || !email || !password) {
-            if (this.statusText?.active) this.statusText.setText('Điền đủ username, email và mật khẩu.');
+            if (this.statusText?.active) this.statusText.setText(t('auth.register.missing_fields'));
             return;
         }
         const usernameError = validateUsername(username);
@@ -223,20 +273,21 @@ export class AuthScene extends Phaser.Scene {
             return;
         }
         if (!country_code) {
-            if (this.statusText?.active) this.statusText.setText('Chọn quốc gia (hoặc đợi tải xong danh sách).');
+            if (this.statusText?.active) this.statusText.setText(t('auth.register.missing_country'));
             return;
         }
 
         try {
-            if (this.statusText?.active) this.statusText.setText('Đang đăng ký...').setColor('#aaaaaa');
+            if (this.statusText?.active) this.statusText.setText(t('auth.register.in_progress')).setColor('#aaaaaa');
             const response = await authAPI.register({ username, email, password, country_code });
 
             if (response.access_token) {
                 setTokens(response.access_token, response.refresh_token);
+                this.applyUserPrefsFromResponse(response.user);
                 await this.goToGameOrCharacterCreate();
             }
         } catch (error: unknown) {
-            const msg = error instanceof Error ? error.message : 'Đăng ký thất bại';
+            const msg = error instanceof Error ? error.message : t('auth.register.failed');
             if (this.statusText?.active) this.statusText.setText(msg).setColor('#ff5555');
         }
     }
