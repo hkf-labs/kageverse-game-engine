@@ -3,20 +3,6 @@ import type { MonsterInstanceDTO } from '../../network/api';
 import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
-// Monster names — content translation, defer iteration sau (cùng pattern
-// QUEST_NAME_VI / SKILL_NAME_VI). Khi mở rộng → namespace `monster.<id>.name`.
-const MONSTER_NAME_VI: Record<string, string> = {
-    turtle_gold: 'Rùa Vàng',
-    slime_white: 'Slime Trắng',
-    mist_sprite: 'Tinh Sương',
-    goblin_wanderer: 'Goblin Lưu Lạc',
-    stone_beetle: 'Bọ Đá',
-    field_rat: 'Chuột Đồng',
-    night_crow: 'Quạ Đêm',
-    night_wolf: 'Sói Đêm',
-    shadow_owl: 'Cú Bóng',
-};
-
 // Grade label resolve qua i18n key — normal trả empty (suffix optional).
 const GRADE_KEY: Record<string, string> = {
     elite: 'monster.grade.elite',
@@ -198,7 +184,11 @@ export class MonsterTargetFrame implements GameComponent {
 }
 
 function monsterDisplayName(templateId: string, _nameKey: string): string {
-    return MONSTER_NAME_VI[templateId] ?? templateId;
+    // Resolve qua i18n key `monster.name.<id>`. Missing → t() trả raw key →
+    // fallback xuống raw template_id (cũng visible cho dev / placeholder).
+    const i18nKey = `monster.name.${templateId}`;
+    const localized = t(i18nKey);
+    return localized === i18nKey ? templateId : localized;
 }
 
 function formatNum(n: number): string {

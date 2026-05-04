@@ -8,17 +8,6 @@ import type { GameComponent } from './types';
 // nhắm (mọi grade), BossHPBar chỉ hiện khi engage boss-grade — gây cảm giác
 // "đại chiến". Q17 mq_first_trial dùng cho Kage Tinh Khôi (lv 20 leader).
 
-// Boss/monster names — content translation, defer iteration sau (cùng pattern
-// MonsterTargetFrame). Khi mở rộng → namespace `monster.<id>.name`.
-const MONSTER_NAME_VI: Record<string, string> = {
-    kage_pristine: 'Kage Tinh Khôi',
-    living_stone_iwagumo: 'Đá Sống Iwagumo',
-    striped_tiger: 'Hổ Vằn',
-    shadow_crow: 'Quạ Bóng',
-    mountain_bear: 'Gấu Núi',
-    flame_sprite: 'Tinh Hỏa',
-};
-
 const GRADE_KEY: Record<string, string> = {
     leader: 'monster.grade.leader',
     world_boss: 'monster.grade.world_boss',
@@ -90,7 +79,11 @@ export class BossHPBar implements GameComponent {
         this.currentInstanceId = m.instance_id;
         this.currentMaxHP = m.max_hp;
         this.currentHP = m.current_hp;
-        const name = MONSTER_NAME_VI[m.template_id] ?? m.template_id;
+        // Monster name resolve qua i18n key `monster.name.<id>`. Missing key →
+        // t() trả raw key — fallback xuống template_id raw.
+        const i18nKey = `monster.name.${m.template_id}`;
+        const localized = t(i18nKey);
+        const name = localized === i18nKey ? m.template_id : localized;
         const gradeKey = GRADE_KEY[m.grade];
         const gradeLabel = gradeKey ? t(gradeKey) : m.grade.toUpperCase();
         this.nameText?.setText(`⚔️ ${name} · Lv ${m.level}`);

@@ -26,50 +26,28 @@ const OBJECTIVE_KEY: Record<QuestObjectiveDTO['type'], string> = {
     buy_item: 'quest.log.objective_buy_item',
 };
 
-// I18n key → tên hiển thị (FE-side override; sau này sẽ thay bằng i18n module).
-const QUEST_NAME_VI: Record<string, string> = {
-    'quest.mq_awakening.name': 'Tỉnh Mộng',
-    'quest.mq_first_potion.name': 'Học Cách Hồi Sức',
-    'quest.mq_slime_purge.name': 'Dọn Sạch Slime',
-    'quest.mq_letter_relay.name': 'Thư Tay Cho Lò Rèn',
-    'quest.mq_dewlight_hunt.name': 'Săn Tinh Sương',
-    'quest.mq_goblin_raid.name': 'Goblin Phá Làng',
-    'quest.mq_field_rat_swarm.name': 'Chuột Đồng Tràn Đồng',
-    'quest.mq_crow_strike.name': 'Quạ Đêm Đột Kích',
-    'quest.mq_bamboo_gate.name': 'Vào Rừng Tre',
-    'quest.mq_owl_omen.name': 'Cú Bóng Báo Hiệu',
-    'quest.sq_blacksmith_intro.name': 'Lò Rèn Đầu Tiên',
-    'quest.sq_stash_intro.name': 'Kho Báu Cá Nhân',
-};
-
+// Quest name resolve qua i18n. BE trả `quest.<id>.name` → key đã có namespace
+// match — pass thẳng vào t(). Missing key → t() trả raw key, fallback xuống
+// raw nameKey để dev nhìn thấy id.
 export function questDisplayName(nameKey: string): string {
-    return QUEST_NAME_VI[nameKey] ?? nameKey;
+    const localized = t(nameKey);
+    return localized === nameKey ? nameKey : localized;
 }
 
-const TARGET_NAME_VI: Record<string, string> = {
-    // monsters
-    turtle_gold: 'Rùa Vàng',
-    slime_white: 'Slime Trắng',
-    mist_sprite: 'Tinh Sương',
-    goblin_wanderer: 'Goblin Lưu Lạc',
-    stone_beetle: 'Bọ Đá',
-    field_rat: 'Chuột Đồng',
-    night_crow: 'Quạ Đêm',
-    night_wolf: 'Sói Đêm',
-    shadow_owl: 'Cú Bóng',
-    // npcs
-    npc_genji: 'Trưởng Làng Genji',
-    npc_healer_ayame: 'Y Sư Ayame',
-    npc_tetsu: 'Thợ Rèn Tetsu',
-    npc_kura: 'Quản Kho Kura',
-    npc_teleporter: 'Xa Phu Tobi',
-    // items
-    hp_potion_lv1: 'Bình HP Nhỏ',
-    material_owl_feather: 'Lông Cú Đêm',
-};
-
+// Target ID có thể là monster_template_id / npc_template_id / item_template_id.
+// Quest engine không phân loại → FE phải cascade qua 3 namespace để tìm tên hợp.
+// Order: monster (phổ biến nhất ở quest objective) → npc → item.
 export function targetDisplayName(targetID: string): string {
-    return TARGET_NAME_VI[targetID] ?? targetID;
+    const candidates = [
+        `monster.name.${targetID}`,
+        `npc.name.${targetID}`,
+        `item.name.${targetID}`,
+    ];
+    for (const k of candidates) {
+        const v = t(k);
+        if (v !== k) return v; // Found bundle entry.
+    }
+    return targetID;
 }
 
 type TabKey = 'main' | 'side' | 'event';
