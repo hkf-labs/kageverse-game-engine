@@ -61,12 +61,16 @@ export const en: TranslationTable = {
 
     // Class labels (faction)
     'class.none': 'Novice',
-    'class.sword': 'Sword',
-    'class.bow': 'Bow',
-    'class.katana': 'Katana',
-    'class.fan': 'Fan',
-    'class.dart': 'Dart',
-    'class.kunai': 'Kunai',
+    'class.sword': 'Sword Class',
+    'class.bow': 'Bow Class',
+    'class.katana': 'Katana Class',
+    'class.fan': 'Fan Class',
+    'class.dart': 'Dart Class',
+    'class.kunai': 'Kunai Class',
+
+    // Generic confirm dialog
+    'confirm.btn_confirm': 'Confirm',
+    'confirm.btn_cancel': 'Cancel',
 
     // Gender
     'gender.male': 'Male',
@@ -244,6 +248,8 @@ export const en: TranslationTable = {
     'quest.mq_initiation.name': 'Initiation',
     'quest.mq_initiation_mikazuki.name': 'Initiation — Mikazuki',
     'quest.mq_initiation_hayabusa.name': 'Initiation — Hayabusa',
+    'quest.mq_initiation_mikazuki.confirm_warning': 'Confirm joining the Sword school at Mikazuki?\n\nThis CANNOT be undone. Your starter Wooden Sword will be reclaimed; your character is permanently bound to the Sword class (Fire element).',
+    'quest.mq_initiation_hayabusa.confirm_warning': 'Confirm joining the Bow school at Hayabusa?\n\nThis CANNOT be undone. Your starter Wooden Sword will be reclaimed; your character is permanently bound to the Bow class (Ice element).',
     'quest.mq_first_lesson_sword.name': 'First Lesson — Sword',
     'quest.mq_first_lesson_bow.name': 'First Lesson — Bow',
     'quest.mq_first_arrow.name': 'First Arrow',

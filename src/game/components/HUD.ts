@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
 export type CharacterVitals = {
@@ -12,6 +13,28 @@ export type CharacterVitals = {
 const HP_BAR = { x: 105, y: 14, w: 170, h: 18 };
 const MP_BAR = { x: 98,  y: 46, w: 125, h: 15 };
 
+// Class badge config — chip nhỏ trên top-bar, cạnh HP/MP. Position absolute
+// theo HUD coordinate (scrollFactor=0). Width ~70 đủ cho text "Phái Kiếm" dài
+// nhất; height 22 khớp HP bar visual. Color theo class element (Hoả/Băng/...).
+const CLASS_BADGE = { x: 290, y: 14, w: 90, h: 22 };
+
+const CLASS_LABEL_KEY: Record<string, string> = {
+    none: 'class.none',
+    sword: 'class.sword',
+    bow: 'class.bow',
+    katana: 'class.katana',
+    fan: 'class.fan',
+    dart: 'class.dart',
+    kunai: 'class.kunai',
+};
+
+const CLASS_BADGE_COLOR: Record<string, { fill: number; stroke: number; text: string }> = {
+    sword: { fill: 0x7a2a1a, stroke: 0xff8a4a, text: '#ffb86b' }, // Hoả — đỏ cam
+    bow:   { fill: 0x1a4a7a, stroke: 0x6cd0ff, text: '#a0e0ff' }, // Băng — xanh dương
+    fan:   { fill: 0x2a5a3a, stroke: 0x9affb4, text: '#bdf0a0' }, // Phong — xanh lá (defer)
+    none:  { fill: 0x3e2723, stroke: 0xe29e4a, text: '#ffe4c4' }, // chưa Bái Sư
+};
+
 export class HUD implements GameComponent {
     private statusText?: Phaser.GameObjects.Text;
     private scene: Phaser.Scene;
@@ -22,6 +45,8 @@ export class HUD implements GameComponent {
     private mpText?: Phaser.GameObjects.Text;
     private levelText?: Phaser.GameObjects.Text;
     private expText?: Phaser.GameObjects.Text;
+    private classBadgeBg?: Phaser.GameObjects.Graphics;
+    private classBadgeText?: Phaser.GameObjects.Text;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -66,9 +91,24 @@ export class HUD implements GameComponent {
         const bg5 = this.drawBarFrame(width - 100, 14, 40, 30, 0x4d2d13, 0xd59a48);
         const bg6 = this.drawBarFrame(width - 52, 14, 40, 30, 0x4d2d13, 0xd59a48);
 
+        // Class badge — chip cạnh HP bar. Init dạng "—" (none); BaseMapScene
+        // gọi setClass() sau khi load character.
+        this.classBadgeBg = this.scene.add.graphics();
+        this.classBadgeText = this.scene.add.text(
+            CLASS_BADGE.x + CLASS_BADGE.w / 2,
+            CLASS_BADGE.y + CLASS_BADGE.h / 2,
+            '—',
+            {
+                fontSize: '12px', fontStyle: 'bold', color: '#ffe4c4',
+                fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
+            },
+        ).setOrigin(0.5, 0.5);
+        this.redrawClassBadge('none');
+
         const fixed: Phaser.GameObjects.GameObject[] = [
             topbar, hpFrame, this.hpFill, mpFrame, this.mpFill,
             this.hpText, this.mpText, this.levelText, this.expText,
+            this.classBadgeBg, this.classBadgeText,
             bg4, bg5, bg6,
         ];
         fixed.forEach((obj) => {
@@ -113,6 +153,25 @@ export class HUD implements GameComponent {
     setExpPercent(percent: number): void {
         const p = clamp(percent, 0, 100);
         this.expText?.setText(`${p.toFixed(2)}%`);
+    }
+
+    /** Cập nhật class badge — gọi sau Bái Sư hoặc khi load character.
+     * classID khớp character.class enum: 'none' | 'sword' | 'bow' | ... */
+    setClass(classID: string): void {
+        this.redrawClassBadge(classID);
+    }
+
+    private redrawClassBadge(classID: string): void {
+        const palette = CLASS_BADGE_COLOR[classID] ?? CLASS_BADGE_COLOR.none;
+        const labelKey = CLASS_LABEL_KEY[classID] ?? CLASS_LABEL_KEY.none;
+        if (this.classBadgeBg) {
+            this.classBadgeBg.clear();
+            this.classBadgeBg.fillStyle(palette.fill, 0.9);
+            this.classBadgeBg.fillRoundedRect(CLASS_BADGE.x, CLASS_BADGE.y, CLASS_BADGE.w, CLASS_BADGE.h, 6);
+            this.classBadgeBg.lineStyle(2, palette.stroke, 1);
+            this.classBadgeBg.strokeRoundedRect(CLASS_BADGE.x, CLASS_BADGE.y, CLASS_BADGE.w, CLASS_BADGE.h, 6);
+        }
+        this.classBadgeText?.setText(t(labelKey)).setColor(palette.text);
     }
 
     getStatusText(): Phaser.GameObjects.Text | undefined { return this.statusText; }

@@ -1,10 +1,11 @@
 import * as Phaser from 'phaser';
-import { npcAPI, questAPI, type LevelUpDTO, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
+import { npcAPI, questAPI, type CharacterDTO, type LevelUpDTO, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
+import type { ConfirmDialog } from './ConfirmDialog';
 import { detectEndMvpClass } from './EndMvpOverlay';
 import type { HoshiUpgradeModal } from './HoshiUpgradeModal';
 import type { MapBackground } from './MapBackground';
@@ -79,6 +80,7 @@ export class NpcManager implements GameComponent {
     private npcConfigs: NpcConfig[];
     private mapId: string;
     private actionMenu?: ActionMenu;
+    private confirmDialog?: ConfirmDialog;
     private shopModal?: ShopModal;
     private chatBubble?: NpcChatBubble;
     private questLog?: QuestLogPanel;
@@ -87,10 +89,15 @@ export class NpcManager implements GameComponent {
     private onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
     private onLevelUp?: (levelUp: LevelUpDTO) => void;
     private onEndMvp?: (className: 'sword' | 'bow') => void;
+    private onCharacterUpdated?: (character: CharacterDTO) => void;
     private dialogueKeyByTemplate = new Map<string, string | null>();
     private teleportDestinations: TeleportDestinationDTO[] = [];
     private offeredQuestIDs: string[] = [];
     private turnInQuestIDs: string[] = [];
+    /** Map quest_id → confirm_warning_key (i18n) — populated từ BE
+     * NpcInteractResponse.quest_warnings. Có entry → runQuestAccept mở
+     * ConfirmDialog trước khi gọi API (cảnh báo irreversible action). */
+    private questWarnings: Record<string, string> = {};
 
     constructor(
         scene: Phaser.Scene,
@@ -99,6 +106,7 @@ export class NpcManager implements GameComponent {
         deps?: {
             mapId?: string;
             actionMenu?: ActionMenu;
+            confirmDialog?: ConfirmDialog;
             shopModal?: ShopModal;
             chatBubble?: NpcChatBubble;
             questLog?: QuestLogPanel;
@@ -107,6 +115,9 @@ export class NpcManager implements GameComponent {
             onQuestRewarded?: (questName: string, rewards: QuestRewardsDTO) => void;
             onLevelUp?: (levelUp: LevelUpDTO) => void;
             onEndMvp?: (className: 'sword' | 'bow') => void;
+            /** Gọi sau khi quest accept side effect đổi character state
+             * (vd Bái Sư set_class). Scene update HUD + class badge. */
+            onCharacterUpdated?: (character: CharacterDTO) => void;
         },
     ) {
         this.scene = scene;
@@ -114,6 +125,7 @@ export class NpcManager implements GameComponent {
         this.npcConfigs = npcConfigs;
         this.mapId = deps?.mapId ?? '';
         this.actionMenu = deps?.actionMenu;
+        this.confirmDialog = deps?.confirmDialog;
         this.shopModal = deps?.shopModal;
         this.chatBubble = deps?.chatBubble;
         this.questLog = deps?.questLog;
@@ -122,6 +134,7 @@ export class NpcManager implements GameComponent {
         this.onQuestRewarded = deps?.onQuestRewarded;
         this.onLevelUp = deps?.onLevelUp;
         this.onEndMvp = deps?.onEndMvp;
+        this.onCharacterUpdated = deps?.onCharacterUpdated;
     }
 
     create(): void {
@@ -364,12 +377,14 @@ export class NpcManager implements GameComponent {
                     this.teleportDestinations = res.teleport_destinations ?? [];
                     this.offeredQuestIDs = res.offered_quest_ids ?? [];
                     this.turnInQuestIDs = res.turn_in_quest_ids ?? [];
+                    this.questWarnings = res.quest_warnings ?? {};
                     this.openMenuFromBE(npc, res.available_actions);
                 })
                 .catch((err) => {
                     if (seq !== this.fetchSeq || this.interactingNpc !== npc) return;
                     this.offeredQuestIDs = [];
                     this.turnInQuestIDs = [];
+                    this.questWarnings = {};
                     const msg = err instanceof Error ? err.message : t('npc.menu_error_load');
                     this.onStatusMessage?.(msg, '#ff8a8a');
                     this.openMenuMock(npc);
@@ -519,15 +534,59 @@ export class NpcManager implements GameComponent {
             this.onStatusMessage?.(t('npc.quest.cannot_accept'), '#ff8a8a');
             return;
         }
+        // Confirm modal cho quest có confirm_warning_key (irreversible action,
+        // vd Bái Sư set_class). Empty/missing = accept thẳng.
+        const warningKey = this.questWarnings[questID];
+        if (warningKey && this.confirmDialog) {
+            this.confirmDialog.open({
+                title: questDisplayName(`quest.${questID}.name`),
+                message: t(warningKey),
+                confirmLabel: t('confirm.btn_confirm'),
+                cancelLabel: t('confirm.btn_cancel'),
+                confirmColor: 'red',
+                onConfirm: () => this.callAcceptAPI(npc, questID),
+            });
+            return;
+        }
+        this.callAcceptAPI(npc, questID);
+    }
+
+    private callAcceptAPI(npc: NpcEntry, questID: string): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) return;
         void questAPI.accept(character.id, questID, npc.templateId)
             .then((res) => {
                 this.onStatusMessage?.(t('npc.quest.accept_success', { name: questDisplayName(res.quest.name_key) }), '#bdf0a0');
                 void this.questLog?.refresh();
+                // Side effect set_class (Bái Sư) → refresh character cache để
+                // FE biết class mới (apparel/jewelry shop dùng class này).
+                // Best-effort: lỗi → giữ cache cũ, user có thể refresh bằng
+                // logout/login.
+                void this.refreshCharacterAfterAccept(character.id);
             })
             .catch((err) => {
                 const msg = err instanceof Error ? err.message : t('npc.quest.accept_failed');
                 this.onStatusMessage?.(msg, '#ff8a8a');
             });
+    }
+
+    /** Refresh character cache local từ BE — gọi sau accept quest có thể đổi
+     * character state (vd set_class). Best-effort: silent on fail. Cập nhật
+     * playerSession (cho apparel/jewelry classFilter) + emit callback để scene
+     * update HUD class badge. */
+    private async refreshCharacterAfterAccept(characterID: string): Promise<void> {
+        try {
+            const { charactersAPI } = await import('../../network/api');
+            const { saveCurrentCharacter } = await import('../playerSession');
+            const res = await charactersAPI.list();
+            const fresh = res.characters.find((c) => c.id === characterID);
+            if (fresh) {
+                saveCurrentCharacter(fresh);
+                this.onCharacterUpdated?.(fresh);
+            }
+        } catch (err) {
+            console.warn('[npc] refresh character after accept failed', err);
+        }
     }
 
     private runQuestTurnIn(npc: NpcEntry, questID: string): void {

@@ -61,12 +61,16 @@ export const vi: TranslationTable = {
 
     // Class labels (faction)
     'class.none': 'Tân Thủ',
-    'class.sword': 'Kiếm',
-    'class.bow': 'Cung',
-    'class.katana': 'Đao',
-    'class.fan': 'Quạt',
-    'class.dart': 'Phi Tiêu',
-    'class.kunai': 'Kunai',
+    'class.sword': 'Phái Kiếm',
+    'class.bow': 'Phái Cung',
+    'class.katana': 'Phái Đao',
+    'class.fan': 'Phái Quạt',
+    'class.dart': 'Phái Phi Tiêu',
+    'class.kunai': 'Phái Kunai',
+
+    // Generic confirm dialog
+    'confirm.btn_confirm': 'Xác nhận',
+    'confirm.btn_cancel': 'Huỷ',
 
     // Gender
     'gender.male': 'Nam',
@@ -248,6 +252,8 @@ export const vi: TranslationTable = {
     'quest.mq_initiation.name': 'Lễ Nhập Môn',
     'quest.mq_initiation_mikazuki.name': 'Bái Sư Mikazuki',
     'quest.mq_initiation_hayabusa.name': 'Bái Sư Hayabusa',
+    'quest.mq_initiation_mikazuki.confirm_warning': 'Bạn xác nhận chọn Phái Kiếm tại trường Mikazuki?\n\nLựa chọn này KHÔNG THỂ ĐỔI. Kiếm Gỗ khởi đầu sẽ bị thu hồi, character sẽ vĩnh viễn theo phái Kiếm (hệ Hoả).',
+    'quest.mq_initiation_hayabusa.confirm_warning': 'Bạn xác nhận chọn Phái Cung tại trường Hayabusa?\n\nLựa chọn này KHÔNG THỂ ĐỔI. Kiếm Gỗ khởi đầu sẽ bị thu hồi, character sẽ vĩnh viễn theo phái Cung (hệ Băng).',
     'quest.mq_first_lesson_sword.name': 'Bài Học Đầu Tiên — Kiếm',
     'quest.mq_first_lesson_bow.name': 'Bài Học Đầu Tiên — Cung',
     'quest.mq_first_arrow.name': 'Mũi Tên Đầu Tiên',

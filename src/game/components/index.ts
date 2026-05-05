@@ -5,6 +5,8 @@ export { BuffIndicator, iconForTemplate, categoryForTemplate } from './BuffIndic
 export type { ActiveBuff } from './BuffIndicator';
 export { CharacterInfoModal } from './CharacterInfoModal';
 export { ChatPanel } from './ChatPanel';
+export { ConfirmDialog } from './ConfirmDialog';
+export type { ConfirmDialogOpenParams } from './ConfirmDialog';
 export { DeathMenu } from './DeathMenu';
 export type { DeathChoice } from './DeathMenu';
 export { EndMvpOverlay, detectEndMvpClass } from './EndMvpOverlay';

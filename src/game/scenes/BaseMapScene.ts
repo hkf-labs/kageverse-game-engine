@@ -4,7 +4,7 @@ import { disconnectRealtime, wsClient } from '../../network/realtime';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -15,6 +15,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected hud!: HUD;
     protected minimap!: Minimap;
     protected chat!: ChatPanel;
+    protected confirmDialog!: ConfirmDialog;
     protected actionMenu!: ActionMenu;
     protected inventory!: InventoryModal;
     protected shop!: ShopModal;
@@ -122,6 +123,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.actionMenu = new ActionMenu(this);
         this.actionMenu.create();
 
+        // ConfirmDialog — tạo trước NpcManager vì runQuestAccept với
+        // confirm_warning_key cần dialog có sẵn.
+        this.confirmDialog = new ConfirmDialog(this);
+        this.confirmDialog.create();
+
         // Quest log — tạo trước NpcManager để NPC dialog có thể mở/refresh panel.
         // onQuestsUpdated push cache mới nhất vào QuestTracker mỗi khi refresh().
         this.questLog = new QuestLogPanel(this, {
@@ -162,6 +168,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.npcs = new NpcManager(this, this.background, this.getNpcConfigs(), {
             mapId: cfg.mapId,
             actionMenu: this.actionMenu,
+            confirmDialog: this.confirmDialog,
             shopModal: this.shop,
             chatBubble: this.npcChatBubble,
             questLog: this.questLog,
@@ -170,6 +177,22 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onQuestRewarded: (questName, rewards) => this.showQuestRewardFloater(questName, rewards),
             onLevelUp: (levelUp) => this.applyLevelUp(levelUp),
             onEndMvp: (className) => this.endMvpOverlay.show(className),
+            onCharacterUpdated: (char) => {
+                // Bái Sư accept side effect set_class → cập nhật HUD class badge
+                // + lastKnownLevel + max_hp/mp. Mọi nhãn dán cache khác (apparel/
+                // jewelry classFilter) đọc từ playerSession đã refresh trước đó.
+                this.lastKnownLevel = char.level;
+                this.lastKnownStats.max_hp = char.max_hp;
+                this.lastKnownStats.max_mp = char.max_mp;
+                this.hud.setStats({
+                    current_hp: char.current_hp,
+                    max_hp: char.max_hp,
+                    current_mp: char.current_mp,
+                    max_mp: char.max_mp,
+                    level: char.level,
+                });
+                this.hud.setClass(char.class);
+            },
         });
         this.npcs.create();
         this.npcs.setPlayerPositionGetter(() => {
@@ -380,6 +403,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.inventory?.destroy();
             this.shop?.destroy();
             this.chat?.destroy();
+            this.confirmDialog?.destroy();
             this.deathMenu?.destroy();
             this.targetFrame?.destroy();
             this.remotePlayers?.destroy();
@@ -643,6 +667,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 level: c.level,
             });
             this.hud.setExpPercent(c.exp_to_next_level > 0 ? (c.exp / c.exp_to_next_level) * 100 : 0);
+            this.hud.setClass(c.class);
             // Sync death_state từ DB — nếu user trước đó chọn 'Đóng' rồi đóng
             // browser, scene mount lại vẫn ở spectating; show menu để chọn tiếp.
             if (c.death_state === 'dead' || c.death_state === 'spectating') {

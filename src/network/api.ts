@@ -543,6 +543,10 @@ export type NpcInteractResponse = {
     teleport_destinations?: TeleportDestinationDTO[];
     offered_quest_ids: string[];
     turn_in_quest_ids: string[];
+    /** Map quest_id → confirm_warning_key (i18n) cho quest có side effect không
+     * thể đảo ngược (vd Bái Sư set_class). Có entry → FE mở confirm modal trước
+     * khi gọi accept API. Empty/undefined = không quest nào cần confirm. */
+    quest_warnings?: Record<string, string>;
 };
 
 export const npcAPI = {
