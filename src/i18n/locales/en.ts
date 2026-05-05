@@ -331,16 +331,13 @@ export const en: TranslationTable = {
     'map.name.village_to_wind_002': 'Path to Wind School (2)',
     'map.name.village_to_ice_001': 'Path to Ice School (1)',
     'map.name.village_to_ice_002': 'Path to Ice School (2)',
-    'map.name.combat_field_001': 'Hunting Meadow',
     'map.name.bamboo_forest_yatomi': 'Yatomi Bamboo Forest',
     'map.name.rocky_hill_iwagumo': 'Iwagumo Rocky Hill',
 
     // Portal labels
-    'portal.label.time_pit': 'Time Pit',
     'portal.label.return': 'Go Back',
     'portal.label.continue': 'Continue',
     'portal.label.return_village': 'Return to Village',
-    'portal.label.return_combat_field': 'Return to Meadow',
     'portal.label.return_bamboo': 'Return to Bamboo',
     'portal.label.bamboo_forest': 'Yatomi Bamboo Forest',
     'portal.label.to_fire_school': 'To Fire School',

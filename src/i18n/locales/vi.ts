@@ -341,16 +341,13 @@ export const vi: TranslationTable = {
     'map.name.village_to_wind_002': 'Đường Tới Trường Phong (2)',
     'map.name.village_to_ice_001': 'Đường Tới Trường Băng (1)',
     'map.name.village_to_ice_002': 'Đường Tới Trường Băng (2)',
-    'map.name.combat_field_001': 'Đồng Cỏ Săn Quái',
     'map.name.bamboo_forest_yatomi': 'Rừng Tre Yatomi',
     'map.name.rocky_hill_iwagumo': 'Đồi Đá Iwagumo',
 
     // Portal labels — ngắn gọn, dùng ở scene config.
-    'portal.label.time_pit': 'Hố Sâu Thời Gian',
     'portal.label.return': 'Quay Lại',
     'portal.label.continue': 'Đi Tiếp',
     'portal.label.return_village': 'Quay Về Làng',
-    'portal.label.return_combat_field': 'Quay Về Đồng Cỏ',
     'portal.label.return_bamboo': 'Quay Về Rừng Tre',
     'portal.label.bamboo_forest': 'Rừng Tre Yatomi',
     'portal.label.to_fire_school': 'Đường Tới Trường Hỏa',

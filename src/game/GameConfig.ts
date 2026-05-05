@@ -3,7 +3,6 @@ import { MainScene } from './scenes/MainScene';
 import { AuthScene } from './scenes/AuthScene';
 import { CharacterCreateScene } from './scenes/CharacterCreateScene';
 import { VillageScene } from './scenes/VillageScene';
-import { CombatFieldScene } from './scenes/CombatFieldScene';
 import { FireSchoolScene } from './scenes/FireSchoolScene';
 import { IceSchoolScene } from './scenes/IceSchoolScene';
 import { WindSchoolScene } from './scenes/WindSchoolScene';
@@ -38,7 +37,7 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
             }
         },
         scene: [
-            AuthScene, CharacterCreateScene, VillageScene, CombatFieldScene,
+            AuthScene, CharacterCreateScene, VillageScene,
             FireSchoolScene, IceSchoolScene, WindSchoolScene,
             VillageToFire001Scene, VillageToFire002Scene,
             VillageToWind001Scene, VillageToWind002Scene,

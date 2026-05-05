@@ -35,8 +35,9 @@ export class BambooForestScene extends BaseMapScene {
     }
 
     protected getPortalConfigs(): PortalConfig[] {
+        // combat_field_001 đã removed — bamboo back-route defer (vào bamboo từ
+        // school back-portal hiện tại, ra rocky_hill phía trước).
         return [
-            { x: 180, label: t('portal.label.return_combat_field'), targetSceneKey: 'CombatFieldScene' },
             {
                 x: 1400,
                 label: t('portal.label.enter_fire_school'),

@@ -20,7 +20,6 @@ export const MAP_REGISTRY: Record<string, MapRegistryEntry> = {
     village_to_wind_002:  { sceneKey: 'VillageToWind002Scene' },
     village_to_ice_001:   { sceneKey: 'VillageToIce001Scene' },
     village_to_ice_002:   { sceneKey: 'VillageToIce002Scene' },
-    combat_field_001:     { sceneKey: 'CombatFieldScene' },
     bamboo_forest_yatomi: { sceneKey: 'BambooForestScene' },
     rocky_hill_iwagumo:   { sceneKey: 'RockyHillScene' },
 };

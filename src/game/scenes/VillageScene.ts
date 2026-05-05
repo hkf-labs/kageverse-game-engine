@@ -36,7 +36,6 @@ export class VillageScene extends BaseMapScene {
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180,  label: t('portal.label.time_pit'),       targetSceneKey: 'CombatFieldScene' },
             // Path 2 (Phong) — locked entry. QA char với unlock_all_maps=true
             // sẽ auto-unlock toàn bộ portal locked (xem BaseMapScene
             // loadInitialCharacterState ~L740).
