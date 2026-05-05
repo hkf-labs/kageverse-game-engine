@@ -60,6 +60,9 @@ interface OpenParams {
     mapId: string;
     npcTemplateId: string;
     npcName: string;
+    /** Optional — chỉ hiển thị listings có class_id matching. Dùng cho
+     * weapon_merchant submenu (Kiếm / Cung). Empty/undefined = không filter. */
+    classFilter?: string;
 }
 
 export class ShopModal implements GameComponent {
@@ -74,6 +77,7 @@ export class ShopModal implements GameComponent {
 
     private visible = false;
     private listings: ShopListingDTO[] = [];
+    private classFilter: string | null = null;
     private selectedIdx: number | null = null;
     private selectedCurrency: ShopCurrencyType | null = null;
     private loading = false;
@@ -170,6 +174,7 @@ export class ShopModal implements GameComponent {
         this.mapId = params.mapId;
         this.npcTemplateId = params.npcTemplateId;
         this.npcName = params.npcName;
+        this.classFilter = params.classFilter && params.classFilter.trim() ? params.classFilter.trim() : null;
         this.selectedIdx = null;
         this.selectedCurrency = null;
         this.listings = [];
@@ -250,7 +255,11 @@ export class ShopModal implements GameComponent {
         this.renderDetail();
         try {
             const res = await shopAPI.list(this.mapId, this.npcTemplateId);
-            this.listings = res.items;
+            // ClassFilter (vd Kiếm / Cung) — filter client-side trên class_id.
+            // BE trả full catalog của NPC; submenu chỉ giới hạn UI.
+            this.listings = this.classFilter
+                ? res.items.filter((it) => it.class_id === this.classFilter)
+                : res.items;
         } catch (err) {
             this.listings = [];
             this.setFeedback(err instanceof Error ? err.message : t('shop.error_load'), 'error');

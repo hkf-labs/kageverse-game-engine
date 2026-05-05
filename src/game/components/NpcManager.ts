@@ -20,6 +20,8 @@ const ACTION_KEY: Record<string, string> = {
     view_quests: 'npc.action_view_quests',
     open_stash: 'npc.action_open_stash',
     teleport: 'npc.action_teleport',
+    explore_cave: 'npc.action_explore_cave',
+    browse_weapons: 'npc.action_browse_weapons',
 };
 
 const ACTION_ICON: Record<string, string> = {
@@ -29,6 +31,8 @@ const ACTION_ICON: Record<string, string> = {
     view_quests: '📜',
     open_stash: '📦',
     teleport: '✨',
+    explore_cave: '🕳️',
+    browse_weapons: '⚔️',
 };
 
 function actionLabel(a: NpcActionDTO): string {
@@ -477,6 +481,17 @@ export class NpcManager implements GameComponent {
                 this.onStatusMessage?.(t('npc.run.coming_soon', { name: actionName }), '#aaaaaa');
                 break;
             }
+            case 'explore_cave':
+                // Hang động chỉ mở khi player đạt lv30 (post-MVP). Hiện tại
+                // NPC nói "Coming Soon..." qua chat bubble như user yêu cầu.
+                this.chatBubble?.show(npc.sprite, t('npc.dialogue.explore_cave_coming_soon'));
+                break;
+            case 'browse_weapons':
+                // Submenu phân loại theo class trước khi mở ShopModal. NPC
+                // weapon_merchant bán cả Kiếm + Cung; player chọn category
+                // → mở shop với class_id filter.
+                this.openWeaponCategoryMenu(npc);
+                break;
             default:
                 this.onStatusMessage?.(t('npc.run.action_unsupported', { name: action }), '#aaaaaa');
         }
@@ -528,6 +543,42 @@ export class NpcManager implements GameComponent {
                 const msg = err instanceof Error ? err.message : t('npc.quest.turn_in_failed');
                 this.onStatusMessage?.(msg, '#ff8a8a');
             });
+    }
+
+    private openWeaponCategoryMenu(npc: NpcEntry): void {
+        if (!this.actionMenu || !this.shopModal || !npc.templateId) {
+            this.onStatusMessage?.(t('npc.run.shop_unavailable'), '#aaaaaa');
+            return;
+        }
+        const items: ActionMenuItem[] = [
+            {
+                key: 'weapon_sword',
+                label: t('npc.weapon.category_sword'),
+                icon: '🗡️',
+                action: () => this.openWeaponShop(npc, 'sword'),
+            },
+            {
+                key: 'weapon_bow',
+                label: t('npc.weapon.category_bow'),
+                icon: '🏹',
+                action: () => this.openWeaponShop(npc, 'bow'),
+            },
+            { key: 'cancel', label: t('npc.weapon.cancel'), icon: '↩️', action: () => {} },
+        ];
+        this.actionMenu.open({
+            title: t('npc.weapon.menu_title'),
+            items,
+        });
+    }
+
+    private openWeaponShop(npc: NpcEntry, classId: 'sword' | 'bow'): void {
+        if (!this.shopModal || !npc.templateId) return;
+        this.shopModal.open({
+            mapId: this.mapId,
+            npcTemplateId: npc.templateId,
+            npcName: npc.name,
+            classFilter: classId,
+        });
     }
 
     private openTeleportMenu(): void {

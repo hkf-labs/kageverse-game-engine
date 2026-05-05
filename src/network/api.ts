@@ -869,6 +869,8 @@ export type ShopListingDTO = {
     name_key: string;
     item_type: InventoryItemType;
     sub_type: string | null;
+    /** null cho item không class-bound (consumable, material). FE shop UI dùng để filter submenu. */
+    class_id: string | null;
     sprite_key: string;
     required_level: number;
     max_stack: number;

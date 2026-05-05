@@ -32,6 +32,7 @@ export class HayabusaSchoolScene extends BaseMapScene {
         return [
             { key: 'npc_tobishima', name: t('npc.name.npc_tobishima'), x: 1500, y: undefined, offsetY: 0, templateId: 'npc_tobishima' },
             { key: 'npc_kazu', name: t('npc.name.npc_kazu'), x: 2500, y: undefined, offsetY: 0, templateId: 'npc_kazu' },
+            { key: 'npc_hayato', name: t('npc.name.npc_hayato'), x: 3500, y: undefined, offsetY: 0, templateId: 'npc_hayato' },
         ];
     }
 
@@ -42,8 +43,9 @@ export class HayabusaSchoolScene extends BaseMapScene {
     }
 
     protected preloadMapAssets(): void {
-        // Placeholder NPC sprites — dùng village stash_keeper / merchant cho 2 trainer.
+        // Placeholder NPC sprites — dùng village_elder / blacksmith / merchant cho 3 NPC trường.
         this.load.image('npc_tobishima', 'assets/maps/village_001/npcs/village_elder.png');
         this.load.image('npc_kazu', 'assets/maps/village_001/npcs/blacksmith.png');
+        this.load.image('npc_hayato', 'assets/maps/village_001/npcs/merchant.png');
     }
 }

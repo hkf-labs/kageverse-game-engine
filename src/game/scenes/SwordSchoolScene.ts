@@ -26,6 +26,7 @@ export class SwordSchoolScene extends BaseMapScene {
         return [
             { key: 'npc_tsukikage', name: t('npc.name.npc_tsukikage'), x: 1500, y: undefined, offsetY: 0, templateId: 'npc_tsukikage' },
             { key: 'npc_ryota', name: t('npc.name.npc_ryota'), x: 2500, y: undefined, offsetY: 0, templateId: 'npc_ryota' },
+            { key: 'npc_hayato', name: t('npc.name.npc_hayato'), x: 3500, y: undefined, offsetY: 0, templateId: 'npc_hayato' },
         ];
     }
 
@@ -36,8 +37,9 @@ export class SwordSchoolScene extends BaseMapScene {
     }
 
     protected preloadMapAssets(): void {
-        // Placeholder sprites — dùng village_elder / blacksmith cho 2 NPC trường.
+        // Placeholder sprites — dùng village_elder / blacksmith / merchant cho 3 NPC trường.
         this.load.image('npc_tsukikage', 'assets/maps/village_001/npcs/village_elder.png');
         this.load.image('npc_ryota', 'assets/maps/village_001/npcs/blacksmith.png');
+        this.load.image('npc_hayato', 'assets/maps/village_001/npcs/merchant.png');
     }
 }

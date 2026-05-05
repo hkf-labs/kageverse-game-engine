@@ -36,6 +36,7 @@ export const en: TranslationTable = {
     'npc.name.npc_tobishima': 'Principal Tobishima',
     'npc.name.npc_kazu': 'Bowsmith Kazu',
     'npc.name.npc_hoshi': 'Refiner Hoshi',
+    'npc.name.npc_hayato': 'Weaponsmith Hayato',
 
     // Auth — register screen
     'auth.register.title': 'ENROLLMENT',
@@ -396,6 +397,8 @@ export const en: TranslationTable = {
     'npc.action_view_quests': 'Quests',
     'npc.action_open_stash': 'Open stash',
     'npc.action_teleport': 'Teleport',
+    'npc.action_explore_cave': 'Explore cave',
+    'npc.action_browse_weapons': 'Weapons',
     'npc.action_leave': 'Leave',
     'npc.menu_loading': 'Loading...',
     'npc.menu_error_load': 'Failed to load NPC menu',
@@ -422,6 +425,11 @@ export const en: TranslationTable = {
     'npc.teleport.empty': 'No teleport destinations available.',
     'npc.teleport.cancel': 'Cancel',
     'npc.dialogue.fallback_greet': '{npc}: Hello, ninja!',
+    'npc.dialogue.explore_cave_coming_soon': 'The cave opens at level 30. Coming Soon...',
+    'npc.weapon.menu_title': 'Choose Weapon Type',
+    'npc.weapon.category_sword': 'Sword',
+    'npc.weapon.category_bow': 'Bow',
+    'npc.weapon.cancel': 'Cancel',
 
     // Skill modal
     'skill.modal.title': 'SKILLS',

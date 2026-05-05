@@ -36,6 +36,7 @@ export const vi: TranslationTable = {
     'npc.name.npc_tobishima': 'HT Tobishima',
     'npc.name.npc_kazu': 'Thợ Cung Kazu',
     'npc.name.npc_hoshi': 'Tinh Luyện Sư Hoshi',
+    'npc.name.npc_hayato': 'Vũ Khí Sư Hayato',
 
     // Auth — register screen
     'auth.register.title': 'NHẬP HỌC',
@@ -406,6 +407,8 @@ export const vi: TranslationTable = {
     'npc.action_view_quests': 'Nhiệm vụ',
     'npc.action_open_stash': 'Mở rương',
     'npc.action_teleport': 'Dịch chuyển',
+    'npc.action_explore_cave': 'Khám phá hang động',
+    'npc.action_browse_weapons': 'Vũ khí',
     'npc.action_leave': 'Rời đi',
     'npc.menu_loading': 'Đang tải...',
     'npc.menu_error_load': 'Không tải được menu NPC',
@@ -432,6 +435,11 @@ export const vi: TranslationTable = {
     'npc.teleport.empty': 'Hiện chưa có nơi nào để dịch chuyển.',
     'npc.teleport.cancel': 'Huỷ',
     'npc.dialogue.fallback_greet': '{npc}: Chào nhẫn giả!',
+    'npc.dialogue.explore_cave_coming_soon': 'Hang động sẽ mở khi đệ tử đạt cấp 30. Coming Soon...',
+    'npc.weapon.menu_title': 'Chọn Loại Vũ Khí',
+    'npc.weapon.category_sword': 'Kiếm',
+    'npc.weapon.category_bow': 'Cung',
+    'npc.weapon.cancel': 'Huỷ',
 
     // Skill modal
     'skill.modal.title': 'KỸ NĂNG',
