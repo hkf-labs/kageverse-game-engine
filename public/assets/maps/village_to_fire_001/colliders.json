@@ -1,0 +1,42 @@
+{
+    "height": 1440,
+    "width": 3200,
+    "layers": [
+        {
+            "type": "objectgroup",
+            "name": "platforms",
+            "objects": [
+                {
+                    "x": 0,
+                    "y": 1380,
+                    "width": 3200,
+                    "height": 60
+                },
+                {
+                    "x": 500,
+                    "y": 1230,
+                    "width": 300,
+                    "height": 20
+                },
+                {
+                    "x": 1100,
+                    "y": 1080,
+                    "width": 400,
+                    "height": 20
+                },
+                {
+                    "x": 1900,
+                    "y": 930,
+                    "width": 350,
+                    "height": 20
+                },
+                {
+                    "x": 2700,
+                    "y": 780,
+                    "width": 400,
+                    "height": 20
+                }
+            ]
+        }
+    ]
+}

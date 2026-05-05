@@ -11,8 +11,15 @@ export interface MapRegistryEntry {
 
 export const MAP_REGISTRY: Record<string, MapRegistryEntry> = {
     village_001:          { sceneKey: 'VillageScene' },
-    sword_school_001:     { sceneKey: 'SwordSchoolScene' },
-    hayabusa_school_001:  { sceneKey: 'HayabusaSchoolScene' },
+    fire_school_001:      { sceneKey: 'FireSchoolScene' },
+    wind_school_001:      { sceneKey: 'WindSchoolScene' },
+    ice_school_001:       { sceneKey: 'IceSchoolScene' },
+    village_to_fire_001:  { sceneKey: 'VillageToFire001Scene' },
+    village_to_fire_002:  { sceneKey: 'VillageToFire002Scene' },
+    village_to_wind_001:  { sceneKey: 'VillageToWind001Scene' },
+    village_to_wind_002:  { sceneKey: 'VillageToWind002Scene' },
+    village_to_ice_001:   { sceneKey: 'VillageToIce001Scene' },
+    village_to_ice_002:   { sceneKey: 'VillageToIce002Scene' },
     combat_field_001:     { sceneKey: 'CombatFieldScene' },
     bamboo_forest_yatomi: { sceneKey: 'BambooForestScene' },
     rocky_hill_iwagumo:   { sceneKey: 'RockyHillScene' },

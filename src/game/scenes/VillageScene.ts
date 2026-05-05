@@ -36,7 +36,19 @@ export class VillageScene extends BaseMapScene {
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 180, label: t('portal.label.time_pit'), targetSceneKey: 'CombatFieldScene' },
+            { x: 180,  label: t('portal.label.time_pit'),       targetSceneKey: 'CombatFieldScene' },
+            // Path 2 (Phong) — locked entry. QA char với unlock_all_maps=true
+            // sẽ auto-unlock toàn bộ portal locked (xem BaseMapScene
+            // loadInitialCharacterState ~L740).
+            {
+                x: 1500,
+                label: t('portal.label.to_wind_school'),
+                targetSceneKey: 'VillageToWind001Scene',
+                locked: true,
+                lockedMessage: t('portal.locked.wind_school'),
+            },
+            { x: 3500, label: t('portal.label.to_ice_school'),  targetSceneKey: 'VillageToIce001Scene' },
+            { x: 6300, label: t('portal.label.to_fire_school'), targetSceneKey: 'VillageToFire001Scene' },
         ];
     }
 

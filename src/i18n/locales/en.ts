@@ -322,26 +322,40 @@ export const en: TranslationTable = {
 
     // Map names
     'map.name.village_001': 'Mistveil Village',
-    'map.name.sword_school_001': 'Mikazuki — Sword School',
-    'map.name.hayabusa_school_001': 'Hayabusa — Bow School',
+    'map.name.fire_school_001': 'Fire-Sword School',
+    'map.name.wind_school_001': 'Wind School',
+    'map.name.ice_school_001': 'Ice-Bow School',
+    'map.name.village_to_fire_001': 'Path to Fire School (1)',
+    'map.name.village_to_fire_002': 'Path to Fire School (2)',
+    'map.name.village_to_wind_001': 'Path to Wind School (1)',
+    'map.name.village_to_wind_002': 'Path to Wind School (2)',
+    'map.name.village_to_ice_001': 'Path to Ice School (1)',
+    'map.name.village_to_ice_002': 'Path to Ice School (2)',
     'map.name.combat_field_001': 'Hunting Meadow',
     'map.name.bamboo_forest_yatomi': 'Yatomi Bamboo Forest',
     'map.name.rocky_hill_iwagumo': 'Iwagumo Rocky Hill',
 
     // Portal labels
     'portal.label.time_pit': 'Time Pit',
+    'portal.label.return': 'Go Back',
+    'portal.label.continue': 'Continue',
     'portal.label.return_village': 'Return to Village',
     'portal.label.return_combat_field': 'Return to Meadow',
     'portal.label.return_bamboo': 'Return to Bamboo',
     'portal.label.bamboo_forest': 'Yatomi Bamboo Forest',
-    'portal.label.sword_school': 'Mikazuki — Sword School',
-    'portal.label.bow_school': 'Hayabusa — Bow School',
+    'portal.label.to_fire_school': 'To Fire School',
+    'portal.label.to_wind_school': 'To Wind School',
+    'portal.label.to_ice_school': 'To Ice School',
+    'portal.label.enter_fire_school': 'Enter Fire School',
+    'portal.label.enter_wind_school': 'Enter Wind School',
+    'portal.label.enter_ice_school': 'Enter Ice School',
     'portal.label.rocky_hill': 'Iwagumo Rocky Hill',
 
     // Portal locked messages
     'portal.locked.bamboo': 'Complete the Bamboo Quest (lv 8) to unlock.',
-    'portal.locked.sword_school': 'Complete the Initiation (Q11) to enter Mikazuki.',
-    'portal.locked.bow_school': 'Complete the Initiation (Q11) to enter Hayabusa.',
+    'portal.locked.fire_school': 'Complete the Initiation (Q11) to enter the Fire-Sword School.',
+    'portal.locked.ice_school': 'Complete the Initiation (Q11) to enter the Ice-Bow School.',
+    'portal.locked.wind_school': 'Wind School is sealed (QA-only). Awaiting Wind faction content.',
     'portal.locked.rocky_hill': 'Reach level 14 and complete the Rocky Hill quest to unlock.',
 
     // Form validation

@@ -3,24 +3,30 @@ import { mapDisplayName } from '../maps/registry';
 import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
-export class SwordSchoolScene extends BaseMapScene {
+/**
+ * Trường Hỏa Kiếm (`fire_school_001`) — phái Kiếm, hệ Hỏa.
+ * Top-right trong map topology (xem docs/maps/village-schools-path-spec.md).
+ * 2 back portal: bamboo (x=180, existing — chuyển map farm post-school) và
+ * x=750 ở high ledge → VillageToFire002Scene (về làng theo path Hỏa).
+ */
+export class FireSchoolScene extends BaseMapScene {
     constructor() {
-        super('SwordSchoolScene');
+        super('FireSchoolScene');
     }
 
     protected getMapConfig(): MapConfig {
         return {
-            mapId: 'sword_school_001',
-            displayName: mapDisplayName('sword_school_001'),
-            bgKey: 'map-bg-sword-school-001',
-            bgAsset: 'assets/maps/sword_school_001/bg.png',
-            colliderKey: 'sword_school_001_colliders',
-            colliderAsset: 'assets/maps/sword_school_001/colliders.json',
+            mapId: 'fire_school_001',
+            displayName: mapDisplayName('fire_school_001'),
+            bgKey: 'map-bg-fire-school-001',
+            bgAsset: 'assets/maps/fire_school_001/bg.png',
+            colliderKey: 'fire_school_001_colliders',
+            colliderAsset: 'assets/maps/fire_school_001/colliders.json',
             tiledOriginalHeight: 1440,
         };
     }
 
-    protected getMapDisplayName(): string { return mapDisplayName('sword_school_001').toUpperCase(); }
+    protected getMapDisplayName(): string { return mapDisplayName('fire_school_001').toUpperCase(); }
 
     protected getNpcConfigs(): NpcConfig[] {
         return [
@@ -35,11 +41,11 @@ export class SwordSchoolScene extends BaseMapScene {
     protected getPortalConfigs(): PortalConfig[] {
         return [
             { x: 180, label: t('portal.label.return_bamboo'), targetSceneKey: 'BambooForestScene' },
+            { x: 750, label: t('portal.label.return'), targetSceneKey: 'VillageToFire002Scene' },
         ];
     }
 
     protected preloadMapAssets(): void {
-        // Placeholder sprites — dùng village_elder / blacksmith / merchant cho 3 NPC trường.
         this.load.image('npc_tsukikage', 'assets/maps/village_001/npcs/village_elder.png');
         this.load.image('npc_ryota', 'assets/maps/village_001/npcs/blacksmith.png');
         this.load.image('npc_hayato', 'assets/maps/village_001/npcs/merchant.png');

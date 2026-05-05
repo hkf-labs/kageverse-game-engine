@@ -332,26 +332,40 @@ export const vi: TranslationTable = {
 
     // Map names (registry + scene displayName)
     'map.name.village_001': 'Làng Sương Khói',
-    'map.name.sword_school_001': 'Trường Mikazuki — Phái Kiếm',
-    'map.name.hayabusa_school_001': 'Trường Hayabusa — Phái Cung',
+    'map.name.fire_school_001': 'Trường Hỏa Kiếm',
+    'map.name.wind_school_001': 'Trường Phong',
+    'map.name.ice_school_001': 'Trường Băng Cung',
+    'map.name.village_to_fire_001': 'Đường Tới Trường Hỏa (1)',
+    'map.name.village_to_fire_002': 'Đường Tới Trường Hỏa (2)',
+    'map.name.village_to_wind_001': 'Đường Tới Trường Phong (1)',
+    'map.name.village_to_wind_002': 'Đường Tới Trường Phong (2)',
+    'map.name.village_to_ice_001': 'Đường Tới Trường Băng (1)',
+    'map.name.village_to_ice_002': 'Đường Tới Trường Băng (2)',
     'map.name.combat_field_001': 'Đồng Cỏ Săn Quái',
     'map.name.bamboo_forest_yatomi': 'Rừng Tre Yatomi',
     'map.name.rocky_hill_iwagumo': 'Đồi Đá Iwagumo',
 
     // Portal labels — ngắn gọn, dùng ở scene config.
     'portal.label.time_pit': 'Hố Sâu Thời Gian',
+    'portal.label.return': 'Quay Lại',
+    'portal.label.continue': 'Đi Tiếp',
     'portal.label.return_village': 'Quay Về Làng',
     'portal.label.return_combat_field': 'Quay Về Đồng Cỏ',
     'portal.label.return_bamboo': 'Quay Về Rừng Tre',
     'portal.label.bamboo_forest': 'Rừng Tre Yatomi',
-    'portal.label.sword_school': 'Trường Mikazuki — Phái Kiếm',
-    'portal.label.bow_school': 'Trường Hayabusa — Phái Cung',
+    'portal.label.to_fire_school': 'Đường Tới Trường Hỏa',
+    'portal.label.to_wind_school': 'Đường Tới Trường Phong',
+    'portal.label.to_ice_school': 'Đường Tới Trường Băng',
+    'portal.label.enter_fire_school': 'Vào Trường Hỏa',
+    'portal.label.enter_wind_school': 'Vào Trường Phong',
+    'portal.label.enter_ice_school': 'Vào Trường Băng',
     'portal.label.rocky_hill': 'Đồi Đá Iwagumo',
 
     // Portal locked messages (scene-specific gating)
     'portal.locked.bamboo': 'Cần hoàn thành nhiệm vụ Vào Rừng Tre (lv 8) để mở khoá.',
-    'portal.locked.sword_school': 'Cần hoàn thành Bái Sư (Q11) để vào Trường Mikazuki.',
-    'portal.locked.bow_school': 'Cần hoàn thành Bái Sư (Q11) để vào Trường Hayabusa.',
+    'portal.locked.fire_school': 'Cần hoàn thành Bái Sư (Q11) để vào Trường Hỏa Kiếm.',
+    'portal.locked.ice_school': 'Cần hoàn thành Bái Sư (Q11) để vào Trường Băng Cung.',
+    'portal.locked.wind_school': 'Trường Phong chưa mở (chỉ QA truy cập). Đợi nội dung phái Phong.',
     'portal.locked.rocky_hill': 'Cần đạt lv 14 và hoàn thành nhiệm vụ Đồi Đá để mở khoá.',
 
     // Form validation

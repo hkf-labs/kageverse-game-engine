@@ -39,17 +39,17 @@ export class BambooForestScene extends BaseMapScene {
             { x: 180, label: t('portal.label.return_combat_field'), targetSceneKey: 'CombatFieldScene' },
             {
                 x: 1400,
-                label: t('portal.label.sword_school'),
-                targetSceneKey: 'SwordSchoolScene',
+                label: t('portal.label.enter_fire_school'),
+                targetSceneKey: 'FireSchoolScene',
                 locked: true,
-                lockedMessage: t('portal.locked.sword_school'),
+                lockedMessage: t('portal.locked.fire_school'),
             },
             {
                 x: 2400,
-                label: t('portal.label.bow_school'),
-                targetSceneKey: 'HayabusaSchoolScene',
+                label: t('portal.label.enter_ice_school'),
+                targetSceneKey: 'IceSchoolScene',
                 locked: true,
-                lockedMessage: t('portal.locked.bow_school'),
+                lockedMessage: t('portal.locked.ice_school'),
             },
             {
                 x: 3700,
