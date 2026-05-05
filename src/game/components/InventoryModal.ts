@@ -138,6 +138,7 @@ export class InventoryModal implements GameComponent {
     private onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
     private onEquipmentChanged?: () => void;
     private onItemUsed?: () => void;
+    private onSkillLearned?: (skillIDs: string[]) => void;
 
     constructor(
         scene: Phaser.Scene,
@@ -146,6 +147,10 @@ export class InventoryModal implements GameComponent {
             onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
             onEquipmentChanged?: () => void;
             onItemUsed?: () => void;
+            /** Bí Kíp Kỹ Năng consume thành công → callback với mảng skill_id
+             * vừa được grant. Scene auto-assign vào hotbar empty slot + show
+             * animation banner. */
+            onSkillLearned?: (skillIDs: string[]) => void;
         },
     ) {
         this.scene = scene;
@@ -153,6 +158,7 @@ export class InventoryModal implements GameComponent {
         this.onFoodBuffStarted = callbacks?.onFoodBuffStarted;
         this.onEquipmentChanged = callbacks?.onEquipmentChanged;
         this.onItemUsed = callbacks?.onItemUsed;
+        this.onSkillLearned = callbacks?.onSkillLearned;
     }
 
     create(): void {
@@ -546,6 +552,16 @@ export class InventoryModal implements GameComponent {
             }
             if (res.effects?.food_buff_started && this.onFoodBuffStarted) {
                 this.onFoodBuffStarted(res.effects.food_buff_started);
+            }
+            // Bí Kíp consume → grant_skill actions. Extract skill_id list +
+            // báo scene để wire animation + auto-assign hotbar.
+            if (res.effects?.skill_learned && this.onSkillLearned) {
+                const skillIDs: string[] = [];
+                for (const a of res.effects.skill_learned.actions ?? []) {
+                    const sid = a.params?.skill_id;
+                    if (typeof sid === 'string' && sid) skillIDs.push(sid);
+                }
+                if (skillIDs.length > 0) this.onSkillLearned(skillIDs);
             }
             await this.loadInventory();
             // use_item objective (vd Q4 mq_slime_purge: use 1 potion) — báo scene

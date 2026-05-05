@@ -403,6 +403,17 @@ export type UseInventoryEffects = {
     mp_delta?: number;
     buff_added?: unknown;
     food_buff_started?: FoodBuffStartedDTO;
+    /** Set khi item là Bí Kíp Kỹ Năng (sub_type=skill_book) đã consume thành
+     * công. actions liệt kê grant_skill action với skill_id mới học. FE trigger
+     * animation + auto-assign vào skill hotbar slot trống. */
+    skill_learned?: SkillLearnedEffect;
+};
+
+export type SkillLearnedEffect = {
+    actions: Array<{
+        type: string;
+        params: Record<string, unknown> & { skill_id?: string };
+    }>;
 };
 
 export type UseInventoryResponse = {

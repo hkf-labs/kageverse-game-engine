@@ -314,6 +314,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 // use_item objective (vd Q4 mq_slime_purge use 1 potion).
                 void this.questLog?.refresh();
             },
+            onSkillLearned: (skillIDs) => {
+                // Bí Kíp Kỹ Năng (Q11) consume → BE đã grant skill. FE auto-
+                // assign skill mới vào hotbar slot trống đầu tiên + show banner
+                // animation. Best-effort: lỗi → log silent, hotbar refresh
+                // sau cũng tự cập nhật skill list.
+                void this.handleSkillLearned(skillIDs);
+            },
         });
         this.inventory.create();
 
@@ -1034,6 +1041,130 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 onComplete: () => txt.destroy(),
             });
         });
+    }
+
+    /**
+     * Bí Kíp Kỹ Năng consume → handle wire:
+     *   1. Auto-assign skill mới vào hotbar slot trống đầu tiên (call BE
+     *      skill-slots PUT). Skip nếu skill đã trong slot hoặc không còn slot.
+     *   2. Refresh SkillHotbar để hiển thị skill mới.
+     *   3. Show banner animation 📜 + skill name (placeholder visual; designer
+     *      thay sprite/SFX sau).
+     */
+    private async handleSkillLearned(skillIDs: string[]): Promise<void> {
+        if (!skillIDs || skillIDs.length === 0) return;
+        const character = getCurrentCharacter();
+        if (!character) return;
+        const newSkillID = skillIDs[0];
+
+        const { skillAPI } = await import('../../network/api');
+        let skillName = newSkillID;
+        try {
+            const list = await skillAPI.list(character.id);
+            // Lookup skill name từ skills list (BE đã grant).
+            const found = list.skills.find((s) => s.skill_id === newSkillID);
+            if (found?.name_key) skillName = t(found.name_key);
+
+            // Auto-assign vào empty slot đầu tiên (nếu chưa có).
+            const slots = list.skill_slots ? [...list.skill_slots] : [];
+            while (slots.length < 5) slots.push(null);
+            if (!slots.includes(newSkillID)) {
+                const emptyIdx = slots.findIndex((s) => !s);
+                if (emptyIdx >= 0) {
+                    slots[emptyIdx] = newSkillID;
+                    try {
+                        await skillAPI.assignSlots(character.id, slots);
+                        this.skillHotbar?.setSlots(slots);
+                    } catch (err) {
+                        console.warn('[skill] auto-assign failed', err);
+                    }
+                }
+            } else {
+                // Đã có trong slot — chỉ refresh paint.
+                this.skillHotbar?.setSlots(slots);
+            }
+        } catch (err) {
+            console.warn('[skill] post-learn lookup failed', err);
+        }
+
+        // Refresh hotbar để skill mới có icon đúng (nếu BE trả texture key).
+        void this.skillHotbar?.refresh();
+
+        this.showSkillLearnedBanner(skillName);
+    }
+
+    /**
+     * Banner placeholder cho skill learned. Mock visual: vàng kim + scroll
+     * emoji + glow ring quanh player. Designer thay sprite/SFX sau.
+     */
+    private showSkillLearnedBanner(skillName: string): void {
+        const w = this.scale.width;
+        const h = this.scale.height;
+
+        // 1. Banner trung tâm: scroll icon + skill name.
+        const banner = this.add.text(
+            w / 2, h / 2 - 80,
+            `📜  Đã học kỹ năng:\n${skillName}`,
+            {
+                fontSize: '22px', fontStyle: 'bold', color: '#ffea7a',
+                fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 5,
+                align: 'center',
+                backgroundColor: '#3e2723', padding: { left: 24, right: 24, top: 14, bottom: 14 },
+            },
+        ).setOrigin(0.5).setScrollFactor(0).setDepth(210).setAlpha(0).setScale(0.7);
+
+        this.tweens.add({
+            targets: banner,
+            alpha: 1,
+            scale: 1,
+            duration: 320,
+            ease: 'Back.easeOut',
+        });
+        this.tweens.add({
+            targets: banner,
+            alpha: 0,
+            y: banner.y - 24,
+            delay: 1500,
+            duration: 420,
+            ease: 'Cubic.easeIn',
+            onComplete: () => banner.destroy(),
+        });
+
+        // 2. Glow ring quanh player (world coord) — mở rộng + fade.
+        const player = this.playerCtrl?.getPlayer();
+        if (player) {
+            const ring = this.add.graphics();
+            ring.lineStyle(4, 0xffea7a, 1);
+            ring.strokeCircle(0, 0, 28);
+            ring.setPosition(player.x, player.y).setDepth(60).setScale(0.6);
+            this.tweens.add({
+                targets: ring,
+                scale: 4.2,
+                alpha: 0,
+                duration: 1200,
+                ease: 'Cubic.easeOut',
+                onComplete: () => ring.destroy(),
+            });
+
+            // Particles giả: 6 chấm nhỏ bay lên xung quanh player.
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI * 2 * i) / 6;
+                const sparkle = this.add.text(
+                    player.x + Math.cos(angle) * 28,
+                    player.y + Math.sin(angle) * 28,
+                    '✨',
+                    { fontSize: '18px' },
+                ).setOrigin(0.5).setDepth(60);
+                this.tweens.add({
+                    targets: sparkle,
+                    y: sparkle.y - 60,
+                    alpha: 0,
+                    duration: 1000,
+                    ease: 'Cubic.easeOut',
+                    onComplete: () => sparkle.destroy(),
+                });
+            }
+        }
     }
 
     private showLevelUpBanner(from: number, to: number): void {
