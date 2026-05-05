@@ -357,6 +357,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Skill hotbar — 5 slot ngoài world, phía trên minimap mobile.
         this.skillHotbar = new SkillHotbar(this);
         this.skillHotbar.create();
+        this.skillHotbar.setOnSlotPressed((_idx, skillID) => {
+            void this.handleCastSkill(skillID);
+        });
 
         // Settings modal — Menu chức năng → Cài đặt. Locale switcher (11 ngôn
         // ngữ) là feature MVP duy nhất; các option khác placeholder.
@@ -1041,6 +1044,39 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 onComplete: () => txt.destroy(),
             });
         });
+    }
+
+    /**
+     * Cast active skill (active_buff) khi player nhấn key 1-5 hoặc click slot.
+     * Best-effort: lỗi (cooldown / MP / dead / not_buff_skill) → toast hiển thị
+     * msg_key. Thành công → BE đã write buff DB + emit char_stats realtime;
+     * FE optimistic update HUD MP + show BuffIndicator entry với expires.
+     */
+    private async handleCastSkill(skillID: string): Promise<void> {
+        if (this.deathState !== 'alive' || !skillID) return;
+        const character = getCurrentCharacter();
+        if (!character) return;
+        const { skillAPI } = await import('../../network/api');
+        try {
+            const res = await skillAPI.cast(character.id, skillID);
+            if (res.buff) {
+                // BE đã emit realtime char_stats sau cast (MP changed) — HUD
+                // sync qua existing char_stats listener. FE chỉ cần show
+                // BuffIndicator + status feedback.
+                const skillNameKey = `skill.${skillID.replace(/\./g, '_')}.name`;
+                const skillName = t(skillNameKey);
+                this.buffIndicator?.setBuff({
+                    key: `skill_buff.${skillID}`,
+                    expiresAt: new Date(res.buff.expires_at_unix_ms),
+                    icon: '✨',
+                    label: skillName,
+                });
+                this.hud.setStatus(t('skill.cast_success', { name: skillName }), '#bdf0a0');
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : t('api.error.cast_skill');
+            this.hud.setStatus(msg, '#ff8a8a');
+        }
     }
 
     /**

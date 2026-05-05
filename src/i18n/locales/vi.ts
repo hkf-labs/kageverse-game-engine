@@ -396,7 +396,9 @@ export const vi: TranslationTable = {
     'api.error.buy': 'Mua hàng thất bại',
     'api.error.load_skills': 'Không tải được kỹ năng',
     'api.error.upgrade_skill': 'Nâng cấp kỹ năng thất bại',
+    'api.error.cast_skill': 'Sử dụng kỹ năng thất bại',
     'api.error.assign_slot': 'Gán slot thất bại',
+    'skill.cast_success': 'Đã sử dụng kỹ năng: {name}',
     'api.error.upgrade_equipment': 'Cường hoá thất bại',
     'api.error.extract_equipment': 'Tách trang bị thất bại',
 

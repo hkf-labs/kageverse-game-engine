@@ -386,7 +386,9 @@ export const en: TranslationTable = {
     'api.error.buy': 'Purchase failed',
     'api.error.load_skills': 'Failed to load skills',
     'api.error.upgrade_skill': 'Failed to upgrade skill',
+    'api.error.cast_skill': 'Failed to cast skill',
     'api.error.assign_slot': 'Failed to assign slot',
+    'skill.cast_success': 'Cast skill: {name}',
     'api.error.upgrade_equipment': 'Enhancement failed',
     'api.error.extract_equipment': 'Extraction failed',
 

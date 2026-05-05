@@ -1011,6 +1011,22 @@ export type AssignSlotsResponse = {
     skill_slots: (string | null)[];
 };
 
+export type ActiveSkillBuffDTO = {
+    skill_id: string;
+    started_at_unix_ms: number;
+    expires_at_unix_ms: number;
+    stats: Record<string, number>;
+};
+
+export type CastSkillResponse = {
+    skill_id: string;
+    skill_type: string;
+    /** Set khi skill_type='active_buff'. Empty cho active_attack future. */
+    buff?: ActiveSkillBuffDTO;
+    mp_remaining: number;
+    cooldown_end_unix_ms: number;
+};
+
 export const skillAPI = {
     async list(characterId: string): Promise<ListSkillsResponse> {
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/skills`);
@@ -1029,6 +1045,16 @@ export const skillAPI = {
             throw new Error(`${formatApiError(resData, t('api.error.upgrade_skill'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as UpgradeSkillResponse;
+    },
+
+    async cast(characterId: string, skillId: string): Promise<CastSkillResponse> {
+        const path = `/characters/${encodeURIComponent(characterId)}/skills/${encodeURIComponent(skillId)}/cast`;
+        const { response, traceId } = await authFetch(path, { method: 'POST' });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, t('api.error.cast_skill'))} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as CastSkillResponse;
     },
 
     async assignSlots(characterId: string, slots: (string | null)[]): Promise<AssignSlotsResponse> {

@@ -61,9 +61,19 @@ export class SkillHotbar implements GameComponent {
     private slots: SlotView[] = [];
     private skillsByID: Map<string, SkillDTO> = new Map();
     private boundSlots: (string | null)[] = [null, null, null, null, null];
+    /** Callback dispatch cast skill khi player click slot hoặc nhấn 1-5.
+     * Scene wire qua skillAPI.cast → handle response. */
+    private onSlotPressed?: (slotIdx: number, skillID: string) => void;
+    private keyHandlers: Phaser.Input.Keyboard.Key[] = [];
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
+    }
+
+    /** Wire callback khi player nhấn slot (key hoặc click). Scene gọi sau
+     * khi tạo + create() để inject handler. */
+    setOnSlotPressed(cb: (slotIdx: number, skillID: string) => void): void {
+        this.onSlotPressed = cb;
     }
 
     preload(): void {
@@ -84,6 +94,23 @@ export class SkillHotbar implements GameComponent {
         const cx = this.scene.scale.width / 2;
         const y = this.scene.scale.height - 70;
         this.container = this.scene.add.container(cx - totalWidth / 2, y).setScrollFactor(0).setDepth(95);
+
+        // Key bindings 1-5 → dispatch slot press.
+        const keyboard = this.scene.input.keyboard;
+        if (keyboard) {
+            const codes = [
+                Phaser.Input.Keyboard.KeyCodes.ONE,
+                Phaser.Input.Keyboard.KeyCodes.TWO,
+                Phaser.Input.Keyboard.KeyCodes.THREE,
+                Phaser.Input.Keyboard.KeyCodes.FOUR,
+                Phaser.Input.Keyboard.KeyCodes.FIVE,
+            ];
+            for (let i = 0; i < SLOT_COUNT; i++) {
+                const key = keyboard.addKey(codes[i], false, false);
+                key.on('down', () => this.handleSlotPressed(i));
+                this.keyHandlers.push(key);
+            }
+        }
 
         for (let i = 0; i < SLOT_COUNT; i++) {
             const slotX = i * (SLOT_SIZE + SLOT_GAP) + SLOT_SIZE / 2;
@@ -134,9 +161,20 @@ export class SkillHotbar implements GameComponent {
     }
 
     destroy(): void {
+        for (const k of this.keyHandlers) {
+            k.removeAllListeners();
+            this.scene.input.keyboard?.removeKey(k, true);
+        }
+        this.keyHandlers = [];
         this.container?.destroy();
         this.container = undefined;
         this.slots = [];
+    }
+
+    private handleSlotPressed(slotIdx: number): void {
+        const skillID = this.boundSlots[slotIdx];
+        if (!skillID || !this.onSlotPressed) return;
+        this.onSlotPressed(slotIdx, skillID);
     }
 
     private repaint(): void {
