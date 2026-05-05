@@ -23,6 +23,7 @@ const ACTION_KEY: Record<string, string> = {
     explore_cave: 'npc.action_explore_cave',
     browse_weapons: 'npc.action_browse_weapons',
     browse_apparel: 'npc.action_browse_apparel',
+    browse_jewelry: 'npc.action_browse_jewelry',
 };
 
 const ACTION_ICON: Record<string, string> = {
@@ -35,6 +36,7 @@ const ACTION_ICON: Record<string, string> = {
     explore_cave: '🕳️',
     browse_weapons: '⚔️',
     browse_apparel: '👘',
+    browse_jewelry: '💍',
 };
 
 function actionLabel(a: NpcActionDTO): string {
@@ -501,6 +503,11 @@ export class NpcManager implements GameComponent {
                 // → reject sớm vì shop không có item class=none.
                 this.openApparelSlotMenu(npc);
                 break;
+            case 'browse_jewelry':
+                // Submenu 4 slot (Dây chuyền / Ngọc bội / Nhẫn / Bùa). Cùng
+                // pattern apparel: pre-Bái Sư reject sớm (jewelry class-bound).
+                this.openJewelrySlotMenu(npc);
+                break;
             default:
                 this.onStatusMessage?.(t('npc.run.action_unsupported', { name: action }), '#aaaaaa');
         }
@@ -625,6 +632,47 @@ export class NpcManager implements GameComponent {
     }
 
     private openApparelShop(npc: NpcEntry, classId: string, subType: string): void {
+        if (!this.shopModal || !npc.templateId) return;
+        this.shopModal.open({
+            mapId: this.mapId,
+            npcTemplateId: npc.templateId,
+            npcName: npc.name,
+            classFilter: classId,
+            subTypeFilter: subType,
+        });
+    }
+
+    private openJewelrySlotMenu(npc: NpcEntry): void {
+        if (!this.actionMenu || !this.shopModal || !npc.templateId) {
+            this.onStatusMessage?.(t('npc.run.shop_unavailable'), '#aaaaaa');
+            return;
+        }
+        const character = getCurrentCharacter();
+        const charClass = character?.class;
+        if (!charClass || charClass === 'none') {
+            this.onStatusMessage?.(t('npc.jewelry.requires_class'), '#aaaaaa');
+            return;
+        }
+        const slots: Array<{ key: string; label: string; icon: string; subType: string }> = [
+            { key: 'jewelry_necklace', label: t('npc.jewelry.slot_necklace'), icon: '📿', subType: 'necklace' },
+            { key: 'jewelry_pendant',  label: t('npc.jewelry.slot_pendant'),  icon: '🟢', subType: 'pendant' },
+            { key: 'jewelry_ring',     label: t('npc.jewelry.slot_ring'),     icon: '💍', subType: 'ring' },
+            { key: 'jewelry_amulet',   label: t('npc.jewelry.slot_amulet'),   icon: '🧿', subType: 'amulet' },
+        ];
+        const items: ActionMenuItem[] = slots.map((s) => ({
+            key: s.key,
+            label: s.label,
+            icon: s.icon,
+            action: () => this.openJewelryShop(npc, charClass, s.subType),
+        }));
+        items.push({ key: 'cancel', label: t('npc.jewelry.cancel'), icon: '↩️', action: () => {} });
+        this.actionMenu.open({
+            title: t('npc.jewelry.menu_title'),
+            items,
+        });
+    }
+
+    private openJewelryShop(npc: NpcEntry, classId: string, subType: string): void {
         if (!this.shopModal || !npc.templateId) return;
         this.shopModal.open({
             mapId: this.mapId,

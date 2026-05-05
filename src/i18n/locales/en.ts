@@ -38,6 +38,7 @@ export const en: TranslationTable = {
     'npc.name.npc_hoshi': 'Refiner Hoshi',
     'npc.name.npc_hayato': 'Weaponsmith Hayato',
     'npc.name.npc_hina': 'Tailor Hina',
+    'npc.name.npc_akira': 'Jeweler Akira',
 
     // Auth — register screen
     'auth.register.title': 'ENROLLMENT',
@@ -401,6 +402,7 @@ export const en: TranslationTable = {
     'npc.action_explore_cave': 'Explore cave',
     'npc.action_browse_weapons': 'Weapons',
     'npc.action_browse_apparel': 'Apparel',
+    'npc.action_browse_jewelry': 'Jewelry',
     'npc.action_leave': 'Leave',
     'npc.menu_loading': 'Loading...',
     'npc.menu_error_load': 'Failed to load NPC menu',
@@ -440,6 +442,13 @@ export const en: TranslationTable = {
     'npc.apparel.slot_shoes': 'Shoes',
     'npc.apparel.cancel': 'Cancel',
     'npc.apparel.requires_class': 'Choose a school first to buy apparel.',
+    'npc.jewelry.menu_title': 'Choose Jewelry Type',
+    'npc.jewelry.slot_necklace': 'Necklace',
+    'npc.jewelry.slot_pendant': 'Pendant',
+    'npc.jewelry.slot_ring': 'Ring',
+    'npc.jewelry.slot_amulet': 'Amulet',
+    'npc.jewelry.cancel': 'Cancel',
+    'npc.jewelry.requires_class': 'Choose a school first to buy jewelry.',
 
     // Skill modal
     'skill.modal.title': 'SKILLS',
