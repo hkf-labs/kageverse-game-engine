@@ -4,7 +4,7 @@ import { disconnectRealtime, wsClient } from '../../network/realtime';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -38,6 +38,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected settingsModal!: SettingsModal;
     protected portals: Portal[] = [];
     protected remotePlayers!: RemotePlayerManager;
+    protected playerChatBubble!: PlayerChatBubble;
     private autoAttackEnabled = false;
     private lastEnterAt = 0;
     private readonly DOUBLE_TAP_MS = 1500;
@@ -355,6 +356,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.remotePlayers = new RemotePlayerManager(this);
         this.remotePlayers.create();
 
+        // Player chat bubble — multi-instance theo characterID. Show khi
+        // nhận chat_message channel=map. Cleanup khi player_left.
+        this.playerChatBubble = new PlayerChatBubble(this);
+        this.playerChatBubble.create();
+
         void this.loadInitialCharacterState();
         this.startPositionAutosave();
         this.setupRealtimeListeners();
@@ -377,6 +383,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.deathMenu?.destroy();
             this.targetFrame?.destroy();
             this.remotePlayers?.destroy();
+            this.playerChatBubble?.destroy();
         });
 
         this.onMapReady();
@@ -462,11 +469,47 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.rtUnsubs.push(
             wsClient.events.on('player_left', (p) => {
                 this.remotePlayers.handleLeft(p);
+                // Cleanup bubble nếu player rời map giữa chừng (bubble TTL có
+                // thể chưa expire).
+                this.playerChatBubble?.remove(p.character_id);
+            }),
+        );
+
+        // Chat — receive map / world. Map → bubble trên sprite + append vào
+        // panel; world → chỉ append panel (không bubble, tránh spam toàn map).
+        this.rtUnsubs.push(
+            wsClient.events.on('chat_message', (p) => {
+                if (p.channel === 'map') {
+                    const target = this.resolveBubbleTarget(p.sender_character_id);
+                    if (target) this.playerChatBubble?.show(p.sender_character_id ?? '', target, p.text);
+                }
+                this.chat?.appendMessage(p);
+            }),
+        );
+
+        // chat_history reply — ChatPanel quản lý hiển thị (bulk render +
+        // pagination). Bubble không liên quan history.
+        this.rtUnsubs.push(
+            wsClient.events.on('chat_history', (p) => {
+                this.chat?.applyHistory(p);
             }),
         );
 
         // sendJoinMap lùi tới khi loadInitialCharacterState restore xong
         // position. Listeners đã sẵn sàng → nếu BE đẩy event sớm vẫn nhận.
+    }
+
+    // resolveBubbleTarget → trả container của sender (local hoặc remote).
+    // null khi sender không có sprite (race chat_message tới trước map_snapshot,
+    // hoặc system message với sender_character_id rỗng).
+    private resolveBubbleTarget(senderID: string | undefined):
+        Phaser.GameObjects.Container | undefined {
+        if (!senderID) return undefined;
+        const own = getCurrentCharacter()?.id;
+        if (own && senderID === own) {
+            return this.playerCtrl?.getSprite();
+        }
+        return this.remotePlayers?.getContainer(senderID);
     }
 
     private teardownRealtimeListeners(): void {
@@ -790,6 +833,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         this.playerCtrl.update();
         this.remotePlayers?.update();
+        this.playerChatBubble?.update();
         this.sendMoveIfNeeded();
     }
 

@@ -18,6 +18,7 @@ export { Minimap } from './Minimap';
 export { MonsterManager } from './MonsterManager';
 export { MonsterTargetFrame } from './MonsterTargetFrame';
 export { NpcChatBubble } from './NpcChatBubble';
+export { PlayerChatBubble } from './PlayerChatBubble';
 export { NpcManager } from './NpcManager';
 export { PlayerController, DEFAULT_CHARACTER_APPEARANCE, DEFAULT_CHARACTER_APPEARANCE_ASSETS } from './PlayerController';
 export type { CharacterAppearance } from './PlayerController';

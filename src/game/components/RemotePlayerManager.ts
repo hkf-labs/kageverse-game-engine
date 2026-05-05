@@ -146,6 +146,13 @@ export class RemotePlayerManager implements GameComponent {
         this.removePlayer(p.character_id);
     }
 
+    /** Lookup container của remote player theo characterID. Trả undefined
+     * nếu chưa có (vd chat_message tới trước player_joined — race hiếm).
+     * Dùng cho PlayerChatBubble follow position. */
+    getContainer(characterID: string): Phaser.GameObjects.Container | undefined {
+        return this.players.get(characterID)?.container;
+    }
+
     private upsertPlayer(p: PlayerPresencePayload): void {
         const existing = this.players.get(p.character_id);
         if (existing) {

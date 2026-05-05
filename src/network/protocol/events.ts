@@ -111,6 +111,64 @@ export type PlayerLeftPayload = {
     character_id: string;
 };
 
+// Chat
+
+// MVP wire 'map' + 'world'. 'guild' / 'party' / 'whisper' đã có schema +
+// BE Channel VO sẵn (forward-compat) nhưng broadcast chưa wire — server
+// reject ErrInvalidChannel cho đến khi membership lookup có.
+export type ChatChannel = 'map' | 'world' | 'guild' | 'party' | 'whisper';
+export type ChatKind = 'user' | 'system';
+
+// Inbound: chat_send. scope_id bắt buộc cho channel có scope (guild / party
+// / whisper); rỗng cho map / world.
+export type ChatSendPayload = {
+    channel: ChatChannel;
+    /** guild_id / party_id / whisper conversation_id. Empty cho map / world. */
+    scope_id?: string;
+    text: string;
+};
+
+// Inbound: chat_history_req. scope_id required cho channel có scope.
+export type ChatHistoryReqPayload = {
+    channel: ChatChannel;
+    scope_id?: string;
+    /** Optional — default 50, hard cap 100 server-side. */
+    limit?: number;
+    /** Optional — pagination cũ: id của message cũ nhất đang hiển thị. 0 = lấy mới nhất. */
+    before_id?: number;
+};
+
+// Outbound: chat_message — broadcast tới room (channel=map) / all session
+// (channel=world) / guild members (channel=guild) / party (channel=party) /
+// 1-1 (channel=whisper).
+// Echo cả sender. id = 0 cho channel ephemeral (map / party).
+export type ChatMessagePayload = {
+    /** Server BIGSERIAL id; chỉ set cho channel persisted. */
+    id?: number;
+    channel: ChatChannel;
+    /** guild_id / party_id / whisper conversation_id. Empty cho map / world. */
+    scope_id?: string;
+    kind: ChatKind;
+    /** Rỗng cho kind=system. */
+    sender_character_id?: string;
+    sender_display_name: string;
+    sender_class?: string;
+    sender_level?: number;
+    text: string;
+    /** Server unix ms tại thời điểm gửi. */
+    ts: number;
+    /** Chỉ set khi channel=map (giúp FE filter/debug). */
+    map_id?: string;
+};
+
+// Outbound: chat_history — reply cho chat_history_req. Order desc theo id.
+// scope_id echo để FE route đúng tab khi mở 2 guild khác nhau cùng lúc.
+export type ChatHistoryPayload = {
+    channel: ChatChannel;
+    scope_id?: string;
+    messages: ChatMessagePayload[];
+};
+
 // Errors / system
 
 export type ErrorPayload = {
@@ -125,7 +183,9 @@ export type ClientEvent =
     | { t: 'join_map'; p: JoinMapPayload }
     | { t: 'leave_map'; p: Record<string, never> }
     | { t: 'move'; p: MovePayload }
-    | { t: 'ping'; p: Record<string, never> };
+    | { t: 'ping'; p: Record<string, never> }
+    | { t: 'chat_send'; p: ChatSendPayload }
+    | { t: 'chat_history_req'; p: ChatHistoryReqPayload };
 
 export type ServerEvent =
     | { t: 'char_stats'; p: CharStatsPayload }
@@ -135,6 +195,8 @@ export type ServerEvent =
     | { t: 'player_joined'; p: PlayerPresencePayload }
     | { t: 'player_moved'; p: PlayerMovedPayload }
     | { t: 'player_left'; p: PlayerLeftPayload }
+    | { t: 'chat_message'; p: ChatMessagePayload }
+    | { t: 'chat_history'; p: ChatHistoryPayload }
     | { t: 'pong'; p: Record<string, never> }
     | { t: 'error'; p: ErrorPayload };
 
@@ -153,6 +215,20 @@ export const REALTIME_ERROR_CODES = {
     NOT_IN_MAP: 150030,
     SEND_BUFFER_FULL: 150040,
     INTERNAL: 150099,
+} as const;
+
+// Chat error codes — surface ở chat_send / chat_history_req error event.
+// Khớp internal/modules/chat/domain/errors.go.
+export const CHAT_ERROR_CODES = {
+    INVALID_CHANNEL: 160001,
+    INVALID_KIND: 160002,
+    MISSING_SCOPE: 160003,
+    EMPTY_TEXT: 160010,
+    TEXT_TOO_LONG: 160011,
+    INVALID_TEXT: 160012,
+    RATE_LIMITED: 160020,
+    NOT_IN_MAP: 160030,
+    REPOSITORY: 160090,
 } as const;
 
 // WS application close codes — khớp BE.

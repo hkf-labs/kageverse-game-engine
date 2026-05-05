@@ -260,6 +260,8 @@ function isKnownServerEventType(t: string): t is ServerEventType {
         case 'player_joined':
         case 'player_moved':
         case 'player_left':
+        case 'chat_message':
+        case 'chat_history':
         case 'pong':
         case 'error':
             return true;
