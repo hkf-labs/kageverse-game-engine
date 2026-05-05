@@ -37,6 +37,7 @@ export const vi: TranslationTable = {
     'npc.name.npc_kazu': 'Thợ Cung Kazu',
     'npc.name.npc_hoshi': 'Tinh Luyện Sư Hoshi',
     'npc.name.npc_hayato': 'Vũ Khí Sư Hayato',
+    'npc.name.npc_hina': 'Trang Phục Sư Hina',
 
     // Auth — register screen
     'auth.register.title': 'NHẬP HỌC',
@@ -409,6 +410,7 @@ export const vi: TranslationTable = {
     'npc.action_teleport': 'Dịch chuyển',
     'npc.action_explore_cave': 'Khám phá hang động',
     'npc.action_browse_weapons': 'Vũ khí',
+    'npc.action_browse_apparel': 'Trang phục',
     'npc.action_leave': 'Rời đi',
     'npc.menu_loading': 'Đang tải...',
     'npc.menu_error_load': 'Không tải được menu NPC',
@@ -440,6 +442,14 @@ export const vi: TranslationTable = {
     'npc.weapon.category_sword': 'Kiếm',
     'npc.weapon.category_bow': 'Cung',
     'npc.weapon.cancel': 'Huỷ',
+    'npc.apparel.menu_title': 'Chọn Loại Trang Phục',
+    'npc.apparel.slot_hat': 'Nón',
+    'npc.apparel.slot_shirt': 'Áo',
+    'npc.apparel.slot_gloves': 'Găng Tay',
+    'npc.apparel.slot_pants': 'Quần',
+    'npc.apparel.slot_shoes': 'Giày',
+    'npc.apparel.cancel': 'Huỷ',
+    'npc.apparel.requires_class': 'Cần Bái Sư phái trước khi mua trang phục.',
 
     // Skill modal
     'skill.modal.title': 'KỸ NĂNG',

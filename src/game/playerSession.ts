@@ -7,6 +7,9 @@ const USER_PREFS_KEY = 'kageverse_user_prefs';
 export type CurrentCharacter = {
     id: string;
     displayName: string;
+    /** Class hiện tại của character: 'none' | 'sword' | 'bow' | 'fan' | 'kunai' | 'dart' | 'katana'.
+     * Pre-Bái Sư = 'none'. Dùng cho apparel shop classFilter, equipment validation. */
+    class?: string;
     gender?: string;
     costumePrimaryColor?: string;
 };
@@ -15,6 +18,7 @@ export function saveCurrentCharacter(character: CharacterDTO) {
     const payload: CurrentCharacter = {
         id: character.id,
         displayName: character.display_name,
+        class: character.class,
         gender: character.gender,
         costumePrimaryColor: character.costume_primary_color,
     };

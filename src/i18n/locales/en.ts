@@ -37,6 +37,7 @@ export const en: TranslationTable = {
     'npc.name.npc_kazu': 'Bowsmith Kazu',
     'npc.name.npc_hoshi': 'Refiner Hoshi',
     'npc.name.npc_hayato': 'Weaponsmith Hayato',
+    'npc.name.npc_hina': 'Tailor Hina',
 
     // Auth — register screen
     'auth.register.title': 'ENROLLMENT',
@@ -399,6 +400,7 @@ export const en: TranslationTable = {
     'npc.action_teleport': 'Teleport',
     'npc.action_explore_cave': 'Explore cave',
     'npc.action_browse_weapons': 'Weapons',
+    'npc.action_browse_apparel': 'Apparel',
     'npc.action_leave': 'Leave',
     'npc.menu_loading': 'Loading...',
     'npc.menu_error_load': 'Failed to load NPC menu',
@@ -430,6 +432,14 @@ export const en: TranslationTable = {
     'npc.weapon.category_sword': 'Sword',
     'npc.weapon.category_bow': 'Bow',
     'npc.weapon.cancel': 'Cancel',
+    'npc.apparel.menu_title': 'Choose Apparel Slot',
+    'npc.apparel.slot_hat': 'Hat',
+    'npc.apparel.slot_shirt': 'Shirt',
+    'npc.apparel.slot_gloves': 'Gloves',
+    'npc.apparel.slot_pants': 'Pants',
+    'npc.apparel.slot_shoes': 'Shoes',
+    'npc.apparel.cancel': 'Cancel',
+    'npc.apparel.requires_class': 'Choose a school first to buy apparel.',
 
     // Skill modal
     'skill.modal.title': 'SKILLS',

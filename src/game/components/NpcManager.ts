@@ -22,6 +22,7 @@ const ACTION_KEY: Record<string, string> = {
     teleport: 'npc.action_teleport',
     explore_cave: 'npc.action_explore_cave',
     browse_weapons: 'npc.action_browse_weapons',
+    browse_apparel: 'npc.action_browse_apparel',
 };
 
 const ACTION_ICON: Record<string, string> = {
@@ -33,6 +34,7 @@ const ACTION_ICON: Record<string, string> = {
     teleport: '✨',
     explore_cave: '🕳️',
     browse_weapons: '⚔️',
+    browse_apparel: '👘',
 };
 
 function actionLabel(a: NpcActionDTO): string {
@@ -492,6 +494,13 @@ export class NpcManager implements GameComponent {
                 // → mở shop với class_id filter.
                 this.openWeaponCategoryMenu(npc);
                 break;
+            case 'browse_apparel':
+                // Submenu 5 slot (Nón / Áo / Găng Tay / Quần / Giày) → mở
+                // ShopModal với subTypeFilter + classFilter theo class của
+                // character (apparel bind class). Pre-Bái Sư (class='none')
+                // → reject sớm vì shop không có item class=none.
+                this.openApparelSlotMenu(npc);
+                break;
             default:
                 this.onStatusMessage?.(t('npc.run.action_unsupported', { name: action }), '#aaaaaa');
         }
@@ -578,6 +587,51 @@ export class NpcManager implements GameComponent {
             npcTemplateId: npc.templateId,
             npcName: npc.name,
             classFilter: classId,
+        });
+    }
+
+    private openApparelSlotMenu(npc: NpcEntry): void {
+        if (!this.actionMenu || !this.shopModal || !npc.templateId) {
+            this.onStatusMessage?.(t('npc.run.shop_unavailable'), '#aaaaaa');
+            return;
+        }
+        const character = getCurrentCharacter();
+        const charClass = character?.class;
+        // Pre-Bái Sư (class chưa set hoặc 'none') — apparel toàn bộ class-bound,
+        // không có item class=none nên hiện sẽ rỗng. Báo player sớm thay vì
+        // mở modal trống.
+        if (!charClass || charClass === 'none') {
+            this.onStatusMessage?.(t('npc.apparel.requires_class'), '#aaaaaa');
+            return;
+        }
+        const slots: Array<{ key: string; label: string; icon: string; subType: string }> = [
+            { key: 'apparel_hat',    label: t('npc.apparel.slot_hat'),    icon: '🎩', subType: 'hat' },
+            { key: 'apparel_shirt',  label: t('npc.apparel.slot_shirt'),  icon: '👕', subType: 'shirt' },
+            { key: 'apparel_gloves', label: t('npc.apparel.slot_gloves'), icon: '🧤', subType: 'gloves' },
+            { key: 'apparel_pants',  label: t('npc.apparel.slot_pants'),  icon: '👖', subType: 'pants' },
+            { key: 'apparel_shoes',  label: t('npc.apparel.slot_shoes'),  icon: '👟', subType: 'shoes' },
+        ];
+        const items: ActionMenuItem[] = slots.map((s) => ({
+            key: s.key,
+            label: s.label,
+            icon: s.icon,
+            action: () => this.openApparelShop(npc, charClass, s.subType),
+        }));
+        items.push({ key: 'cancel', label: t('npc.apparel.cancel'), icon: '↩️', action: () => {} });
+        this.actionMenu.open({
+            title: t('npc.apparel.menu_title'),
+            items,
+        });
+    }
+
+    private openApparelShop(npc: NpcEntry, classId: string, subType: string): void {
+        if (!this.shopModal || !npc.templateId) return;
+        this.shopModal.open({
+            mapId: this.mapId,
+            npcTemplateId: npc.templateId,
+            npcName: npc.name,
+            classFilter: classId,
+            subTypeFilter: subType,
         });
     }
 
