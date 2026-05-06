@@ -22,6 +22,7 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
         width: window.innerWidth,
         height: window.innerHeight,
         backgroundColor: '#0a0a0a',
+        pixelArt: true,
         scale: {
             mode: Phaser.Scale.RESIZE,
             autoCenter: Phaser.Scale.CENTER_BOTH,

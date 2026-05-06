@@ -82,6 +82,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
         this.load.image(cfg.bgKey, cfg.bgAsset);
         this.load.json(cfg.colliderKey, cfg.colliderAsset);
+        if (cfg.surfaceTextures) {
+            for (const tex of Object.values(cfg.surfaceTextures)) {
+                this.load.image(tex.key, tex.asset);
+            }
+        }
         this.load.image('btn_attack', 'assets/game/buttons/button-attack.png');
         this.load.image('btn_chat', 'assets/game/buttons/chat.png');
         this.load.image('btn_menu', 'assets/game/buttons/menu.png');

@@ -106,7 +106,7 @@ export class MapBackground implements GameComponent {
 
         const tiledOriginalHeight = this.config.tiledOriginalHeight;
         const scale = this.scene.scale.height / tiledOriginalHeight;
-        const MIN_THICKNESS = 80;
+        const MIN_THICKNESS = 64;
         const EDGE_LIP = 6;
 
         const objectLayer = mapData.layers.find((l: TiledLayer) => l.type === 'objectgroup');
@@ -135,7 +135,16 @@ export class MapBackground implements GameComponent {
                 const centerX = sx + sw / 2;
                 const centerY = sy + sh / 2;
 
-                const block = this.scene.add.rectangle(centerX, centerY, sw, sh, 0xffffff, 0.001);
+                const tex = obj.type ? this.config.surfaceTextures?.[obj.type] : undefined;
+                let block: Phaser.GameObjects.GameObject & { body: Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody };
+                if (tex && this.scene.textures.exists(tex.key)) {
+                    const ts = this.scene.add.tileSprite(centerX, centerY, sw, sh, tex.key).setDepth(1);
+                    ts.tileScaleX = scale;
+                    ts.tileScaleY = scale;
+                    block = ts;
+                } else {
+                    block = this.scene.add.rectangle(centerX, centerY, sw, sh, 0xffffff, 0.001);
+                }
                 this.scene.physics.add.existing(block, true);
 
                 const body = block.body as Phaser.Physics.Arcade.StaticBody;

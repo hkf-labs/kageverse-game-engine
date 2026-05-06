@@ -39,7 +39,7 @@ export class Portal implements GameComponent {
         const groundY = this.background.getPlatformYAtX(scaledX);
 
         this.centerX = scaledX;
-        this.centerY = groundY - this.radiusY - 10;
+        this.centerY = groundY - this.radiusY - 10 + (this.config.offsetY ?? 0);
 
         this.graphics = this.scene.add.graphics().setDepth(7);
 

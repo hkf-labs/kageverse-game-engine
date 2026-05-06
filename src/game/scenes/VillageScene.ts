@@ -17,6 +17,10 @@ export class VillageScene extends BaseMapScene {
             colliderKey: 'village_001_colliders',
             colliderAsset: 'assets/maps/village_001/colliders.json',
             tiledOriginalHeight: 1440,
+            surfaceTextures: {
+                ground: { key: 'tile_vachco_64', asset: 'assets/tilesets/vachco_64.png' },
+                wood: { key: 'tile_vachgo_64', asset: 'assets/tilesets/vachgo_64.png' },
+            },
         };
     }
 
@@ -40,7 +44,7 @@ export class VillageScene extends BaseMapScene {
             // sẽ auto-unlock toàn bộ portal locked (xem BaseMapScene
             // loadInitialCharacterState ~L740).
             {
-                x: 1500,
+                x: 200,
                 label: t('portal.label.to_wind_school'),
                 targetSceneKey: 'VillageToWind001Scene',
                 locked: true,

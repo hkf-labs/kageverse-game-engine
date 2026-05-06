@@ -35,6 +35,8 @@ export interface TiledObject {
     y: number;
     width: number;
     height: number;
+    /** Tag từ Tiled — map sang texture qua MapConfig.surfaceTextures. Rỗng → invisible. */
+    type?: string;
 }
 
 export interface TiledLayer {
@@ -48,6 +50,8 @@ export interface TiledMapData {
 
 export interface PortalConfig {
     x: number;
+    /** Lệch theo trục y so với ground tại x. Âm = lên cao, dương = xuống. Mặc định 0. */
+    offsetY?: number;
     label: string;
     targetSceneKey: string;
     /**
@@ -68,4 +72,9 @@ export interface MapConfig {
     colliderKey: string;
     colliderAsset: string;
     tiledOriginalHeight: number;
+    /**
+     * Map từ Tiled object.type (vd "rock", "grass", "wood") → texture asset.
+     * Object có type khớp một entry → render tileSprite lặp texture đó. Không khớp → invisible.
+     */
+    surfaceTextures?: Record<string, { key: string; asset: string }>;
 }
