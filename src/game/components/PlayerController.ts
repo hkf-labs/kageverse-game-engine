@@ -41,8 +41,9 @@ export const HEAD_OFFSET_X = 5;
 export const TOP_OFFSET_X = 3;
 export const BOTTOM_OFFSET_X = 0;
 // Scale toàn body container — chỉnh chỗ này để phóng to / thu nhỏ nhân vật.
-// Scale tác động lên cả offset → seam vẫn khớp ở mọi giá trị.
-export const BODY_SCALE = 1;
+// Scale tác động lên cả offset → seam vẫn khớp ở mọi giá trị. 0.4 đưa player
+// về cỡ ~50px khớp tile NSO 24×24 render scale (tile ~36px = 1.5x native).
+export const BODY_SCALE = 0.4;
 // Name text không thuộc container nên không tự scale — derive Y từ head top
 // (-39 - 38 = -77 local) để name luôn cách đỉnh đầu 13px ở mọi BODY_SCALE.
 export const NAME_OFFSET_Y = (HEAD_OFFSET_Y - 38) * BODY_SCALE - 13;
@@ -65,10 +66,18 @@ export class PlayerController implements GameComponent {
     }
 
     create(): void {
-        const spawn = this.background.getGroundY() - 300;
-        const hitWidth = 60;
-        const hitHeight = 110;
-        const hitbox = this.scene.add.rectangle(this.background.getBgWidth() * 0.1, spawn, hitWidth, hitHeight, 0x000000, 0);
+        // Spawn cao gần đỉnh viewport rồi để gravity rơi xuống surface đầu tiên
+        // — tránh kẹt khi spawn x rơi vô cột terrain solid (NSO map có hills/
+        // tower chiếm rows trung. Map cũ flat ground thì rơi 0px = OK).
+        const spawn = 50;
+        // Hitbox khớp visual sau BODY_SCALE=0.4: 60*0.4=24, 110*0.4=44 — về NSO
+        // ratio (~24×40). Speed/jump trong BaseMapScene chưa scale theo, nếu
+        // nhân vật cảm giác di chuyển quá nhanh có thể giảm ở đó.
+        const hitWidth = 24;
+        const hitHeight = 44;
+        // Spawn 10% từ mép trái world. Dùng worldWidth thay vì bgWidth — bgWidth
+        // = 0 khi MapConfig có parallaxBg (bgKey chỉ là placeholder).
+        const hitbox = this.scene.add.rectangle(this.background.getWorldWidth() * 0.1, spawn, hitWidth, hitHeight, 0x000000, 0);
 
         this.scene.physics.add.existing(hitbox, false);
         this.player = hitbox as unknown as Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;

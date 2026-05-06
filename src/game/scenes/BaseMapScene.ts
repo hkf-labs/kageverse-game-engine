@@ -87,6 +87,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 this.load.image(tex.key, tex.asset);
             }
         }
+        if (cfg.parallaxBg) {
+            for (const layer of cfg.parallaxBg.layers) {
+                this.load.image(layer.key, layer.asset);
+            }
+            if (cfg.parallaxBg.overlays) {
+                for (const ov of cfg.parallaxBg.overlays) {
+                    this.load.image(ov.key, ov.asset);
+                }
+            }
+        }
         this.load.image('btn_attack', 'assets/game/buttons/button-attack.png');
         this.load.image('btn_chat', 'assets/game/buttons/chat.png');
         this.load.image('btn_menu', 'assets/game/buttons/menu.png');
@@ -756,6 +766,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         const cursors = this.playerCtrl.getCursors();
         if (!player || !cursors) return;
 
+        this.background.update();
         this.controls.updateVisuals(cursors);
         this.portals.forEach((p) => p.updatePortal(player.x, player.y));
         this.monsters.update();

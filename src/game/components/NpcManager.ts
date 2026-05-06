@@ -71,8 +71,10 @@ export class NpcManager implements GameComponent {
     private questBadges = new Map<string, Phaser.GameObjects.Text>();
     private availabilityCache: Record<string, NpcQuestListsDTO> = {};
 
-    private readonly INTERACT_RANGE = 150;
-    private readonly SPRITE_SCALE = 0.12;
+    private readonly INTERACT_RANGE = 60;
+    // Asset NPC raw 1254×1254 → 0.04 ≈ 50px khớp player NSO scale (~50px) +
+    // tile NSO ratio. Asset 24×24 chuẩn sau này có thể nâng SPRITE_SCALE lên 1-2.
+    private readonly SPRITE_SCALE = 0.04;
     private readonly PLAYER_VISUAL_SINK = 4;
 
     private scene: Phaser.Scene;
