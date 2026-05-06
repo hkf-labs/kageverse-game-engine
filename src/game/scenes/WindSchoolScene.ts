@@ -21,6 +21,9 @@ export class WindSchoolScene extends BaseMapScene {
             colliderKey: 'wind_school_001_colliders',
             colliderAsset: 'assets/maps/wind_school_001/colliders.json',
             tiledOriginalHeight: 1440,
+            surfaceTextures: {
+                wood: { key: 'tile_vachgo_64', asset: 'assets/tilesets/vachgo_64.png' },
+            },
         };
     }
 

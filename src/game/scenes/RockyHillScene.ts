@@ -28,6 +28,9 @@ export class RockyHillScene extends BaseMapScene {
             colliderKey: 'rocky_hill_iwagumo_colliders',
             colliderAsset: 'assets/maps/rocky_hill_iwagumo/colliders.json',
             tiledOriginalHeight: 1440,
+            surfaceTextures: {
+                wood: { key: 'tile_vachgo_64', asset: 'assets/tilesets/vachgo_64.png' },
+            },
         };
     }
 

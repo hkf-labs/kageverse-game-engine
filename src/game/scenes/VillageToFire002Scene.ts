@@ -20,6 +20,9 @@ export class VillageToFire002Scene extends BaseMapScene {
             colliderKey: 'village_to_fire_002_colliders',
             colliderAsset: 'assets/maps/village_to_fire_002/colliders.json',
             tiledOriginalHeight: 1440,
+            surfaceTextures: {
+                wood: { key: 'tile_vachgo_64', asset: 'assets/tilesets/vachgo_64.png' },
+            },
         };
     }
 

@@ -25,6 +25,9 @@ export class BambooForestScene extends BaseMapScene {
             colliderKey: 'bamboo_forest_yatomi_colliders',
             colliderAsset: 'assets/maps/bamboo_forest_yatomi/colliders.json',
             tiledOriginalHeight: 1440,
+            surfaceTextures: {
+                wood: { key: 'tile_vachgo_64', asset: 'assets/tilesets/vachgo_64.png' },
+            },
         };
     }
 
