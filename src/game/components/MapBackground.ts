@@ -136,12 +136,11 @@ export class MapBackground implements GameComponent {
                 const centerY = sy + sh / 2;
 
                 const tex = obj.type ? this.config.surfaceTextures?.[obj.type] : undefined;
-                let block: Phaser.GameObjects.GameObject & { body: Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody };
+                let block: Phaser.GameObjects.TileSprite | Phaser.GameObjects.Rectangle;
                 if (tex && this.scene.textures.exists(tex.key)) {
-                    const ts = this.scene.add.tileSprite(centerX, centerY, sw, sh, tex.key).setDepth(1);
-                    ts.tileScaleX = scale;
-                    ts.tileScaleY = scale;
-                    block = ts;
+                    block = this.scene.add.tileSprite(centerX, centerY, sw, sh, tex.key).setDepth(1);
+                    block.tileScaleX = scale;
+                    block.tileScaleY = scale;
                 } else {
                     block = this.scene.add.rectangle(centerX, centerY, sw, sh, 0xffffff, 0.001);
                 }
