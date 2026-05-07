@@ -34,6 +34,8 @@ export class SettingsModal implements GameComponent {
     private closeBtn?: HTMLButtonElement;
     private localeUnsub?: () => void;
     private visible = false;
+    /** Index nút locale đang focus (0..SUPPORTED_LOCALES.length-1). */
+    private focusedIdx = 0;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -142,7 +144,12 @@ export class SettingsModal implements GameComponent {
         this.visible = true;
         this.overlay.style.display = 'flex';
         this.scene.input.keyboard?.disableGlobalCapture();
+        // Focus mặc định vào locale đang dùng (giúp user thấy ngay vị trí của họ).
+        const cur = getLocale();
+        const idx = SUPPORTED_LOCALES.indexOf(cur);
+        this.focusedIdx = idx >= 0 ? idx : 0;
         this.refreshActiveButton();
+        this.renderFocus();
         this.setStatus('');
     }
 
@@ -151,6 +158,49 @@ export class SettingsModal implements GameComponent {
         this.visible = false;
         this.overlay.style.display = 'none';
         this.scene.input.keyboard?.enableGlobalCapture();
+    }
+
+    /** Grid 2 cột — ↑/↓/←/→ điều hướng giữa các nút locale. */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (!this.visible) return;
+        const COLS = 2;
+        const total = SUPPORTED_LOCALES.length;
+        const rows = Math.ceil(total / COLS);
+        let row = Math.floor(this.focusedIdx / COLS);
+        let col = this.focusedIdx % COLS;
+        switch (direction) {
+            case 'left':  col = Math.max(0, col - 1); break;
+            case 'right': col = Math.min(COLS - 1, col + 1); break;
+            case 'up':    row = Math.max(0, row - 1); break;
+            case 'down':  row = Math.min(rows - 1, row + 1); break;
+        }
+        const next = Math.min(row * COLS + col, total - 1);
+        if (next === this.focusedIdx) return;
+        this.focusedIdx = next;
+        this.renderFocus();
+    }
+
+    /** Enter = chọn locale đang focus (tương đương click). */
+    confirm(): void {
+        if (!this.visible || !this.langSectionEl) return;
+        const buttons = this.langSectionEl.querySelectorAll<HTMLButtonElement>('[data-locale]');
+        buttons[this.focusedIdx]?.click();
+    }
+
+    private renderFocus(): void {
+        if (!this.langSectionEl) return;
+        const buttons = this.langSectionEl.querySelectorAll<HTMLButtonElement>('[data-locale]');
+        buttons.forEach((btn, idx) => {
+            if (idx === this.focusedIdx) {
+                btn.style.outline = '2px solid #ffea7a';
+                btn.style.outlineOffset = '2px';
+                btn.style.boxShadow = '0 0 10px rgba(255,234,122,0.7)';
+            } else {
+                btn.style.outline = '';
+                btn.style.outlineOffset = '';
+                btn.style.boxShadow = '';
+            }
+        });
     }
 
     // applyTranslations re-text static element. Locale buttons không re-text vì

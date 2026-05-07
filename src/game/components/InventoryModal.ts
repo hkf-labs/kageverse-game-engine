@@ -125,6 +125,11 @@ export class InventoryModal implements GameComponent {
     private visible = false;
     private currentPage = 1;
     private selectedSlot: number | null = null;
+    /** Vùng focus điều hướng bằng phím — 'tabs' = thanh Page, 'grid' = các ô
+     * item, 'actions' = nút Use/Equip/Drop. Mặc định grid khi mở modal. */
+    private focusZone: 'tabs' | 'grid' | 'actions' = 'grid';
+    /** Index nút action đang focus trong zone='actions' (0=use, 1=equip, 2=drop). */
+    private focusedAction = 0;
     private items: InventoryItem[] = [];
     private maxSlots = 40;
     private loading = false;
@@ -253,7 +258,10 @@ export class InventoryModal implements GameComponent {
         if (this.visible) {
             this.currentPage = DATA_PAGE;
             this.selectedSlot = null;
+            this.focusZone = 'grid';
+            this.focusedAction = 0;
             this.renderTabs();
+            this.renderActionFocus();
             void this.loadInventory();
             void this.loadWallet();
         }
@@ -273,6 +281,151 @@ export class InventoryModal implements GameComponent {
     }
 
     isOpen(): boolean { return this.visible; }
+
+    /**
+     * Điều hướng modal bằng mũi tên / D-pad theo focus zone:
+     *   - tabs:    ←/→ đổi page; ↓ xuống grid (giữ slot đã chọn).
+     *   - grid:    ↑ ở row đầu → tabs; ↓ ở row cuối → actions; ←/→ trong row,
+     *              ở col đầu/cuối thì wrap sang page liền kề (giữ row).
+     *   - actions: ←/→ đổi nút (Use/Equip/Drop); ↑ về grid.
+     * Mục tiêu: mọi clickable trong modal đều tới được không cần chuột.
+     */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (!this.visible) return;
+        if (this.focusZone === 'tabs') return this.navTabs(direction);
+        if (this.focusZone === 'actions') return this.navActions(direction);
+        this.navGrid(direction);
+    }
+
+    /** Enter trên zone đang focus — actions: click nút; tabs/grid: no-op
+     * (page đã đổi qua ←/→, slot chọn đã update qua mũi tên). */
+    confirm(): void {
+        if (!this.visible) return;
+        if (this.focusZone !== 'actions') return;
+        const btns = [this.useBtn, this.equipBtn, this.dropBtn];
+        const btn = btns[this.focusedAction];
+        if (btn && !btn.disabled) btn.click();
+    }
+
+    private navTabs(direction: 'left' | 'right' | 'up' | 'down'): void {
+        switch (direction) {
+            case 'left':
+                if (this.currentPage > 1) this.setPage(this.currentPage - 1);
+                return;
+            case 'right':
+                if (this.currentPage < PAGES_COUNT) this.setPage(this.currentPage + 1);
+                return;
+            case 'down':
+                this.focusZone = 'grid';
+                this.renderTabs(); // glow off
+                if (this.selectedSlot === null) this.selectedSlot = 0;
+                this.renderGrid();
+                this.renderDetail();
+                return;
+            case 'up':
+                return; // chạm trần — close button (X) chưa đưa vào nav.
+        }
+    }
+
+    private navActions(direction: 'left' | 'right' | 'up' | 'down'): void {
+        switch (direction) {
+            case 'left':
+                if (this.focusedAction > 0) {
+                    this.focusedAction -= 1;
+                    this.renderActionFocus();
+                }
+                return;
+            case 'right':
+                if (this.focusedAction < 2) {
+                    this.focusedAction += 1;
+                    this.renderActionFocus();
+                }
+                return;
+            case 'up':
+                this.focusZone = 'grid';
+                this.renderActionFocus();
+                this.renderGrid(); // dim → bright cho slot đã chọn
+                return;
+            case 'down':
+                return;
+        }
+    }
+
+    private navGrid(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (this.selectedSlot === null) {
+            this.selectedSlot = 0;
+            this.renderGrid();
+            this.renderDetail();
+            return;
+        }
+        const rows = Math.ceil(this.maxSlots / COLS);
+        const row = Math.floor(this.selectedSlot / COLS);
+        const col = this.selectedSlot % COLS;
+
+        if (direction === 'up' && row === 0) {
+            this.focusZone = 'tabs';
+            this.renderTabs(); // glow on
+            this.renderGrid(); // bright → dim cho slot đã chọn
+            return;
+        }
+        if (direction === 'down' && row === rows - 1) {
+            this.focusZone = 'actions';
+            this.renderActionFocus();
+            this.renderGrid(); // bright → dim
+            return;
+        }
+        if (direction === 'left' && col === 0) {
+            this.gotoPageKeepRow(this.currentPage - 1, row, COLS - 1);
+            return;
+        }
+        if (direction === 'right' && col === COLS - 1) {
+            this.gotoPageKeepRow(this.currentPage + 1, row, 0);
+            return;
+        }
+
+        let nextRow = row;
+        let nextCol = col;
+        switch (direction) {
+            case 'left':  nextCol = col - 1; break;
+            case 'right': nextCol = col + 1; break;
+            case 'up':    nextRow = row - 1; break;
+            case 'down':  nextRow = row + 1; break;
+        }
+        const next = Math.min(nextRow * COLS + nextCol, this.maxSlots - 1);
+        if (next === this.selectedSlot) return;
+        this.selectedSlot = next;
+        this.renderGrid();
+        this.renderDetail();
+    }
+
+    /** Chuyển sang page khác giữ nguyên row, đặt col cụ thể (cho boundary wrap). */
+    private gotoPageKeepRow(page: number, row: number, col: number): void {
+        if (page < 1 || page > PAGES_COUNT || page === this.currentPage) return;
+        this.setPage(page);
+        this.selectedSlot = Math.min(row * COLS + col, this.maxSlots - 1);
+        this.renderGrid();
+        this.renderDetail();
+    }
+
+    /** Vẽ outline glow cho nút action đang focus (zone='actions'). Khi rời
+     * zone, clear toàn bộ outline. setButtonsEnabled không động vào
+     * outline/boxShadow nên 2 stylesheet độc lập. */
+    private renderActionFocus(): void {
+        const btns = [this.useBtn, this.equipBtn, this.dropBtn];
+        const focused = this.focusZone === 'actions';
+        btns.forEach((btn, idx) => {
+            if (!btn) return;
+            if (focused && this.focusedAction === idx) {
+                btn.style.outline = '2px solid #ffea7a';
+                btn.style.outlineOffset = '2px';
+                btn.style.boxShadow = '0 0 10px rgba(255,234,122,0.7)';
+            } else {
+                btn.style.outline = '';
+                btn.style.outlineOffset = '';
+                btn.style.boxShadow = '';
+            }
+        });
+    }
 
     private buildHTML(): string {
         return [
@@ -342,15 +495,20 @@ export class InventoryModal implements GameComponent {
         }
 
         this.gridEl.innerHTML = '';
+        const gridFocused = this.focusZone === 'grid';
         for (let i = 0; i < this.maxSlots; i++) {
             const item = itemBySlot.get(i);
             const cell = document.createElement('div');
             const isSelected = this.selectedSlot === i;
             const borderColor = item ? TYPE_BORDER[item.type] : '#3a2a1a';
             const bgColor = item ? item.iconBg : 'rgba(20,12,4,0.6)';
+            // Highlight: vàng + glow khi grid là focus zone, cam dịu khi đã rời
+            // grid (tabs/actions) — vẫn nhớ slot đã chọn nhưng không chiếm focus.
+            const selBorder = isSelected ? (gridFocused ? '#ffea7a' : '#ffd070') : borderColor;
+            const selShadow = isSelected && gridFocused ? '0 0 8px rgba(255,234,122,0.6)' : 'none';
             Object.assign(cell.style, {
                 width: '56px', height: '56px',
-                border: `2px solid ${isSelected ? '#ffea7a' : borderColor}`,
+                border: `2px solid ${selBorder}`,
                 borderRadius: '6px',
                 background: bgColor,
                 position: 'relative',
@@ -360,7 +518,7 @@ export class InventoryModal implements GameComponent {
                 justifyContent: 'center',
                 fontSize: '24px',
                 userSelect: 'none',
-                boxShadow: isSelected ? '0 0 8px rgba(255,234,122,0.6)' : 'none',
+                boxShadow: selShadow,
                 transition: 'border-color 0.1s, box-shadow 0.1s',
             });
 
@@ -482,6 +640,7 @@ export class InventoryModal implements GameComponent {
     private renderTabs(): void {
         if (!this.tabsEl) return;
         this.tabsEl.innerHTML = '';
+        const tabsFocused = this.focusZone === 'tabs';
         for (let p = 1; p <= PAGES_COUNT; p++) {
             const tab = document.createElement('div');
             const active = p === this.currentPage;
@@ -497,6 +656,9 @@ export class InventoryModal implements GameComponent {
                 borderTopLeftRadius: '6px',
                 borderTopRightRadius: '6px',
                 userSelect: 'none',
+                // Glow khi tabs đang là focus zone — phân biệt với "active tab
+                // chỉ nhờ mở sẵn page này".
+                boxShadow: active && tabsFocused ? '0 -2px 10px rgba(255,234,122,0.7)' : 'none',
             });
             tab.textContent = t('inventory.tab_page', { n: p });
             tab.addEventListener('click', () => this.setPage(p));

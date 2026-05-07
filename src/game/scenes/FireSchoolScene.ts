@@ -23,6 +23,7 @@ export class FireSchoolScene extends BaseMapScene {
             colliderKey: 'fire_school_001_colliders',
             colliderAsset: 'assets/maps/fire_school_001/colliders.json',
             tiledOriginalHeight: 1440,
+            safeZone: true,
             surfaceTextures: {
                 wood: { key: 'tile_vachgo_64', asset: 'assets/tilesets/vachgo_64.png' },
             },

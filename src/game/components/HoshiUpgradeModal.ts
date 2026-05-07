@@ -85,6 +85,11 @@ export class HoshiUpgradeModal implements GameComponent {
     private characterLevel = 1;
     private selectedItemId: string | null = null;
     private actionInFlight = false;
+    /** Cache sorted view (đồng bộ với renderList) — nav bằng phím cần index. */
+    private sortedItems: InventoryItemDTO[] = [];
+    /** 'list' = list trái; 'button' = nút Cường Hoá ở detail. */
+    private focusZone: 'list' | 'button' = 'list';
+    private focusedIdx = 0;
     private onUpgraded?: () => void;
     private titleEl?: HTMLDivElement;
     private closeBtnEl?: HTMLButtonElement;
@@ -115,7 +120,87 @@ export class HoshiUpgradeModal implements GameComponent {
         this.visible = true;
         if (this.overlay) this.overlay.style.display = 'flex';
         this.scene.input.keyboard?.disableGlobalCapture();
+        this.focusZone = 'list';
+        this.focusedIdx = 0;
+        this.selectedItemId = null;
         void this.refresh();
+    }
+
+    /** ↑/↓ trong list, ↓ ở item cuối → button (nếu có), ↑ trên button → list. */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (!this.visible) return;
+        if (this.focusZone === 'button') {
+            if (direction === 'up' || direction === 'left') {
+                this.focusZone = 'list';
+                this.renderButtonFocus();
+            }
+            return;
+        }
+        // list zone
+        if (this.sortedItems.length === 0) return;
+        switch (direction) {
+            case 'up':
+                if (this.focusedIdx > 0) {
+                    this.focusedIdx -= 1;
+                    this.applySelection();
+                }
+                return;
+            case 'down':
+                if (this.focusedIdx < this.sortedItems.length - 1) {
+                    this.focusedIdx += 1;
+                    this.applySelection();
+                } else if (this.hasUpgradeButton()) {
+                    this.focusZone = 'button';
+                    this.renderButtonFocus();
+                }
+                return;
+            case 'right':
+                if (this.hasUpgradeButton()) {
+                    this.focusZone = 'button';
+                    this.renderButtonFocus();
+                }
+                return;
+            case 'left':
+                return;
+        }
+    }
+
+    /** Enter trong list = chọn item; Enter trên button = click cường hoá. */
+    confirm(): void {
+        if (!this.visible) return;
+        if (this.focusZone === 'button') {
+            const btn = this.detailEl?.querySelector<HTMLButtonElement>('#hoshi-upgrade-confirm');
+            if (btn && !btn.disabled) btn.click();
+            return;
+        }
+        // list zone — Enter chỉ confirm selection (đã update qua arrow); không
+        // làm gì thêm. Có thể mở rộng sau (vd auto-jump tới button).
+    }
+
+    private applySelection(): void {
+        const item = this.sortedItems[this.focusedIdx];
+        if (!item) return;
+        this.selectedItemId = item.id;
+        this.renderList();
+        this.renderDetail();
+    }
+
+    private hasUpgradeButton(): boolean {
+        return !!this.detailEl?.querySelector('#hoshi-upgrade-confirm');
+    }
+
+    private renderButtonFocus(): void {
+        const btn = this.detailEl?.querySelector<HTMLButtonElement>('#hoshi-upgrade-confirm');
+        if (!btn) return;
+        if (this.focusZone === 'button') {
+            btn.style.outline = '2px solid #ffea7a';
+            btn.style.outlineOffset = '2px';
+            btn.style.boxShadow = '0 0 12px rgba(255,234,122,0.8)';
+        } else {
+            btn.style.outline = '';
+            btn.style.outlineOffset = '';
+            btn.style.boxShadow = '';
+        }
     }
 
     close(): void {
@@ -259,6 +344,7 @@ export class HoshiUpgradeModal implements GameComponent {
     private renderList(): void {
         if (!this.listEl) return;
         if (this.items.length === 0) {
+            this.sortedItems = [];
             this.listEl.innerHTML = `<div style="color:#aaa;text-align:center;padding:20px;">${escapeHtml(t('hoshi.list_empty'))}</div>`;
             return;
         }
@@ -271,6 +357,13 @@ export class HoshiUpgradeModal implements GameComponent {
             if (ca !== cb) return ca.localeCompare(cb);
             return b.upgrade_level - a.upgrade_level;
         });
+        // Cache cho nav bằng phím + sync focusedIdx với selectedItemId nếu có.
+        this.sortedItems = sorted;
+        if (this.selectedItemId) {
+            const idx = sorted.findIndex((it) => it.id === this.selectedItemId);
+            if (idx >= 0) this.focusedIdx = idx;
+        }
+        if (this.focusedIdx >= sorted.length) this.focusedIdx = Math.max(0, sorted.length - 1);
         for (const item of sorted) {
             const row = document.createElement('div');
             const isSelected = this.selectedItemId === item.id;
@@ -374,6 +467,13 @@ export class HoshiUpgradeModal implements GameComponent {
         const btn = this.detailEl.querySelector<HTMLButtonElement>('#hoshi-upgrade-confirm');
         if (btn) {
             btn.addEventListener('click', () => void this.handleUpgrade());
+        }
+        // Re-apply outline khi rerender (button mới — DOM đã thay) nếu zone='button'.
+        this.renderButtonFocus();
+        // Nếu zone='button' nhưng button không còn (item đạt cap, đổi item khác),
+        // tự fallback về list để khỏi mắc kẹt.
+        if (this.focusZone === 'button' && !btn) {
+            this.focusZone = 'list';
         }
     }
 

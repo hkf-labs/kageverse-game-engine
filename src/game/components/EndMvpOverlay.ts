@@ -13,6 +13,7 @@ export class EndMvpOverlay implements GameComponent {
     private scene: Phaser.Scene;
     private overlay?: HTMLDivElement;
     private visible = false;
+    private buttonEl?: HTMLButtonElement;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -23,6 +24,18 @@ export class EndMvpOverlay implements GameComponent {
     }
 
     isOpen(): boolean { return this.visible; }
+
+    /** Cinematic chỉ có 1 nút "Tạm dừng" → navigate no-op (signature giữ
+     * cho interface đồng nhất với các modal khác). */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        void direction;
+    }
+
+    /** Enter trigger nút duy nhất (close overlay). */
+    confirm(): void {
+        if (!this.visible) return;
+        this.buttonEl?.click();
+    }
 
     /**
      * Trigger cinematic. className đặc biệt để CSS animate fade-in 2s.
@@ -121,6 +134,7 @@ export class EndMvpOverlay implements GameComponent {
             button.style.boxShadow = '0 0 18px rgba(255,234,122,0.4)';
         });
         button.addEventListener('click', () => this.close());
+        this.buttonEl = button;
 
         panel.appendChild(title);
         panel.appendChild(subtitle);

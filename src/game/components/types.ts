@@ -118,4 +118,9 @@ export interface MapConfig {
      * bgKey vẫn dùng để tính worldWidth (collider extent fallback).
      */
     parallaxBg?: ParallaxBgConfig;
+    /**
+     * Map an toàn (làng, trường phái) — không có quái. MonsterManager bỏ qua
+     * gọi /maps/:id/monsters + combat tick. Mặc định false.
+     */
+    safeZone?: boolean;
 }

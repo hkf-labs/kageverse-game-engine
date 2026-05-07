@@ -92,6 +92,8 @@ export class ShopModal implements GameComponent {
     private npcName = '';
     private wallet: WalletDTO | null = null;
     private localeUnsub?: () => void;
+    /** 'grid' = listings; 'controls' = nút Mua + amount input. */
+    private focusZone: 'grid' | 'controls' = 'grid';
 
     private scene: Phaser.Scene;
 
@@ -185,12 +187,14 @@ export class ShopModal implements GameComponent {
         this.selectedCurrency = null;
         this.listings = [];
         this.wallet = null;
+        this.focusZone = 'grid';
         this.feedbackEl && (this.feedbackEl.textContent = '');
         this.visible = true;
         this.overlay.style.display = 'block';
         this.renderHeader();
         this.renderDetail();
         this.renderBalance();
+        this.renderControlsFocus();
         void Promise.all([this.loadListings(), this.loadWallet()]);
     }
 
@@ -198,6 +202,103 @@ export class ShopModal implements GameComponent {
         if (!this.overlay) return;
         this.visible = false;
         this.overlay.style.display = 'none';
+    }
+
+    /**
+     * Grid 4-cột: ↑/↓/←/→ điều hướng listing. ↓ ở row cuối → zone='controls'.
+     * Controls zone: ←/→ điều chỉnh số lượng (clamp 1-99); ↑ về grid.
+     */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (!this.visible) return;
+        if (this.focusZone === 'controls') {
+            switch (direction) {
+                case 'up':
+                    this.focusZone = 'grid';
+                    this.renderControlsFocus();
+                    return;
+                case 'left':
+                    this.adjustAmount(-1);
+                    return;
+                case 'right':
+                    this.adjustAmount(1);
+                    return;
+                case 'down':
+                    return;
+            }
+        }
+        // grid zone
+        if (this.listings.length === 0) return;
+        if (this.selectedIdx === null) {
+            this.setSelectedIdx(0);
+            return;
+        }
+        const total = this.listings.length;
+        const rows = Math.ceil(total / COLS);
+        let row = Math.floor(this.selectedIdx / COLS);
+        let col = this.selectedIdx % COLS;
+        switch (direction) {
+            case 'left':  col = Math.max(0, col - 1); break;
+            case 'right': col = Math.min(COLS - 1, col + 1); break;
+            case 'up':
+                if (row === 0) return;
+                row -= 1;
+                break;
+            case 'down':
+                if (row === rows - 1) {
+                    this.focusZone = 'controls';
+                    this.renderControlsFocus();
+                    return;
+                }
+                row += 1;
+                break;
+        }
+        const next = Math.min(row * COLS + col, total - 1);
+        if (next !== this.selectedIdx) this.setSelectedIdx(next);
+    }
+
+    /** Enter trong controls zone = click Mua (nếu enabled). Grid zone = no-op
+     * (selection đã update qua arrow). */
+    confirm(): void {
+        if (!this.visible) return;
+        if (this.focusZone !== 'controls') return;
+        if (this.buyBtn && !this.buyBtn.disabled) this.buyBtn.click();
+    }
+
+    /** Set selectedIdx trực tiếp (không toggle như selectListing) — cho arrow nav. */
+    private setSelectedIdx(idx: number): void {
+        this.selectedIdx = idx;
+        const first = this.listings[idx]?.prices[0];
+        this.selectedCurrency = first ? first.currency_type : null;
+        if (this.amountInput) this.amountInput.value = '1';
+        this.renderGrid();
+        this.renderDetail();
+    }
+
+    private adjustAmount(delta: number): void {
+        if (!this.amountInput) return;
+        const cur = parseInt(this.amountInput.value, 10) || 1;
+        const next = Math.max(1, Math.min(99, cur + delta));
+        if (next === cur) return;
+        this.amountInput.value = String(next);
+        this.renderDetail();
+    }
+
+    private renderControlsFocus(): void {
+        const focused = this.focusZone === 'controls';
+        if (this.buyBtn) {
+            if (focused) {
+                this.buyBtn.style.outline = '2px solid #ffea7a';
+                this.buyBtn.style.outlineOffset = '2px';
+                this.buyBtn.style.boxShadow = '0 0 12px rgba(255,234,122,0.8)';
+            } else {
+                this.buyBtn.style.outline = '';
+                this.buyBtn.style.outlineOffset = '';
+                this.buyBtn.style.boxShadow = '';
+            }
+        }
+        if (this.amountInput) {
+            this.amountInput.style.borderColor = focused ? '#ffea7a' : '#4d2d13';
+        }
     }
 
     private buildHTML(): string {

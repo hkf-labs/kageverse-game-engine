@@ -16,6 +16,7 @@ export interface ControlCallbacks {
     onCycleTarget: () => void;
     onDirLeft?: () => void;
     onDirRight?: () => void;
+    onDirUp?: () => void;
 }
 
 export class GameControls implements GameComponent {
@@ -53,7 +54,7 @@ export class GameControls implements GameComponent {
             hit.on('pointerout', () => { this.virtualInputs[dir] = false; });
         };
 
-        makeDirBtn(cx, cy - offset, 'up');
+        makeDirBtn(cx, cy - offset, 'up', this.callbacks.onDirUp);
         makeDirBtn(cx - offset, cy, 'left', this.callbacks.onDirLeft);
         makeDirBtn(cx + offset, cy, 'right', this.callbacks.onDirRight);
 
@@ -96,6 +97,14 @@ export class GameControls implements GameComponent {
     }
 
     getVirtualInputs(): { left: boolean; right: boolean; up: boolean } { return this.virtualInputs; }
+
+    /** Clear sticky virtual D-pad state — gọi khi modal/menu chiếm input để
+     * pointerdown đang giữ không bleed qua frame movement sau khi modal đóng. */
+    resetVirtualInputs(): void {
+        this.virtualInputs.left = false;
+        this.virtualInputs.right = false;
+        this.virtualInputs.up = false;
+    }
 
     updateVisuals(cursors?: Phaser.Types.Input.Keyboard.CursorKeys): void {
         for (const btn of this.dirBtns) {

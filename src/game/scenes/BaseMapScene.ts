@@ -47,6 +47,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private enterKey?: Phaser.Input.Keyboard.Key;
     private escKey?: Phaser.Input.Keyboard.Key;
     private questKey?: Phaser.Input.Keyboard.Key;
+    private menuKey?: Phaser.Input.Keyboard.Key;
+    private backKey?: Phaser.Input.Keyboard.Key;
+    /** True khi modal hiện mở được trigger từ Menu chức năng (qua action item).
+     * F2 dùng cờ này để quyết định: chỉ đóng modal vs đóng modal + mở lại
+     * menu. Auto-reset trong update() khi không có menu/modal nào mở. */
+    private cameFromMenu = false;
+    /** Key item của menu đang được active khi mở modal — F2 quay lại menu sẽ
+     * khôi phục focus về item này thay vì reset về đầu danh sách. */
+    private lastMenuKey: string | null = null;
     private lastKnownLevel = 1;
     private lastKnownExp = { exp: 0, expToNext: 1 };
     private lastKnownStats = { max_hp: 100, max_mp: 50 };
@@ -248,7 +257,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             },
             onRetaliation: (r) => this.showRetaliationFloater(r.damage),
             onTickResult: (hp, dead) => this.handleTickResult(hp, dead),
-        });
+        }, { safeZone: cfg.safeZone === true });
         this.monsters.create();
         this.monsters.setPlayerPositionGetter(() => {
             const p = this.playerCtrl.getPlayer();
@@ -267,9 +276,14 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onCycleTarget: () => this.npcs.cycleSelectedNpc(),
             onDirLeft: () => {
                 if (this.actionMenu.isOpen()) this.actionMenu.navigate('left');
+                else if (this.inventory.isOpen()) this.inventory.navigate('left');
             },
             onDirRight: () => {
                 if (this.actionMenu.isOpen()) this.actionMenu.navigate('right');
+                else if (this.inventory.isOpen()) this.inventory.navigate('right');
+            },
+            onDirUp: () => {
+                if (this.inventory.isOpen()) this.inventory.navigate('up');
             },
         });
         this.controls.create();
@@ -277,6 +291,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.enterKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
         this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
         this.questKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.J);
+        // F1 toggle menu chức năng. addKey với capture=true để chặn help mặc
+        // định của browser; nút Menu góc phải gọi cùng toggleMainMenu() để
+        // hành vi đồng nhất.
+        this.menuKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.F1, true);
+        // F2 = Back. Capture=true để khỏi trigger browser default (rename trong
+        // Excel-like UI). Chỉ active khi có modal/menu open (xem handleBack).
+        this.backKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.F2, true);
 
         // Minimap
         this.minimap = new Minimap(this, this.background.getWorldWidth(), this.background.getBgHeight());
@@ -761,13 +782,59 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
     }
 
+    /**
+     * Trả true khi có bất kỳ modal/menu nào đang chiếm input — directional key
+     * + virtual D-pad sẽ được forward cho component thay vì điều khiển nhân
+     * vật. ChatPanel tính cả khi panel mở mà chưa focus input (tránh drift
+     * khi đọc chat).
+     */
+    private isInputBlockingModalOpen(): boolean {
+        return (
+            this.chat.isOpen()
+            || this.inventory.isOpen()
+            || this.shop.isOpen()
+            || this.questLog.isVisible()
+            || this.equipment.isOpen()
+            || this.characterInfo.isOpen()
+            || this.skillModal.isOpen()
+            || this.settingsModal.isOpen()
+            || this.hoshiUpgradeModal.isOpen()
+            || this.actionMenu.isOpen()
+            || this.confirmDialog.isOpen()
+            || this.endMvpOverlay.isOpen()
+        );
+    }
+
+    /**
+     * Trả modal đang ở top-most và hỗ trợ keyboard navigation. Priority match
+     * thứ tự depth/UX: confirm dialog (z=300) trên cùng, rồi end-MVP, rồi tới
+     * các panel HTML thường. ActionMenu xử lý riêng (Phaser container, có
+     * nhánh trong update()). Caller forward ←/→/↑/↓/Enter cho modal trả về.
+     */
+    private getNavigableModal(): { navigate(d: 'left' | 'right' | 'up' | 'down'): void; confirm(): void } | null {
+        if (this.confirmDialog.isOpen()) return this.confirmDialog;
+        if (this.endMvpOverlay.isOpen()) return this.endMvpOverlay;
+        if (this.hoshiUpgradeModal.isOpen()) return this.hoshiUpgradeModal;
+        if (this.shop.isOpen()) return this.shop;
+        if (this.skillModal.isOpen()) return this.skillModal;
+        if (this.inventory.isOpen()) return this.inventory;
+        if (this.equipment.isOpen()) return this.equipment;
+        if (this.settingsModal.isOpen()) return this.settingsModal;
+        if (this.chat.isOpen()) return this.chat;
+        return null;
+    }
+
     update(): void {
         const player = this.playerCtrl.getPlayer();
         const cursors = this.playerCtrl.getCursors();
         if (!player || !cursors) return;
 
         this.background.update();
-        this.controls.updateVisuals(cursors);
+        // D-pad highlight chỉ phản chiếu input thực điều khiển nhân vật. Khi
+        // modal/menu chiếm input hoặc nhân vật đang chết → cursor không
+        // chuyển thành highlight (tránh hiểu nhầm "đang đi" trong khi modal mở).
+        const inputBlocked = this.deathState !== 'alive' || this.isInputBlockingModalOpen();
+        this.controls.updateVisuals(inputBlocked ? undefined : cursors);
         this.portals.forEach((p) => p.updatePortal(player.x, player.y));
         this.monsters.update();
         this.npcs.update();
@@ -787,43 +854,96 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        if (this.chat.isFocused() || this.shop?.isOpen() || this.questLog?.isVisible() || this.equipment?.isOpen() || this.characterInfo?.isOpen() || this.skillModal?.isOpen() || this.settingsModal?.isOpen()) {
+        // Auto-reset cameFromMenu + lastMenuKey khi không còn menu/modal nào
+        // mở → tránh session sau (vd shop từ NPC) còn nhớ flag từ session
+        // menu cũ.
+        if (!this.isInputBlockingModalOpen()) {
+            this.cameFromMenu = false;
+            this.lastMenuKey = null;
+        }
+
+        // Bất kỳ modal/menu nào đang mở → không cho nhân vật di chuyển. Forward
+        // ←/→/Enter cho ActionMenu (modal Phaser duy nhất hỗ trợ điều hướng);
+        // các modal HTML khác xử lý focus/scroll qua DOM. ESC đóng theo
+        // priority top-down (modal mở sau cùng / depth cao nhất đóng trước).
+        if (this.isInputBlockingModalOpen()) {
             player.body?.setVelocityX(0);
-            // CharacterInfoModal đang mở → forward arrow keys cho scroll content.
-            this.characterInfo?.update();
-            // Trong khi panel mở: ESC đóng, các key khác bị bỏ qua.
+            this.controls.resetVirtualInputs();
+            this.characterInfo.update();
+
+            if (this.actionMenu.isOpen()) {
+                if (Phaser.Input.Keyboard.JustDown(cursors.left)) this.actionMenu.navigate('left');
+                else if (Phaser.Input.Keyboard.JustDown(cursors.right)) this.actionMenu.navigate('right');
+                else if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) this.actionMenu.confirm();
+                else if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.actionMenu.close();
+                else if (this.backKey && Phaser.Input.Keyboard.JustDown(this.backKey)) {
+                    this.actionMenu.close();
+                    this.cameFromMenu = false;
+                    this.lastMenuKey = null;
+                }
+                return;
+            }
+
+            // Forward arrow keys + Enter cho modal đang focus. Topmost theo
+            // priority: confirmDialog > endMvpOverlay > inventory > settings.
+            // (Các modal complex còn lại sẽ wire dần.)
+            const navTarget = this.getNavigableModal();
+            if (navTarget) {
+                if (Phaser.Input.Keyboard.JustDown(cursors.left))  { navTarget.navigate('left');  return; }
+                if (Phaser.Input.Keyboard.JustDown(cursors.right)) { navTarget.navigate('right'); return; }
+                if (Phaser.Input.Keyboard.JustDown(cursors.up))    { navTarget.navigate('up');    return; }
+                if (Phaser.Input.Keyboard.JustDown(cursors.down))  { navTarget.navigate('down');  return; }
+                if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+                    navTarget.confirm();
+                    return;
+                }
+            }
+
+            // F1 toggle menu — đồng nhất click nút Menu. Cho phép mở từ trạng
+            // thái chat/inventory open (toggleMainMenu tự đóng chat trước).
+            if (this.menuKey && Phaser.Input.Keyboard.JustDown(this.menuKey)) {
+                this.toggleMainMenu();
+                return;
+            }
+
+            // F2 back — đóng modal hiện tại + mở lại menu nếu modal đó được
+            // trigger từ menu (cameFromMenu=true).
+            if (this.backKey && Phaser.Input.Keyboard.JustDown(this.backKey)) {
+                this.handleBack();
+                return;
+            }
+
             if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
-                if (this.questLog?.isVisible()) this.questLog.close();
-                else if (this.equipment?.isOpen()) this.equipment.close();
-                else if (this.characterInfo?.isOpen()) this.characterInfo.close();
-                else if (this.skillModal?.isOpen()) this.skillModal.close();
-                else if (this.settingsModal?.isOpen()) this.settingsModal.close();
+                if (this.confirmDialog.isOpen()) {
+                    // ConfirmDialog tự xử lý close qua button — bỏ qua ESC.
+                } else if (this.endMvpOverlay.isOpen()) this.endMvpOverlay.close();
+                else if (this.hoshiUpgradeModal.isOpen()) this.hoshiUpgradeModal.close();
+                else if (this.shop.isOpen()) this.shop.close();
+                else if (this.inventory.isOpen()) this.inventory.toggle();
+                else if (this.questLog.isVisible()) this.questLog.close();
+                else if (this.equipment.isOpen()) this.equipment.close();
+                else if (this.characterInfo.isOpen()) this.characterInfo.close();
+                else if (this.skillModal.isOpen()) this.skillModal.close();
+                else if (this.settingsModal.isOpen()) this.settingsModal.close();
+                else if (this.chat.isOpen()) this.chat.toggle();
             }
             return;
         }
 
-        // J toggle Nhật ký Nhiệm vụ — chỉ khi không có modal/menu khác.
-        if (
-            this.questKey
-            && Phaser.Input.Keyboard.JustDown(this.questKey)
-            && !this.actionMenu.isOpen()
-            && !this.inventory.isOpen()
-        ) {
+        // J toggle Nhật ký Nhiệm vụ — chỉ khi không có modal/menu khác (đã
+        // được đảm bảo bởi early return phía trên).
+        if (this.questKey && Phaser.Input.Keyboard.JustDown(this.questKey)) {
             this.questLog.open();
             return;
         }
 
-        this.controls.updateSwitchTarget(this.npcs.canCycleTarget());
-
-        // ActionMenu mở → cướp keys (←/→ chọn, Enter confirm, ESC đóng).
-        // Không touch velocity → trạng thái nhân vật giữ nguyên (có thể đang drift).
-        if (this.actionMenu.isOpen()) {
-            if (Phaser.Input.Keyboard.JustDown(cursors.left)) this.actionMenu.navigate('left');
-            else if (Phaser.Input.Keyboard.JustDown(cursors.right)) this.actionMenu.navigate('right');
-            else if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) this.actionMenu.confirm();
-            else if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.actionMenu.close();
+        // F1 mở menu chức năng từ trạng thái idle.
+        if (this.menuKey && Phaser.Input.Keyboard.JustDown(this.menuKey)) {
+            this.toggleMainMenu();
             return;
         }
+
+        this.controls.updateSwitchTarget(this.npcs.canCycleTarget());
 
         if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
             const now = Date.now();
@@ -1333,29 +1453,87 @@ export abstract class BaseMapScene extends Phaser.Scene {
             if (this.actionMenu.isOpen()) this.actionMenu.close();
             this.chat.toggle();
         });
-        makeBtn(cx + SPACING / 2, btnY, 'btn_menu', () => {
-            if (this.chat.isOpen()) this.chat.toggle();
-            if (this.actionMenu.isOpen()) {
-                this.actionMenu.close();
-                return;
-            }
-            this.openMainMenu();
-        });
+        makeBtn(cx + SPACING / 2, btnY, 'btn_menu', () => this.toggleMainMenu());
     }
 
-    private openMainMenu(): void {
+    private toggleMainMenu(): void {
+        if (this.chat.isOpen()) this.chat.toggle();
+        if (this.actionMenu.isOpen()) {
+            this.actionMenu.close();
+            return;
+        }
+        this.openMainMenu();
+    }
+
+    private openMainMenu(initialKey?: string | null): void {
+        // Wrap = đặt cameFromMenu + lastMenuKey trước khi mở modal để F2 biết
+        // nguồn gốc và item nào cần active khi back. Suicide / logout không
+        // mở modal nên skip wrap.
+        const wrap = (key: string, fn: () => void) => () => {
+            this.cameFromMenu = true;
+            this.lastMenuKey = key;
+            fn();
+        };
         this.actionMenu.open({
             title: t('menu.title'),
+            initialSelectedKey: initialKey ?? undefined,
             items: [
-                { key: 'info', label: t('menu.info'), icon: '📋', action: () => this.characterInfo.open() },
-                { key: 'inventory', label: t('menu.inventory'), icon: '🎒', action: () => this.inventory.toggle() },
-                { key: 'equipment', label: t('menu.equipment'), icon: '⚔️', action: () => this.equipment.toggle() },
-                { key: 'quests', label: t('menu.quests'), icon: '📜', action: () => this.questLog.open() },
-                { key: 'skills', label: t('menu.skills'), icon: '⚡', action: () => this.skillModal.open() },
+                { key: 'info', label: t('menu.info'), icon: '📋', action: wrap('info', () => this.characterInfo.open()) },
+                { key: 'inventory', label: t('menu.inventory'), icon: '🎒', action: wrap('inventory', () => this.inventory.toggle()) },
+                { key: 'equipment', label: t('menu.equipment'), icon: '⚔️', action: wrap('equipment', () => this.equipment.toggle()) },
+                { key: 'quests', label: t('menu.quests'), icon: '📜', action: wrap('quests', () => this.questLog.open()) },
+                { key: 'skills', label: t('menu.skills'), icon: '⚡', action: wrap('skills', () => this.skillModal.open()) },
                 { key: 'suicide', label: t('menu.suicide'), icon: '☠️', action: () => void this.handleSuicide() },
-                { key: 'settings', label: t('menu.settings'), icon: '⚙️', action: () => this.settingsModal.open() },
+                { key: 'settings', label: t('menu.settings'), icon: '⚙️', action: wrap('settings', () => this.settingsModal.open()) },
                 { key: 'logout', label: t('menu.logout'), icon: '🚪', action: () => this.handleLogout() },
             ],
         });
+    }
+
+    /**
+     * F2 back navigation:
+     *   - Modal đang mở (không phải actionMenu): đóng modal. Nếu modal đó mở
+     *     từ menu (cameFromMenu=true) → mở lại menu chức năng.
+     *   - actionMenu open (no modal trên): đóng menu, reset cờ.
+     *   - Không có gì mở: no-op.
+     * ConfirmDialog đặc biệt: F2 = cancel (không reopen menu — confirm là
+     * decision point, back ra ngoài tương đương huỷ).
+     */
+    private handleBack(): void {
+        if (this.confirmDialog.isOpen()) {
+            this.confirmDialog.cancel();
+            return;
+        }
+        if (this.actionMenu.isOpen()) {
+            this.actionMenu.close();
+            this.cameFromMenu = false;
+            this.lastMenuKey = null;
+            return;
+        }
+        if (!this.closeTopModal()) return;
+        if (this.cameFromMenu) {
+            const key = this.lastMenuKey;
+            this.cameFromMenu = false;
+            // lastMenuKey vẫn giữ — openMainMenu sẽ dùng làm initialSelectedKey,
+            // sau đó wrap() ghi đè khi user chọn item mới.
+            this.openMainMenu(key);
+        }
+    }
+
+    /** Đóng modal đang ở top theo priority, trả true nếu đã đóng. Match thứ
+     * tự ESC trong update(). ConfirmDialog không xử lý ở đây — caller phải
+     * gọi confirmDialog.cancel() riêng. */
+    private closeTopModal(): boolean {
+        if (this.endMvpOverlay.isOpen()) { this.endMvpOverlay.close(); return true; }
+        if (this.hoshiUpgradeModal.isOpen()) { this.hoshiUpgradeModal.close(); return true; }
+        if (this.shop.isOpen()) { this.shop.close(); return true; }
+        if (this.inventory.isOpen()) { this.inventory.toggle(); return true; }
+        if (this.questLog.isVisible()) { this.questLog.close(); return true; }
+        if (this.equipment.isOpen()) { this.equipment.close(); return true; }
+        if (this.characterInfo.isOpen()) { this.characterInfo.close(); return true; }
+        if (this.skillModal.isOpen()) { this.skillModal.close(); return true; }
+        if (this.settingsModal.isOpen()) { this.settingsModal.close(); return true; }
+        if (this.chat.isOpen()) { this.chat.toggle(); return true; }
+        return false;
     }
 }

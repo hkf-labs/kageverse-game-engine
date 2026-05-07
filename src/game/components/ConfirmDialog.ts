@@ -28,6 +28,10 @@ export class ConfirmDialog implements GameComponent {
     private rootEl?: HTMLDivElement;
     private currentOnCancel?: () => void;
     private visible = false;
+    private cancelBtnEl?: HTMLButtonElement;
+    private confirmBtnEl?: HTMLButtonElement;
+    /** 0 = cancel (default — irreversible action ưu tiên an toàn), 1 = confirm. */
+    private focusedButton: 0 | 1 = 0;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -135,14 +139,58 @@ export class ConfirmDialog implements GameComponent {
             },
         );
         btnRow.append(cancelBtn, confirmBtn);
+        this.cancelBtnEl = cancelBtn;
+        this.confirmBtnEl = confirmBtn;
+        this.focusedButton = 0;
 
         root.append(titleEl, msgEl, btnRow);
         this.overlay.appendChild(root);
         this.overlay.style.display = 'block';
         this.visible = true;
+        this.renderFocus();
     }
 
     isOpen(): boolean { return this.visible; }
+
+    /** ←/→ chuyển button; ↑/↓ no-op (chỉ 1 row). */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (!this.visible) return;
+        if (direction === 'left' && this.focusedButton === 1) {
+            this.focusedButton = 0;
+            this.renderFocus();
+        } else if (direction === 'right' && this.focusedButton === 0) {
+            this.focusedButton = 1;
+            this.renderFocus();
+        }
+    }
+
+    confirm(): void {
+        if (!this.visible) return;
+        const btn = this.focusedButton === 0 ? this.cancelBtnEl : this.confirmBtnEl;
+        btn?.click();
+    }
+
+    /** ESC = cancel. */
+    cancel(): void {
+        if (!this.visible) return;
+        this.dismiss();
+    }
+
+    private renderFocus(): void {
+        const btns: [HTMLButtonElement | undefined, HTMLButtonElement | undefined] = [this.cancelBtnEl, this.confirmBtnEl];
+        btns.forEach((btn, idx) => {
+            if (!btn) return;
+            if (idx === this.focusedButton) {
+                btn.style.outline = '2px solid #ffea7a';
+                btn.style.outlineOffset = '2px';
+                btn.style.boxShadow = '0 0 10px rgba(255,234,122,0.7)';
+            } else {
+                btn.style.outline = '';
+                btn.style.outlineOffset = '';
+                btn.style.boxShadow = '';
+            }
+        });
+    }
 
     /** Close + run cancel callback nếu có. */
     private dismiss(): void {

@@ -13,6 +13,9 @@ export interface ActionMenuOpenOptions {
     title?: string;
     items: ActionMenuItem[];
     onClose?: () => void;
+    /** Item key được focus khi mở (vd F2 quay lại menu phải giữ vị trí trước
+     * đó). Không có hoặc không match → fallback firstEnabledIndex. */
+    initialSelectedKey?: string;
 }
 
 const ITEM_W = 96;
@@ -67,7 +70,7 @@ export class ActionMenu implements GameComponent {
         if (this.opened) this.close();
 
         this.items = opts.items.slice();
-        this.selectedIndex = this.firstEnabledIndex();
+        this.selectedIndex = this.resolveInitialIndex(opts.initialSelectedKey);
         this.currentOnClose = opts.onClose;
         this.opened = true;
 
@@ -174,6 +177,12 @@ export class ActionMenu implements GameComponent {
     private firstEnabledIndex(): number {
         const idx = this.items.findIndex((it) => !it.disabled);
         return idx === -1 ? 0 : idx;
+    }
+
+    private resolveInitialIndex(key?: string): number {
+        if (!key) return this.firstEnabledIndex();
+        const idx = this.items.findIndex((it) => it.key === key && !it.disabled);
+        return idx >= 0 ? idx : this.firstEnabledIndex();
     }
 
     private refresh(): void {

@@ -173,6 +173,22 @@ export class ChatPanel implements GameComponent {
         return this.visible || (!!this.rootEl && this.rootEl.contains(document.activeElement));
     }
 
+    /** ←/→ chuyển tab Hiện tại ↔ Thế giới. ↑/↓ no-op (messages scroll bằng
+     * chuột / wheel, không cần phím). Lưu ý: arrow này chỉ tới được khi input
+     * NOT focused — keydown trong input đã stopPropagation. User Tab khỏi input
+     * để dùng tab nav. */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (!this.visible) return;
+        if (direction === 'left') this.setActiveTab('current');
+        else if (direction === 'right') this.setActiveTab('world');
+    }
+
+    /** Enter trên panel (input không focus) = focus lại input để gõ. */
+    confirm(): void {
+        if (!this.visible) return;
+        this.inputEl?.focus();
+    }
+
     /**
      * Append 1 message vào buffer + render nếu đang ở tab tương ứng.
      * BaseMapScene gọi từ realtime listener. Echo cả sender (BE đẩy về cả

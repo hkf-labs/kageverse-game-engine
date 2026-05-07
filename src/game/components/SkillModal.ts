@@ -88,6 +88,9 @@ export class SkillModal implements GameComponent {
     private board?: ListSkillsResponse;
     private selectedSkillID: string | null = null;
     private onSlotsChanged?: (slots: (string | null)[]) => void;
+    /** 'strip' = icon strip skill; 'actions' = nút Upgrade / Gán slot. */
+    private focusZone: 'strip' | 'actions' = 'strip';
+    private focusedActionIdx = 0;
     private titleEl?: HTMLDivElement;
     private spLabelEl?: HTMLSpanElement;
     private localeUnsub?: () => void;
@@ -213,6 +216,8 @@ export class SkillModal implements GameComponent {
         if (!this.overlay) return;
         this.visible = true;
         this.overlay.style.display = 'block';
+        this.focusZone = 'strip';
+        this.focusedActionIdx = 0;
         void this.refresh();
     }
 
@@ -220,6 +225,103 @@ export class SkillModal implements GameComponent {
         if (!this.overlay) return;
         this.visible = false;
         this.overlay.style.display = 'none';
+    }
+
+    /** ←/→ trong strip = đổi skill; ↓ → actions zone. Trong actions: ←/→
+     * giữa các nút (Upgrade / Gán slot), ↑ về strip. Enter = click. */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (!this.visible) return;
+        if (this.focusZone === 'actions') {
+            const buttons = this.actionsEl
+                ? Array.from(this.actionsEl.querySelectorAll('button'))
+                : [];
+            switch (direction) {
+                case 'up':
+                    this.focusZone = 'strip';
+                    this.renderActionFocus();
+                    return;
+                case 'left':
+                    if (this.focusedActionIdx > 0) {
+                        this.focusedActionIdx -= 1;
+                        this.renderActionFocus();
+                    }
+                    return;
+                case 'right':
+                    if (this.focusedActionIdx < buttons.length - 1) {
+                        this.focusedActionIdx += 1;
+                        this.renderActionFocus();
+                    }
+                    return;
+                case 'down':
+                    return;
+            }
+        }
+        // strip zone
+        if (!this.board || this.board.skills.length === 0) return;
+        const skills = this.board.skills;
+        let idx = skills.findIndex((s) => s.skill_id === this.selectedSkillID);
+        if (idx < 0) idx = 0;
+        switch (direction) {
+            case 'left':
+                if (idx > 0) idx -= 1;
+                else return;
+                break;
+            case 'right':
+                if (idx < skills.length - 1) idx += 1;
+                else return;
+                break;
+            case 'down':
+                this.focusZone = 'actions';
+                this.focusedActionIdx = 0;
+                this.renderActionFocus();
+                return;
+            case 'up':
+                return;
+        }
+        if (skills[idx].skill_id !== this.selectedSkillID) {
+            this.selectedSkillID = skills[idx].skill_id;
+            this.render();
+            this.scrollFocusedStripIntoView();
+        }
+    }
+
+    confirm(): void {
+        if (!this.visible) return;
+        if (this.focusZone !== 'actions') return;
+        const buttons = this.actionsEl
+            ? Array.from(this.actionsEl.querySelectorAll('button'))
+            : [];
+        const btn = buttons[this.focusedActionIdx] as HTMLButtonElement | undefined;
+        if (btn && !btn.disabled) btn.click();
+    }
+
+    private renderActionFocus(): void {
+        const buttons = this.actionsEl
+            ? Array.from(this.actionsEl.querySelectorAll('button'))
+            : [];
+        if (this.focusedActionIdx >= buttons.length) {
+            this.focusedActionIdx = Math.max(0, buttons.length - 1);
+        }
+        const focused = this.focusZone === 'actions';
+        buttons.forEach((btn, idx) => {
+            if (focused && idx === this.focusedActionIdx) {
+                btn.style.outline = '2px solid #ffea7a';
+                btn.style.outlineOffset = '2px';
+                btn.style.boxShadow = '0 0 12px rgba(255,234,122,0.8)';
+            } else {
+                btn.style.outline = '';
+                btn.style.outlineOffset = '';
+                btn.style.boxShadow = '';
+            }
+        });
+    }
+
+    private scrollFocusedStripIntoView(): void {
+        if (!this.iconStripEl || !this.selectedSkillID || !this.board) return;
+        const idx = this.board.skills.findIndex((s) => s.skill_id === this.selectedSkillID);
+        if (idx < 0) return;
+        const cell = this.iconStripEl.children[idx] as HTMLElement | undefined;
+        cell?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     }
 
     async refresh(): Promise<void> {
@@ -254,6 +356,9 @@ export class SkillModal implements GameComponent {
         this.renderIconStrip();
         this.renderDetail();
         this.renderActions();
+        // Re-apply focus glow sau mỗi render — actions DOM được rebuild nên
+        // outline cần áp lại.
+        this.renderActionFocus();
     }
 
     private renderIconStrip(): void {

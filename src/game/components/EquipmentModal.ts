@@ -79,6 +79,9 @@ export class EquipmentModal implements GameComponent {
     private equipped = new Map<string, EquippedItemDTO>(); // be slot id → item
     private loading = false;
     private actionInFlight = false;
+    /** 2D nav coords trên grid (LEFT_COL | RIGHT_COL) × 5 row. col=0 left, col=1 right. */
+    private focusedRow = 0;
+    private focusedCol = 0;
     private localeUnsub?: () => void;
     private scene: Phaser.Scene;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
@@ -236,7 +239,64 @@ export class EquipmentModal implements GameComponent {
         if (!this.overlay) return;
         this.visible = !this.visible;
         this.overlay.style.display = this.visible ? 'block' : 'none';
-        if (this.visible) void this.refresh();
+        if (this.visible) {
+            this.focusedRow = 0;
+            this.focusedCol = 0;
+            this.renderFocus();
+            void this.refresh();
+        }
+    }
+
+    /** ↑/↓/←/→ điều hướng trên grid 5×2. Slot locked vẫn focus được nhưng
+     * Enter no-op. Bottom row 6 ô future bỏ qua khỏi nav (toàn locked). */
+    navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
+        if (!this.visible) return;
+        let row = this.focusedRow;
+        let col = this.focusedCol;
+        switch (direction) {
+            case 'left':  col = Math.max(0, col - 1); break;
+            case 'right': col = Math.min(1, col + 1); break;
+            case 'up':    row = Math.max(0, row - 1); break;
+            case 'down':  row = Math.min(4, row + 1); break;
+        }
+        if (row === this.focusedRow && col === this.focusedCol) return;
+        this.focusedRow = row;
+        this.focusedCol = col;
+        this.renderFocus();
+    }
+
+    /** Enter = click vào slot focus (handleSlotClick → unequip nếu có item). */
+    confirm(): void {
+        if (!this.visible) return;
+        const def = this.getFocusedDef();
+        if (!def || def.locked) return;
+        this.handleSlotClick(def);
+    }
+
+    private getFocusedDef(): SlotDef | null {
+        const column = this.focusedCol === 0 ? LEFT_COL : RIGHT_COL;
+        return column[this.focusedRow] ?? null;
+    }
+
+    private renderFocus(): void {
+        const cols: SlotDef[][] = [LEFT_COL, RIGHT_COL];
+        cols.forEach((column, ci) => {
+            column.forEach((def, ri) => {
+                const cell = this.slotsByKey.get(def.key);
+                if (!cell) return;
+                const focused = ci === this.focusedCol && ri === this.focusedRow;
+                if (focused) {
+                    cell.style.outline = '2px solid #ffea7a';
+                    cell.style.outlineOffset = '2px';
+                    cell.style.boxShadow = '0 0 10px rgba(255,234,122,0.7)';
+                } else {
+                    cell.style.outline = '';
+                    cell.style.outlineOffset = '';
+                    // Giữ box-shadow gốc để hover effect không bị clobber
+                    if (!cell.matches(':hover')) cell.style.boxShadow = '';
+                }
+            });
+        });
     }
 
     open(): void {

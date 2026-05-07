@@ -65,6 +65,7 @@ export class MonsterManager implements GameComponent {
     private background: MapBackground;
     private mapId: string;
     private callbacks: MonsterManagerCallbacks;
+    private safeZone: boolean;
     private monsters: MonsterEntry[] = [];
     private pollTimer?: number;
     private tickTimer?: number;
@@ -83,14 +84,21 @@ export class MonsterManager implements GameComponent {
         background: MapBackground,
         mapId: string,
         callbacks?: MonsterManagerCallbacks,
+        options?: { safeZone?: boolean },
     ) {
         this.scene = scene;
         this.background = background;
         this.mapId = mapId;
         this.callbacks = callbacks ?? {};
+        this.safeZone = options?.safeZone === true;
     }
 
     create(): void {
+        this.scene.events.once('shutdown', () => this.cleanup());
+        this.scene.events.once('destroy', () => this.cleanup());
+        // Map an toàn (làng / trường phái) — không poll /monsters cũng không
+        // chạy combat tick. update() vẫn no-op vì monsters[] rỗng.
+        if (this.safeZone) return;
         // Async load — render khi có data.
         void this.refreshFromBE();
         this.pollTimer = window.setInterval(() => {
@@ -100,8 +108,6 @@ export class MonsterManager implements GameComponent {
         this.tickTimer = window.setInterval(() => {
             void this.combatTick();
         }, COMBAT_TICK_INTERVAL_MS);
-        this.scene.events.once('shutdown', () => this.cleanup());
-        this.scene.events.once('destroy', () => this.cleanup());
     }
 
     /** Pause/resume combat tick (vd khi player chết / Đóng menu). */
