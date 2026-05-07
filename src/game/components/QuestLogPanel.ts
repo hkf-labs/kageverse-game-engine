@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { questAPI, type QuestBoardCategoryDTO, type QuestDTO, type QuestObjectiveDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
-import { onLocaleChange, t } from '../../i18n';
+import { onLocaleChange, t, tOpt } from '../../i18n';
 import type { GameComponent } from './types';
 
 // Status / objective verb labels resolve qua i18n key. Fallback raw status
@@ -36,7 +36,8 @@ export function questDisplayName(nameKey: string): string {
 
 // Target ID có thể là monster_template_id / npc_template_id / item_template_id.
 // Quest engine không phân loại → FE phải cascade qua 3 namespace để tìm tên hợp.
-// Order: monster (phổ biến nhất ở quest objective) → npc → item.
+// Order: monster (phổ biến nhất ở quest objective) → npc → item. Dùng tOpt
+// để khỏi spam warn khi target là NPC/item (không có ở namespace monster.name).
 export function targetDisplayName(targetID: string): string {
     const candidates = [
         `monster.name.${targetID}`,
@@ -44,8 +45,8 @@ export function targetDisplayName(targetID: string): string {
         `item.name.${targetID}`,
     ];
     for (const k of candidates) {
-        const v = t(k);
-        if (v !== k) return v; // Found bundle entry.
+        const v = tOpt(k);
+        if (v !== undefined) return v;
     }
     return targetID;
 }

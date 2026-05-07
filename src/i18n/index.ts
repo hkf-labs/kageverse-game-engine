@@ -85,14 +85,23 @@ export function onLocaleChange(cb: (locale: Locale) => void): () => void {
 //   3. Raw key + console.warn — visible bug để dev phát hiện key sót.
 // Param interpolation: '{name}' replace bằng params.name. Param missing → giữ literal '{name}'.
 export function t(key: string, params?: TranslationParams): string {
+    const v = tOpt(key, params);
+    if (v !== undefined) return v;
+    console.warn(`[i18n] missing key: ${key}`);
+    return key;
+}
+
+/**
+ * Silent variant của t() — trả undefined khi không tìm thấy key, KHÔNG log
+ * warn. Dùng cho pattern cascade qua nhiều namespace (vd quest target có thể
+ * là monster/npc/item) — caller tự xử lý fallback, không spam console.
+ */
+export function tOpt(key: string, params?: TranslationParams): string | undefined {
     const localeTable = tables[currentLocale];
     const defaultTable = tables[DEFAULT_LOCALE];
     let template: string | undefined = localeTable?.[key];
     if (template === undefined) template = defaultTable?.[key];
-    if (template === undefined) {
-        console.warn(`[i18n] missing key: ${key}`);
-        return key;
-    }
+    if (template === undefined) return undefined;
     if (!params) return template;
     return template.replace(/\{(\w+)\}/g, (match, name: string) => {
         const v = params[name];
