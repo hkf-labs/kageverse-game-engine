@@ -93,14 +93,6 @@ export class GameControls implements GameComponent {
         makeSatBtn(180, 0x7a1a1a, 'HP', '#ffe4e4', this.callbacks.onHpPotion);
         makeSatBtn(225, 0x163d6e, 'MP', '#dceeff', this.callbacks.onMpPotion);
         this.switchTargetBtn = makeSatBtn(270, 0x4d2d13, '⇄', '#ffea7a', this.callbacks.onCycleTarget);
-
-        const slotY = height - 30;
-        for (let i = 0; i < 5; i += 1) {
-            const rRect = this.drawRoundedRect(width / 2 - 120 + i * 50, slotY, 42, 24, 0x5c3a19, 0xe29e4a);
-            const pDots = this.drawPixelDots(width / 2 - 118 + i * 50, slotY + 2, 40, 20, 0xd9c39e, 8);
-            if (rRect) { rRect.setScrollFactor(0); rRect.setDepth(100); }
-            if (pDots) { pDots.setScrollFactor(0); pDots.setDepth(100); }
-        }
     }
 
     getVirtualInputs(): { left: boolean; right: boolean; up: boolean } { return this.virtualInputs; }
@@ -143,23 +135,5 @@ export class GameControls implements GameComponent {
         g.closePath(); g.fillPath(); g.strokePath();
 
         if (active) { g.lineStyle(2, 0xffea7a, 0.6); g.strokeCircle(cx, cy, r + 3); }
-    }
-
-    private drawRoundedRect(x: number, y: number, w: number, h: number, fill: number, stroke: number): Phaser.GameObjects.Graphics {
-        const g = this.scene.add.graphics();
-        g.fillStyle(fill, 0.9); g.fillRoundedRect(x, y, w, h, 8);
-        g.lineStyle(2, stroke, 1); g.strokeRoundedRect(x, y, w, h, 8);
-        return g;
-    }
-
-    private drawPixelDots(x: number, y: number, w: number, h: number, color: number, count: number): Phaser.GameObjects.Graphics {
-        const g = this.scene.add.graphics();
-        g.fillStyle(color, 1);
-        for (let i = 0; i < count; i += 1) {
-            const px = x + Math.floor(Math.random() * w);
-            const py = y + Math.floor(Math.random() * h);
-            g.fillRect(px, py, 2, 2);
-        }
-        return g;
     }
 }
