@@ -4,10 +4,12 @@ import {
     type CharacterStatsSnapshot,
     type EquippedItemDTO,
     type InventoryItemDTO,
-} from '../../network/api';
-import { getCurrentCharacter } from '../playerSession';
-import { onLocaleChange, t } from '../../i18n';
-import type { GameComponent } from './types';
+} from '../../../network/api';
+import { getCurrentCharacter } from '../../playerSession';
+import { t } from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { MODAL_COLORS } from './theme';
 
 // 16 ô tổng = 10 active (5 trái + 5 phải) + 6 dưới khoá.
 // MVP BE chỉ support 7 slot (main_hand/shirt/pants/shoes/hat/ring/cloak); 3 slot
@@ -69,21 +71,15 @@ function statLabel(key: string): string {
     return i18nKey ? t(i18nKey) : key;
 }
 
-export class EquipmentModal implements GameComponent {
-    private overlay?: HTMLDivElement;
+export class EquipmentModal extends BaseModal {
     private slotsByKey = new Map<SlotKey, HTMLDivElement>();
-    private statusEl?: HTMLDivElement;
     private statsEl?: HTMLDivElement;
-    private titleEl?: HTMLDivElement;
-    private visible = false;
     private equipped = new Map<string, EquippedItemDTO>(); // be slot id → item
     private loading = false;
     private actionInFlight = false;
     /** 2D nav coords trên grid (LEFT_COL | RIGHT_COL) × 5 row. col=0 left, col=1 right. */
     private focusedRow = 0;
     private focusedCol = 0;
-    private localeUnsub?: () => void;
-    private scene: Phaser.Scene;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
     private onEquipmentChanged?: () => void;
 
@@ -94,54 +90,25 @@ export class EquipmentModal implements GameComponent {
             onEquipmentChanged?: () => void;
         },
     ) {
-        this.scene = scene;
+        super(scene);
         this.onStatsChanged = callbacks?.onStatsChanged;
         this.onEquipmentChanged = callbacks?.onEquipmentChanged;
     }
 
-    create(): void {
-        const parent = this.scene.game.canvas.parentElement;
-        if (!parent) return;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-equipment',
+            size: 'md',
+            layer: 'modal',
+            withStatus: true,
+            title: t('equipment.title'),
+            onClose: () => this.toggle(),
+        };
+    }
 
-        this.overlay = document.createElement('div');
-        this.overlay.classList.add('kageverse-overlay', 'kageverse-overlay-equipment');
-        Object.assign(this.overlay.style, {
-            position: 'absolute', inset: '0',
-            background: 'rgba(0,0,0,0.55)',
-            zIndex: '110', display: 'none',
-            fontFamily: 'system-ui, sans-serif',
-        });
-        this.overlay.addEventListener('click', (e) => {
-            if (e.target === this.overlay) this.toggle();
-        });
-        parent.style.position = 'relative';
-        parent.appendChild(this.overlay);
-
-        const root = document.createElement('div');
-        Object.assign(root.style, {
-            position: 'absolute', top: '50%', left: '50%',
-            transform: 'translate(-50%,-50%)',
-            width: 'min(560px, 92vw)',
-            background: 'linear-gradient(180deg, #2a1808 0%, #1a0f04 100%)',
-            border: '3px solid #e29e4a',
-            borderRadius: '14px',
-            display: 'flex', flexDirection: 'column',
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            color: '#ffe4c4',
-        });
-        this.overlay.appendChild(root);
-
-        // Header
-        const header = document.createElement('div');
-        header.style.cssText = 'display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;';
-        header.innerHTML =
-            `<div id="eq-title" style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">${escapeHtml(t('equipment.title'))}</div>`
-            + `<div id="eq-close" style="width:40px;text-align:center;cursor:pointer;font-size:18px;font-weight:bold;color:#ff8a8a;padding:10px 0;flex-shrink:0;">&#10005;</div>`;
-        root.appendChild(header);
-        this.titleEl = header.querySelector('#eq-title') as HTMLDivElement;
-
-        // Body — 3 cột (5 trái / character / 5 phải)
+    protected populateShell(shell: ModalShell): void {
+        // Body — 3 columns (left slots / character preview / right slots) +
+        // bottom row (6 future locked).
         const body = document.createElement('div');
         body.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto;gap:10px;padding:14px;background:rgba(0,0,0,0.25);align-items:center;';
 
@@ -158,30 +125,22 @@ export class EquipmentModal implements GameComponent {
         center.appendChild(charImg);
         // Stat tổng (placeholder — wire khi BE expose endpoint stats aggregated).
         this.statsEl = document.createElement('div');
-        this.statsEl.style.cssText = 'margin-top:14px;padding:8px 12px;background:rgba(45,26,10,0.6);border:1px solid #4d2d13;border-radius:6px;font-size:11px;color:#ffd070;text-align:center;line-height:1.6;min-width:140px;';
+        this.statsEl.style.cssText = `margin-top:14px;padding:8px 12px;background:rgba(45,26,10,0.6);border:1px solid ${MODAL_COLORS.divider};border-radius:6px;font-size:11px;color:#ffd070;text-align:center;line-height:1.6;min-width:140px;`;
         this.statsEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('equipment.stats_placeholder'))}</div>`;
         center.appendChild(this.statsEl);
 
         body.append(leftCol, center, rightCol);
-        root.appendChild(body);
+        shell.body.appendChild(body);
 
-        // Bottom row — 6 ô khoá
+        // Bottom row — 6 future locked slots.
         const bottom = document.createElement('div');
-        bottom.style.cssText = 'display:flex;justify-content:center;gap:8px;padding:10px 14px 14px;background:rgba(0,0,0,0.35);border-top:2px solid #4d2d13;';
+        bottom.style.cssText = `display:flex;justify-content:center;gap:8px;padding:10px 14px 14px;background:rgba(0,0,0,0.35);border-top:2px solid ${MODAL_COLORS.divider};`;
         for (const def of BOTTOM_ROW) bottom.appendChild(this.buildSlotCell(def));
-        root.appendChild(bottom);
-
-        // Status bar
-        this.statusEl = document.createElement('div');
-        this.statusEl.style.cssText = 'padding:8px 14px;font-size:12px;color:#aaa;background:#1a0f04;border-top:2px solid #4d2d13;min-height:24px;text-align:center;';
-        root.appendChild(this.statusEl);
-
-        const closeBtn = header.querySelector('#eq-close') as HTMLDivElement;
-        closeBtn.addEventListener('click', () => this.toggle());
+        shell.body.appendChild(bottom);
 
         // Re-render mọi text khi locale đổi runtime.
-        this.localeUnsub = onLocaleChange(() => {
-            if (this.titleEl) this.titleEl.textContent = t('equipment.title');
+        shell.registerLocaleSync(() => {
+            this.shell?.setTitle(t('equipment.title'));
             this.renderSlots();
             this.renderStatsSummary();
         });
@@ -233,17 +192,17 @@ export class EquipmentModal implements GameComponent {
         return cell;
     }
 
-    isOpen(): boolean { return this.visible; }
-
     toggle(): void {
-        if (!this.overlay) return;
-        this.visible = !this.visible;
-        this.overlay.style.display = this.visible ? 'block' : 'none';
-        if (this.visible) {
+        const willShow = !this.visible;
+        if (willShow) this.ensureShell();
+        this.visible = willShow;
+        if (willShow) {
             this.focusedRow = 0;
             this.focusedCol = 0;
             this.renderFocus();
             void this.refresh();
+        } else {
+            this.teardownShell();
         }
     }
 
@@ -286,7 +245,7 @@ export class EquipmentModal implements GameComponent {
                 if (!cell) return;
                 const focused = ci === this.focusedCol && ri === this.focusedRow;
                 if (focused) {
-                    cell.style.outline = '2px solid #ffea7a';
+                    cell.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
                     cell.style.outlineOffset = '2px';
                     cell.style.boxShadow = '0 0 10px rgba(255,234,122,0.7)';
                 } else {
@@ -311,33 +270,31 @@ export class EquipmentModal implements GameComponent {
     async refresh(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
-            this.setStatus(t('equipment.error_no_character'), '#ff8a8a');
+            this.shell?.setStatus(t('equipment.error_no_character'), 'error');
             return;
         }
         if (this.loading) return;
         this.loading = true;
-        this.setStatus(t('equipment.loading'), '#aaa');
+        this.shell?.setStatus(t('equipment.loading'), 'muted');
         try {
             const res = await inventoryAPI.listEquipped(character.id);
             this.equipped.clear();
             for (const it of res.items) this.equipped.set(it.slot, it);
             this.renderSlots();
             this.renderStatsSummary();
-            this.setStatus('', '#ffe4c4');
+            this.shell?.setStatus('', 'muted');
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('equipment.error_load');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         } finally {
             this.loading = false;
         }
     }
 
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
+    protected teardownShell(): void {
+        super.teardownShell();
         this.slotsByKey.clear();
-        this.localeUnsub?.();
-        this.localeUnsub = undefined;
+        this.statsEl = undefined;
     }
 
     private renderSlots(): void {
@@ -364,17 +321,17 @@ export class EquipmentModal implements GameComponent {
         }
         const item = equipped.item;
         const upgradeBadge = item.upgrade_level > 0
-            ? `<div style="position:absolute;left:2px;top:0;font-size:10px;font-weight:bold;color:#ffea7a;text-shadow:0 0 3px #000,1px 1px 0 #000;">+${item.upgrade_level}</div>`
+            ? `<div style="position:absolute;left:2px;top:0;font-size:10px;font-weight:bold;color:${MODAL_COLORS.title};text-shadow:0 0 3px #000,1px 1px 0 #000;">+${item.upgrade_level}</div>`
             : '';
         const boundBadge = item.is_bound
-            ? `<div style="position:absolute;right:2px;top:0;font-size:9px;color:#ff8a8a;text-shadow:0 0 3px #000;">🔒</div>`
+            ? `<div style="position:absolute;right:2px;top:0;font-size:9px;color:${MODAL_COLORS.statusError};text-shadow:0 0 3px #000;">🔒</div>`
             : '';
         cell.innerHTML =
             `<div style="font-size:24px;">${def.icon}</div>`
             + upgradeBadge + boundBadge
-            + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:#ffea7a;background:rgba(0,0,0,0.6);padding:1px 0;font-weight:bold;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${escapeHtml(slotLabel)}</div>`;
+            + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:${MODAL_COLORS.title};background:rgba(0,0,0,0.6);padding:1px 0;font-weight:bold;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${escapeHtml(slotLabel)}</div>`;
         cell.title = formatItemTooltip(slotLabel, item);
-        cell.style.borderColor = '#ffea7a';
+        cell.style.borderColor = MODAL_COLORS.borderAccent;
     }
 
     private renderStatsSummary(): void {
@@ -394,7 +351,7 @@ export class EquipmentModal implements GameComponent {
         this.statsEl.innerHTML = entries
             .map(([k, v]) => {
                 const sign = v > 0 ? '+' : '';
-                return `<div>${escapeHtml(statLabel(k))}: <span style="color:#bdf0a0;font-weight:bold;">${sign}${v}</span></div>`;
+                return `<div>${escapeHtml(statLabel(k))}: <span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${sign}${v}</span></div>`;
             })
             .join('');
     }
@@ -403,7 +360,7 @@ export class EquipmentModal implements GameComponent {
         if (!def.beSlotId) return;
         const equipped = this.equipped.get(def.beSlotId);
         if (!equipped) {
-            this.setStatus(t('equipment.empty_hint', { slot: t(def.labelKey) }), '#aaa');
+            this.shell?.setStatus(t('equipment.empty_hint', { slot: t(def.labelKey) }), 'muted');
             return;
         }
         void this.handleUnequip(def, equipped);
@@ -418,17 +375,17 @@ export class EquipmentModal implements GameComponent {
         if (!window.confirm(t('equipment.confirm_unequip', { slot: slotLabel, name: equipped.item.name_key }))) return;
 
         this.actionInFlight = true;
-        this.setStatus(t('equipment.unequipping'), '#aaa');
+        this.shell?.setStatus(t('equipment.unequipping'), 'muted');
         try {
             await inventoryAPI.unequip(character.id, def.beSlotId);
-            this.setStatus(t('equipment.unequipped', { slot: slotLabel }), '#bdf0a0');
+            this.shell?.setStatus(t('equipment.unequipped', { slot: slotLabel }), 'ok');
             await this.refresh();
             // equip_item objective state có thể thay đổi (vd Q3 require equip
             // weapon — unequip khiến progress reset). Báo scene refresh.
             this.onEquipmentChanged?.();
             // BE tự cập nhật stat character → fetch lại HUD nếu callback có.
             if (this.onStatsChanged) {
-                const { charactersAPI } = await import('../../network/api');
+                const { charactersAPI } = await import('../../../network/api');
                 const list = await charactersAPI.list();
                 const c = list.characters.find((x) => x.id === character.id);
                 if (c) this.onStatsChanged({
@@ -440,16 +397,10 @@ export class EquipmentModal implements GameComponent {
             }
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('equipment.error_unequip');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         } finally {
             this.actionInFlight = false;
         }
-    }
-
-    private setStatus(text: string, color: string): void {
-        if (!this.statusEl) return;
-        this.statusEl.textContent = text;
-        this.statusEl.style.color = color;
     }
 }
 

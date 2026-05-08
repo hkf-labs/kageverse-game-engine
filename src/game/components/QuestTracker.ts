@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import type { QuestDTO, QuestObjectiveDTO } from '../../network/api';
-import { questDisplayName, targetDisplayName } from './QuestLogPanel';
+import { questDisplayName, targetDisplayName } from './modals/QuestLogPanel';
 import { t } from '../../i18n';
 import type { GameComponent } from './types';
 
@@ -18,20 +18,76 @@ const CATEGORY_PRIORITY: Record<QuestDTO['category'], number> = {
     main: 0, side: 1, daily: 2, weekly: 3,
 };
 
+const ANCHOR_X = 12;
+const DEFAULT_TOP = 100;
+const PANEL_MIN_WIDTH = 180;
+const PAD_X = 10;
+const PAD_Y = 6;
+const TITLE_BODY_GAP = 4;
+const DEPTH = 90;
+
+const COLOR_BG = 0x141c24;       // rgba(20,28,36,0.85) — match style cũ
+const ALPHA_BG = 0.85;
+const COLOR_BORDER_IDLE = 0xbdf0a0;
+const ALPHA_BORDER_IDLE = 0.35;
+const COLOR_BORDER_HOVER = 0xffea7a;
+const ALPHA_BORDER_HOVER = 0.7;
+
+// Mọi style không set wordWrap — text render 1 dòng, panel auto-widen theo
+// content (clamp PANEL_MIN_WIDTH ở dưới).
+const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: '12px',
+    fontStyle: 'bold',
+    color: '#ffea7a',
+};
+
+const BODY_ACTIVE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: '11px',
+    color: '#ffe4c4',
+};
+
+const BODY_COMPLETED_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: '11px',
+    fontStyle: 'bold',
+    color: '#ffea7a',
+};
+
+const BODY_HINT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: '11px',
+    fontStyle: 'bold',
+    color: '#ff8a8a',
+};
+
 /**
- * QuestTracker — DOM overlay góc trái, ghim 1 quest đang track.
+ * QuestTracker — HUD góc trên-trái (Phaser canvas), ghim 1 quest đang track.
  * Hiển thị: tên quest + objective ưu tiên (chưa done đầu tiên) + progress.
  * Click → mở QuestLogPanel (qua callback onClick).
  *
- * Cập nhật cache do BaseMapScene gọi `update(quests)` mỗi khi questLog refresh
- * (sau accept/turn-in/kill).
+ * Cập nhật cache do BaseMapScene gọi `setQuests(quests)` mỗi khi questLog
+ * refresh (sau accept/turn-in/kill).
+ *
+ * Render: container + Graphics rounded rect + 2 Text. Container teardown
+ * khi không có quest nào để hiển thị (tránh giữ object thừa khi player chưa
+ * có quest active/completed).
  */
 export class QuestTracker implements GameComponent {
-    private container?: HTMLDivElement;
     private scene: Phaser.Scene;
     private onClick?: () => void;
     private currentQuests: QuestDTO[] = [];
     private emptyHint: string | null = null;
+    /** Top offset cache — apply lại khi container build lazy. */
+    private cachedTopOffsetPx: number | null = null;
+
+    private container?: Phaser.GameObjects.Container;
+    private bg?: Phaser.GameObjects.Graphics;
+    private hitArea?: Phaser.GameObjects.Rectangle;
+    private titleText?: Phaser.GameObjects.Text;
+    private bodyText?: Phaser.GameObjects.Text;
+    private hovered = false;
 
     constructor(scene: Phaser.Scene, onClick?: () => void) {
         this.scene = scene;
@@ -39,43 +95,8 @@ export class QuestTracker implements GameComponent {
     }
 
     create(): void {
-        const parent = this.scene.game.canvas.parentElement;
-        if (!parent) return;
-        const c = document.createElement('div');
-        c.classList.add('kageverse-overlay', 'kageverse-overlay-quest-tracker');
-        Object.assign(c.style, {
-            position: 'absolute',
-            left: '12px', top: '100px',
-            maxWidth: '300px', minWidth: '180px',
-            padding: '4px 10px',
-            background: 'linear-gradient(180deg, rgba(20,28,36,0.85), rgba(14,18,24,0.85))',
-            border: '1px solid rgba(189, 240, 160, 0.35)',
-            borderRadius: '6px',
-            color: '#ffffff',
-            fontFamily: 'system-ui, sans-serif',
-            fontSize: '11px',
-            lineHeight: '1.25',
-            zIndex: '90',
-            boxShadow: '0 3px 10px rgba(0,0,0,0.45)',
-            cursor: this.onClick ? 'pointer' : 'default',
-            userSelect: 'none',
-            display: 'none',
-            transition: 'border-color 0.15s, box-shadow 0.15s',
-        });
-        if (this.onClick) {
-            c.addEventListener('click', () => this.onClick?.());
-            c.addEventListener('mouseenter', () => {
-                c.style.borderColor = 'rgba(255, 234, 122, 0.7)';
-                c.style.boxShadow = '0 4px 14px rgba(255, 234, 122, 0.25)';
-            });
-            c.addEventListener('mouseleave', () => {
-                c.style.borderColor = 'rgba(189, 240, 160, 0.35)';
-                c.style.boxShadow = '0 4px 14px rgba(0,0,0,0.5)';
-            });
-        }
-        parent.style.position = 'relative';
-        parent.appendChild(c);
-        this.container = c;
+        // Container tạo lazy ở render() khi có quest tracked / emptyHint —
+        // không giữ object thừa khi player chưa có quest active/completed.
     }
 
     /** Cập nhật cache quest từ QuestLogPanel; render lại. */
@@ -89,8 +110,8 @@ export class QuestTracker implements GameComponent {
      * 2 panel xếp dọc dưới topbar thay vì đè nhau.
      */
     setTopOffset(px: number): void {
-        if (!this.container) return;
-        this.container.style.top = `${px}px`;
+        this.cachedTopOffsetPx = px;
+        if (this.container) this.container.y = px;
     }
 
     /**
@@ -102,51 +123,153 @@ export class QuestTracker implements GameComponent {
         this.render();
     }
 
+    destroy(): void {
+        this.teardownContainer();
+    }
+
     private render(): void {
-        if (!this.container) return;
         const tracked = pickTrackedQuest(this.currentQuests);
         if (tracked) {
+            this.ensureContainer();
             this.renderQuest(tracked);
             return;
         }
         if (this.emptyHint) {
-            this.container.innerHTML = `<div style="color:#ff8a8a;font-weight:600;">❗ ${escapeHtml(this.emptyHint)}</div>`;
-            this.container.style.display = 'block';
+            this.ensureContainer();
+            this.renderEmptyHint(this.emptyHint);
             return;
         }
-        this.container.style.display = 'none';
+        // Không có gì hiển thị — tear down để không giữ object thừa.
+        this.teardownContainer();
+    }
+
+    private ensureContainer(): void {
+        if (this.container) return;
+        const top = this.cachedTopOffsetPx ?? DEFAULT_TOP;
+        const container = this.scene.add.container(ANCHOR_X, top)
+            .setScrollFactor(0)
+            .setDepth(DEPTH);
+
+        // Bg + border — Graphics layer dưới cùng. fillRoundedRect dùng radius
+        // 6 cho match style cũ.
+        const bg = this.scene.add.graphics();
+        container.add(bg);
+        this.bg = bg;
+
+        // Title text — anchor top-left, padding inside bg.
+        const title = this.scene.add.text(PAD_X, PAD_Y, '', TITLE_STYLE).setOrigin(0, 0);
+        container.add(title);
+        this.titleText = title;
+
+        // Body text — y set sau khi đo title height.
+        const body = this.scene.add.text(PAD_X, PAD_Y, '', BODY_ACTIVE_STYLE).setOrigin(0, 0);
+        container.add(body);
+        this.bodyText = body;
+
+        // Invisible hit area — pointer event target (Container không bắt event
+        // trực tiếp, phải dùng child với setInteractive). Size set lại trong
+        // repaintBg sau khi đo content.
+        const hit = this.scene.add.rectangle(0, 0, PANEL_MIN_WIDTH, 1, 0x000000, 0)
+            .setOrigin(0, 0)
+            .setInteractive({ useHandCursor: !!this.onClick });
+        if (this.onClick) {
+            hit.on('pointerdown', () => this.onClick?.());
+            hit.on('pointerover', () => {
+                this.hovered = true;
+                this.repaintBg();
+            });
+            hit.on('pointerout', () => {
+                this.hovered = false;
+                this.repaintBg();
+            });
+        }
+        container.add(hit);
+        this.hitArea = hit;
+
+        this.container = container;
+    }
+
+    private teardownContainer(): void {
+        this.container?.destroy(); // cascade destroy children
+        this.container = undefined;
+        this.bg = undefined;
+        this.hitArea = undefined;
+        this.titleText = undefined;
+        this.bodyText = undefined;
+        this.hovered = false;
     }
 
     private renderQuest(tracked: QuestDTO): void {
-        if (!this.container) return;
+        if (!this.titleText || !this.bodyText) return;
         const isCompleted = tracked.status === 'completed';
         const objective = tracked.objectives.find((o) => o.done < o.count) ?? tracked.objectives[0];
 
-        const titleLine =
-            `<div style="color:#ffea7a;font-weight:600;">📜 ${escapeHtml(questDisplayName(tracked.name_key))}</div>`;
+        this.titleText.setText(`📜 ${questDisplayName(tracked.name_key)}`);
 
-        let bodyLine: string;
         if (isCompleted) {
             const turnInNpc = tracked.turn_in_npc_id ?? tracked.giver_npc_id;
             const npcName = turnInNpc ? targetDisplayName(turnInNpc) : t('quest.tracker.unknown_npc');
-            bodyLine = `<div style="color:#ffea7a;font-weight:600;">✅ Hoàn thành — về gặp ${escapeHtml(npcName)}</div>`;
+            this.bodyText
+                .setStyle(BODY_COMPLETED_STYLE)
+                .setText(`✅ Hoàn thành — về gặp ${npcName}`);
         } else {
             const verbKey = OBJECTIVE_KEY[objective.type];
             const verb = verbKey ? t(verbKey) : objective.type;
             const target = targetDisplayName(objective.target_id);
             const done = Math.min(objective.done, objective.count);
-            bodyLine =
-                `<div>${verb} <span style="color:#bdf0a0;">${escapeHtml(target)}</span> `
-                + `<span style="color:#aaa;">(${done}/${objective.count})</span></div>`;
+            this.bodyText
+                .setStyle(BODY_ACTIVE_STYLE)
+                .setText(`${verb} ${target} (${done}/${objective.count})`);
         }
-
-        this.container.innerHTML = titleLine + bodyLine;
-        this.container.style.display = 'block';
+        this.layoutAndRepaint();
     }
 
-    destroy(): void {
-        this.container?.remove();
-        this.container = undefined;
+    private renderEmptyHint(text: string): void {
+        if (!this.titleText || !this.bodyText) return;
+        // Empty-hint: title rỗng (giấu), body chiếm full panel với màu warning.
+        this.titleText.setText('');
+        this.bodyText
+            .setStyle(BODY_HINT_STYLE)
+            .setText(`❗ ${text}`);
+        this.layoutAndRepaint();
+    }
+
+    /** Đo height của title + body, position body, vẽ lại bg + resize hit area. */
+    private layoutAndRepaint(): void {
+        if (!this.titleText || !this.bodyText) return;
+        const hasTitle = this.titleText.text.length > 0;
+        // Hide title element nếu rỗng (empty-hint case).
+        this.titleText.setVisible(hasTitle);
+        const titleHeight = hasTitle ? this.titleText.height : 0;
+        const bodyY = PAD_Y + titleHeight + (hasTitle ? TITLE_BODY_GAP : 0);
+        this.bodyText.setY(bodyY);
+        this.repaintBg();
+    }
+
+    private repaintBg(): void {
+        if (!this.bg || !this.titleText || !this.bodyText || !this.hitArea) return;
+        const bodyBottom = this.bodyText.y + this.bodyText.height;
+        const totalHeight = bodyBottom + PAD_Y;
+        // Width auto theo content — text 1 dòng nên width = max(title, body) +
+        // padding 2 chiều, clamp tối thiểu PANEL_MIN_WIDTH cho khung không co
+        // quá hẹp khi quest name ngắn.
+        const contentWidth = Math.max(
+            this.titleText.visible ? this.titleText.width : 0,
+            this.bodyText.width,
+        );
+        const totalWidth = Math.max(PANEL_MIN_WIDTH, contentWidth + PAD_X * 2);
+
+        this.bg.clear();
+        this.bg.fillStyle(COLOR_BG, ALPHA_BG);
+        this.bg.fillRoundedRect(0, 0, totalWidth, totalHeight, 6);
+        const borderColor = this.hovered ? COLOR_BORDER_HOVER : COLOR_BORDER_IDLE;
+        const borderAlpha = this.hovered ? ALPHA_BORDER_HOVER : ALPHA_BORDER_IDLE;
+        this.bg.lineStyle(1, borderColor, borderAlpha);
+        this.bg.strokeRoundedRect(0, 0, totalWidth, totalHeight, 6);
+
+        // Hit area phủ toàn panel để click + hover state hoạt động đều.
+        this.hitArea.setSize(totalWidth, totalHeight);
+        this.hitArea.input?.hitArea.setSize(totalWidth, totalHeight);
     }
 }
 
@@ -164,10 +287,4 @@ function pickTrackedQuest(quests: QuestDTO[]): QuestDTO | null {
         return a.min_level - b.min_level;
     });
     return tracking[0];
-}
-
-function escapeHtml(s: string): string {
-    return s.replace(/[&<>"']/g, (c) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-    }[c] ?? c));
 }

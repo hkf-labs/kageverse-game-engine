@@ -5,14 +5,14 @@ import { t } from '../../i18n';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
-import type { ConfirmDialog } from './ConfirmDialog';
-import { detectEndMvpClass } from './EndMvpOverlay';
-import type { HoshiUpgradeModal } from './HoshiUpgradeModal';
+import type { ConfirmDialog } from './modals/ConfirmDialog';
+import { detectEndMvpClass } from './modals/EndMvpOverlay';
+import type { HoshiUpgradeModal } from './modals/HoshiUpgradeModal';
 import type { MapBackground } from './MapBackground';
 import type { NpcChatBubble } from './NpcChatBubble';
-import { questDisplayName } from './QuestLogPanel';
-import type { QuestLogPanel } from './QuestLogPanel';
-import type { ShopModal } from './ShopModal';
+import { questDisplayName } from './modals/QuestLogPanel';
+import type { QuestLogPanel } from './modals/QuestLogPanel';
+import type { ShopModal } from './modals/ShopModal';
 
 const ACTION_KEY: Record<string, string> = {
     talk: 'npc.action_talk',

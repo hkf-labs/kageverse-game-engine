@@ -1,8 +1,10 @@
 import * as Phaser from 'phaser';
-import { skillAPI, type SkillDTO, type ListSkillsResponse } from '../../network/api';
-import { getCurrentCharacter } from '../playerSession';
-import { onLocaleChange, t } from '../../i18n';
-import type { GameComponent } from './types';
+import { skillAPI, type SkillDTO, type ListSkillsResponse } from '../../../network/api';
+import { getCurrentCharacter } from '../../playerSession';
+import { t } from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { MODAL_COLORS } from './theme';
 
 // SKILL_NAME_VI / SKILL_DESC_VI moved to i18n bundles (`skill.<id>.name` / `.desc`).
 // skillName / skillDesc helpers ở dưới resolve qua t() — missing key fallback raw.
@@ -67,97 +69,67 @@ function skillIconInline(s: SkillDTO, size: number): string {
 }
 
 /**
- * SkillModal — Menu → Kỹ năng. Layout giống CharacterInfoModal:
- *   header ◄ KỸ NĂNG ► ✕
- *   SP counter
+ * SkillModal — Menu → Kỹ năng. Layout:
+ *   header (title)
+ *   SP counter row
  *   icon strip (skills) — click chọn
  *   detail rows (description, type, max level, current level, requirements, MP)
  *   action buttons (Nâng cấp / Gán slot)
  */
-export class SkillModal implements GameComponent {
-    private overlay?: HTMLDivElement;
-    private spEl?: HTMLDivElement;
+export class SkillModal extends BaseModal {
+    private spEl?: HTMLSpanElement;
+    private spLabelEl?: HTMLSpanElement;
     private iconStripEl?: HTMLDivElement;
     private detailEl?: HTMLDivElement;
-    private statusEl?: HTMLDivElement;
     private actionsEl?: HTMLDivElement;
-    private visible = false;
     private loading = false;
     private actionInFlight = false;
-    private scene: Phaser.Scene;
     private board?: ListSkillsResponse;
     private selectedSkillID: string | null = null;
     private onSlotsChanged?: (slots: (string | null)[]) => void;
     /** 'strip' = icon strip skill; 'actions' = nút Upgrade / Gán slot. */
     private focusZone: 'strip' | 'actions' = 'strip';
     private focusedActionIdx = 0;
-    private titleEl?: HTMLDivElement;
-    private spLabelEl?: HTMLSpanElement;
-    private localeUnsub?: () => void;
 
     constructor(scene: Phaser.Scene, opts?: { onSlotsChanged?: (slots: (string | null)[]) => void }) {
-        this.scene = scene;
+        super(scene);
         this.onSlotsChanged = opts?.onSlotsChanged;
     }
 
-    create(): void {
-        const parent = this.scene.game.canvas.parentElement;
-        if (!parent) return;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-skill',
+            size: 'sm',
+            layer: 'modal',
+            withStatus: true,
+            title: t('skill.modal.title'),
+            onClose: () => this.close(),
+        };
+    }
 
-        this.overlay = document.createElement('div');
-        this.overlay.classList.add('kageverse-overlay', 'kageverse-overlay-skill');
-        Object.assign(this.overlay.style, {
-            position: 'absolute', inset: '0',
-            background: 'rgba(0,0,0,0.55)',
-            zIndex: '110', display: 'none',
-            fontFamily: 'system-ui, sans-serif',
-        });
-        this.overlay.addEventListener('click', (e) => {
-            if (e.target === this.overlay) this.close();
-        });
-        parent.style.position = 'relative';
-        parent.appendChild(this.overlay);
-
-        const root = document.createElement('div');
-        Object.assign(root.style, {
-            position: 'absolute', top: '50%', left: '50%',
-            transform: 'translate(-50%,-50%)',
-            width: 'min(440px, 92vw)',
-            background: 'linear-gradient(180deg, #2a1808 0%, #1a0f04 100%)',
-            border: '3px solid #e29e4a',
-            borderRadius: '12px',
-            display: 'flex', flexDirection: 'column',
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            color: '#ffe4c4',
-        });
-        this.overlay.appendChild(root);
-
-        // Header — same style as CharacterInfoModal.
-        const header = document.createElement('div');
-        header.style.cssText = 'display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;';
-        header.innerHTML =
-            `<div style="width:34px;text-align:center;color:#7a5a3a;cursor:not-allowed;font-size:16px;padding:8px 0;user-select:none;">◄</div>`
-            + `<div data-title style="flex:1;text-align:center;padding:8px 0;font-size:14px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">${escapeHtml(t('skill.modal.title'))}</div>`
-            + `<div style="width:34px;text-align:center;color:#7a5a3a;cursor:not-allowed;font-size:16px;padding:8px 0;user-select:none;">►</div>`
-            + `<div data-close style="width:36px;text-align:center;cursor:pointer;font-size:16px;font-weight:bold;color:#ff8a8a;padding:8px 0;flex-shrink:0;">✕</div>`;
-        root.appendChild(header);
-        this.titleEl = header.querySelector('[data-title]') as HTMLDivElement;
-
-        // SP counter row.
+    protected populateShell(shell: ModalShell): void {
+        // SP counter row — dán ngay sau header trong panel (trên body).
+        // Position: panel.insertBefore(spRow, body)
         const spRow = document.createElement('div');
-        spRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(45,26,10,0.6);border-bottom:1px solid #4d2d13;font-size:13px;';
-        spRow.innerHTML = `<span data-sp-label style="color:#a89070;">${escapeHtml(t('skill.modal.sp_label'))}</span> <span data-sp style="color:#bdf0a0;font-weight:bold;">—</span>`;
-        root.appendChild(spRow);
-        this.spEl = spRow.querySelector('[data-sp]') as HTMLDivElement;
-        this.spLabelEl = spRow.querySelector('[data-sp-label]') as HTMLSpanElement;
+        spRow.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(45,26,10,0.6);border-bottom:1px solid ${MODAL_COLORS.divider};font-size:13px;flex-shrink:0;`;
+        const spLabel = document.createElement('span');
+        spLabel.style.color = MODAL_COLORS.textMuted;
+        spLabel.textContent = t('skill.modal.sp_label');
+        const spValue = document.createElement('span');
+        spValue.style.cssText = `color:${MODAL_COLORS.statusOk};font-weight:bold;`;
+        spValue.textContent = '—';
+        spRow.append(spLabel, spValue);
+        this.spLabelEl = spLabel;
+        this.spEl = spValue;
+        shell.panel.insertBefore(spRow, shell.body);
 
-        // Icon strip — horizontal scroll.
+        // Icon strip — horizontal scroll ngay đầu body.
         const strip = document.createElement('div');
         strip.style.cssText = `
             display:flex;gap:6px;padding:10px;overflow-x:auto;background:rgba(20,12,4,0.7);
-            border-bottom:1px solid #4d2d13;
+            border-bottom:1px solid ${MODAL_COLORS.divider};
             scrollbar-width:none;-ms-overflow-style:none;
+            flex-shrink:0;
         `;
         strip.classList.add('cim-scroll');
         if (!document.getElementById('cim-scroll-style')) {
@@ -166,46 +138,38 @@ export class SkillModal implements GameComponent {
             s.textContent = '.cim-scroll::-webkit-scrollbar{display:none;}';
             document.head.appendChild(s);
         }
-        root.appendChild(strip);
+        shell.body.appendChild(strip);
         this.iconStripEl = strip;
 
         // Detail body.
-        const body = document.createElement('div');
-        body.style.cssText = 'height:220px;overflow-y:auto;padding:12px 16px;background:rgba(20,12,4,0.5);scrollbar-width:none;-ms-overflow-style:none;';
-        body.classList.add('cim-scroll');
-        root.appendChild(body);
-        this.detailEl = body;
+        const detail = document.createElement('div');
+        detail.style.cssText = 'height:220px;overflow-y:auto;padding:12px 16px;background:rgba(20,12,4,0.5);scrollbar-width:none;-ms-overflow-style:none;';
+        detail.classList.add('cim-scroll');
+        shell.body.appendChild(detail);
+        this.detailEl = detail;
 
         // Action buttons bar.
         const actions = document.createElement('div');
-        actions.style.cssText = 'display:flex;gap:8px;padding:10px 14px;background:#1a0f04;border-top:2px solid #4d2d13;flex-shrink:0;';
-        root.appendChild(actions);
+        actions.style.cssText = `display:flex;gap:8px;padding:10px 14px;background:${MODAL_COLORS.footerBg};border-top:2px solid ${MODAL_COLORS.divider};flex-shrink:0;`;
+        shell.body.appendChild(actions);
         this.actionsEl = actions;
 
-        // Status footer.
-        const status = document.createElement('div');
-        status.style.cssText = 'padding:6px 14px;font-size:11px;color:#aaa;background:#0a0604;text-align:center;min-height:18px;';
-        root.appendChild(status);
-        this.statusEl = status;
-
-        (header.querySelector('[data-close]') as HTMLDivElement).addEventListener('click', () => this.close());
-
         // Re-render text khi locale đổi runtime.
-        this.localeUnsub = onLocaleChange(() => {
-            if (this.titleEl) this.titleEl.textContent = t('skill.modal.title');
+        shell.registerLocaleSync(() => {
+            this.shell?.setTitle(t('skill.modal.title'));
             if (this.spLabelEl) this.spLabelEl.textContent = t('skill.modal.sp_label');
             this.render();
         });
     }
 
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
-        this.localeUnsub?.();
-        this.localeUnsub = undefined;
+    protected teardownShell(): void {
+        super.teardownShell();
+        this.spEl = undefined;
+        this.spLabelEl = undefined;
+        this.iconStripEl = undefined;
+        this.detailEl = undefined;
+        this.actionsEl = undefined;
     }
-
-    isOpen(): boolean { return this.visible; }
 
     toggle(): void {
         if (this.visible) this.close();
@@ -213,18 +177,16 @@ export class SkillModal implements GameComponent {
     }
 
     open(): void {
-        if (!this.overlay) return;
+        if (!this.ensureShell()) return;
         this.visible = true;
-        this.overlay.style.display = 'block';
         this.focusZone = 'strip';
         this.focusedActionIdx = 0;
         void this.refresh();
     }
 
     close(): void {
-        if (!this.overlay) return;
-        this.visible = false;
-        this.overlay.style.display = 'none';
+        if (!this.visible && !this.shell) return;
+        this.teardownShell();
     }
 
     /** ←/→ trong strip = đổi skill; ↓ → actions zone. Trong actions: ←/→
@@ -305,7 +267,7 @@ export class SkillModal implements GameComponent {
         const focused = this.focusZone === 'actions';
         buttons.forEach((btn, idx) => {
             if (focused && idx === this.focusedActionIdx) {
-                btn.style.outline = '2px solid #ffea7a';
+                btn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
                 btn.style.outlineOffset = '2px';
                 btn.style.boxShadow = '0 0 12px rgba(255,234,122,0.8)';
             } else {
@@ -327,12 +289,12 @@ export class SkillModal implements GameComponent {
     async refresh(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
-            this.setStatus(t('skill.modal.error_no_character'), '#ff8a8a');
+            this.shell?.setStatus(t('skill.modal.error_no_character'), 'error');
             return;
         }
         if (this.loading) return;
         this.loading = true;
-        this.setStatus(t('skill.modal.loading'), '#aaa');
+        this.shell?.setStatus(t('skill.modal.loading'), 'muted');
         try {
             this.board = await skillAPI.list(character.id);
             // Default select: skill đã learned đầu tiên, fallback skill đầu list.
@@ -341,10 +303,10 @@ export class SkillModal implements GameComponent {
                 this.selectedSkillID = firstLearned?.skill_id ?? this.board.skills[0]?.skill_id ?? null;
             }
             this.render();
-            this.setStatus('', '#aaa');
+            this.shell?.setStatus('', 'muted');
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('skill.modal.error_load');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         } finally {
             this.loading = false;
         }
@@ -371,7 +333,7 @@ export class SkillModal implements GameComponent {
             const opacity = isLearned ? '1' : '0.45';
             cell.style.cssText = `
                 width:48px;height:48px;flex-shrink:0;
-                border:2px solid ${isSel ? '#ffea7a' : isLearned ? '#4a7a3a' : '#3a2a1a'};
+                border:2px solid ${isSel ? MODAL_COLORS.borderAccent : isLearned ? '#4a7a3a' : '#3a2a1a'};
                 border-radius:6px;
                 background:${isSel ? '#3a2812' : 'rgba(20,12,4,0.6)'};
                 cursor:pointer;display:flex;align-items:center;justify-content:center;
@@ -383,7 +345,7 @@ export class SkillModal implements GameComponent {
             // Level badge bottom-right nếu learned.
             if (isLearned) {
                 const badge = document.createElement('div');
-                badge.style.cssText = 'position:absolute;right:1px;bottom:0;font-size:10px;font-weight:bold;color:#ffea7a;text-shadow:0 0 3px #000,1px 1px 0 #000;';
+                badge.style.cssText = `position:absolute;right:1px;bottom:0;font-size:10px;font-weight:bold;color:${MODAL_COLORS.title};text-shadow:0 0 3px #000,1px 1px 0 #000;`;
                 badge.textContent = String(s.current_skill_level);
                 cell.appendChild(badge);
             }
@@ -409,10 +371,10 @@ export class SkillModal implements GameComponent {
             rows.push({
                 label: t('skill.label_current_level'),
                 value: t('skill.value_current_level', { n: s.current_skill_level }),
-                valueColor: '#bdf0a0',
+                valueColor: MODAL_COLORS.statusOk,
             });
         } else {
-            rows.push({ label: t('skill.label_status'), value: t('skill.value_not_learned'), valueColor: '#ff8a8a' });
+            rows.push({ label: t('skill.label_status'), value: t('skill.value_not_learned'), valueColor: MODAL_COLORS.statusError });
         }
         rows.push({
             label: t('skill.label_requirement'),
@@ -427,7 +389,7 @@ export class SkillModal implements GameComponent {
                         need: p.need_level,
                         cur: p.current_level,
                     }),
-                    valueColor: '#ff8a8a',
+                    valueColor: MODAL_COLORS.statusError,
                 });
             }
         }
@@ -449,20 +411,20 @@ export class SkillModal implements GameComponent {
             rows.push({
                 label: t('skill.label_damage_multi'),
                 value: t('skill.value_percent', { n: (s.current_stats.damage_multiplier * 100).toFixed(0) }),
-                valueColor: '#ffea7a',
+                valueColor: MODAL_COLORS.title,
             });
         }
         if (s.current_stats.atk_bonus !== undefined && s.current_stats.atk_bonus > 0) {
             rows.push({
                 label: t('skill.label_atk_bonus'),
                 value: t('skill.value_atk_plus', { n: s.current_stats.atk_bonus.toFixed(0) }),
-                valueColor: '#bdf0a0',
+                valueColor: MODAL_COLORS.statusOk,
             });
         }
         if (s.next_upgrade) {
             const lockBadge = s.next_upgrade.ready
-                ? `<span style="color:#bdf0a0">${escapeHtml(t('skill.lock_ready'))}</span>`
-                : `<span style="color:#ff8a8a">${escapeHtml(t('skill.lock_need_level', { n: s.next_upgrade.min_char_level }))}</span>`;
+                ? `<span style="color:${MODAL_COLORS.statusOk}">${escapeHtml(t('skill.lock_ready'))}</span>`
+                : `<span style="color:${MODAL_COLORS.statusError}">${escapeHtml(t('skill.lock_need_level', { n: s.next_upgrade.min_char_level }))}</span>`;
             rows.push({
                 label: t('skill.label_next_level', { n: s.next_upgrade.to_level }),
                 value: t('skill.value_next_upgrade', { cost: s.next_upgrade.sp_cost, lock: lockBadge }),
@@ -471,14 +433,14 @@ export class SkillModal implements GameComponent {
 
         const desc = skillDesc(s.description_key);
         const descBlock = desc
-            ? `<div style="font-size:13px;color:#ffe4c4;font-style:italic;margin-bottom:10px;line-height:1.5;">${escapeHtml(desc)}</div>`
+            ? `<div style="font-size:13px;color:${MODAL_COLORS.text};font-style:italic;margin-bottom:10px;line-height:1.5;">${escapeHtml(desc)}</div>`
             : '';
-        const title = `<div style="font-size:15px;font-weight:bold;color:#ffea7a;margin-bottom:8px;display:flex;align-items:center;gap:6px;">${skillIconInline(s, 28)}<span>${escapeHtml(skillName(s.name_key))}</span></div>`;
+        const title = `<div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};margin-bottom:8px;display:flex;align-items:center;gap:6px;">${skillIconInline(s, 28)}<span>${escapeHtml(skillName(s.name_key))}</span></div>`;
         const rowHTML = rows.map((r) => {
-            const valueColor = r.valueColor ?? '#ffe4c4';
+            const valueColor = r.valueColor ?? MODAL_COLORS.text;
             return `<div style="font-size:13px;line-height:1.7;display:flex;gap:6px;align-items:baseline;">`
                 + `<span style="color:#7a5a3a;">•</span>`
-                + `<span style="color:#a89070;">${escapeHtml(r.label)}:</span>`
+                + `<span style="color:${MODAL_COLORS.textMuted};">${escapeHtml(r.label)}:</span>`
                 + ` <span style="color:${valueColor};font-weight:600;">${r.value}</span>`
                 + `</div>`;
         }).join('');
@@ -519,17 +481,17 @@ export class SkillModal implements GameComponent {
         const character = getCurrentCharacter();
         if (!character) return;
         this.actionInFlight = true;
-        this.setStatus(t('skill.modal.upgrading'), '#aaa');
+        this.shell?.setStatus(t('skill.modal.upgrading'), 'muted');
         try {
             const res = await skillAPI.upgrade(character.id, skillID);
-            this.setStatus(
+            this.shell?.setStatus(
                 t('skill.modal.upgrade_success', { n: res.to_level, sp: res.skill_points_remaining }),
-                '#bdf0a0',
+                'ok',
             );
             await this.refresh();
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('skill.modal.error_upgrade');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         } finally {
             this.actionInFlight = false;
         }
@@ -540,7 +502,7 @@ export class SkillModal implements GameComponent {
         // Inline popup ngay trên action bar — 5 ô slot, click chọn.
         const slots = this.board.skill_slots;
         const popup = document.createElement('div');
-        popup.style.cssText = 'position:absolute;bottom:60px;right:14px;display:flex;gap:6px;background:#1a0f04;border:2px solid #4a7a3a;border-radius:8px;padding:8px;z-index:5;box-shadow:0 4px 12px rgba(0,0,0,0.5);';
+        popup.style.cssText = `position:absolute;bottom:60px;right:14px;display:flex;gap:6px;background:${MODAL_COLORS.footerBg};border:2px solid #4a7a3a;border-radius:8px;padding:8px;z-index:5;box-shadow:0 4px 12px rgba(0,0,0,0.5);`;
         for (let i = 0; i < 5; i++) {
             const cur = slots[i];
             const btn = document.createElement('button');
@@ -550,9 +512,9 @@ export class SkillModal implements GameComponent {
                 : t('skill.slot_empty', { n: i + 1 });
             btn.style.cssText = `
                 width:36px;height:36px;border-radius:6px;
-                border:2px solid ${cur === skillID ? '#ffea7a' : '#4a7a3a'};
+                border:2px solid ${cur === skillID ? MODAL_COLORS.borderAccent : '#4a7a3a'};
                 background:${cur === skillID ? '#3a3014' : '#2a4a1a'};
-                color:#bdf0a0;cursor:pointer;font-weight:bold;
+                color:${MODAL_COLORS.statusOk};cursor:pointer;font-weight:bold;
             `;
             btn.addEventListener('click', async () => {
                 popup.remove();
@@ -578,17 +540,17 @@ export class SkillModal implements GameComponent {
         const newSlots = [...this.board.skill_slots];
         newSlots[slotIndex] = skillID;
         this.actionInFlight = true;
-        this.setStatus(t('skill.modal.assigning_slot', { n: slotIndex + 1 }), '#aaa');
+        this.shell?.setStatus(t('skill.modal.assigning_slot', { n: slotIndex + 1 }), 'muted');
         try {
             const res = await skillAPI.assignSlots(character.id, newSlots);
             this.board.skill_slots = res.skill_slots;
             const name = skillName(this.board.skills.find((sk) => sk.skill_id === skillID)?.name_key ?? skillID);
-            this.setStatus(t('skill.modal.assign_success', { name, n: slotIndex + 1 }), '#bdf0a0');
+            this.shell?.setStatus(t('skill.modal.assign_success', { name, n: slotIndex + 1 }), 'ok');
             this.render();
             this.onSlotsChanged?.(res.skill_slots);
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('skill.modal.error_assign');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         } finally {
             this.actionInFlight = false;
         }
@@ -608,12 +570,6 @@ export class SkillModal implements GameComponent {
         `;
         if (enabled) btn.addEventListener('click', onClick);
         return btn;
-    }
-
-    private setStatus(text: string, color: string): void {
-        if (!this.statusEl) return;
-        this.statusEl.textContent = text;
-        this.statusEl.style.color = color;
     }
 }
 

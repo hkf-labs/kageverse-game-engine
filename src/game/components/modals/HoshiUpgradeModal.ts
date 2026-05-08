@@ -5,10 +5,12 @@ import {
     inventoryAPI,
     type EnchantStatBonus,
     type InventoryItemDTO,
-} from '../../network/api';
-import { getCurrentCharacter } from '../playerSession';
-import { onLocaleChange, t } from '../../i18n';
-import type { GameComponent } from './types';
+} from '../../../network/api';
+import { getCurrentCharacter } from '../../playerSession';
+import { t } from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { MODAL_COLORS } from './theme';
 
 // MVP Hoshi cường hoá. Q13 yêu cầu cường hoá 3 category (weapon/jewelry/apparel)
 // nên modal MVP focus path Upgrade — Extract defer.
@@ -71,14 +73,10 @@ function bonusForLevel(category: Category, equippedSlot: string | null, level: n
     return z;
 }
 
-export class HoshiUpgradeModal implements GameComponent {
-    private overlay?: HTMLDivElement;
+export class HoshiUpgradeModal extends BaseModal {
     private listEl?: HTMLDivElement;
     private detailEl?: HTMLDivElement;
-    private statusEl?: HTMLDivElement;
     private currencyEl?: HTMLDivElement;
-    private scene: Phaser.Scene;
-    private visible = false;
     private items: InventoryItemDTO[] = [];
     private stonesAvailable = 0;
     private yenAvailable = 0;
@@ -91,34 +89,16 @@ export class HoshiUpgradeModal implements GameComponent {
     private focusZone: 'list' | 'button' = 'list';
     private focusedIdx = 0;
     private onUpgraded?: () => void;
-    private titleEl?: HTMLDivElement;
-    private closeBtnEl?: HTMLButtonElement;
-    private localeUnsub?: () => void;
 
     constructor(scene: Phaser.Scene, callbacks?: { onUpgraded?: () => void }) {
-        this.scene = scene;
+        super(scene);
         this.onUpgraded = callbacks?.onUpgraded;
     }
 
-    create(): void {
-        this.buildOverlay();
-        // Re-render text khi locale đổi runtime — title + close btn re-text,
-        // currency + list + detail re-render qua existing methods.
-        this.localeUnsub = onLocaleChange(() => {
-            if (this.titleEl) this.titleEl.textContent = t('hoshi.title');
-            if (this.closeBtnEl) this.closeBtnEl.textContent = t('hoshi.close');
-            this.renderCurrency();
-            this.renderList();
-            this.renderDetail();
-        });
-    }
-
-    isOpen(): boolean { return this.visible; }
-
     open(): void {
         if (this.visible) return;
+        if (!this.ensureShell()) return;
         this.visible = true;
-        if (this.overlay) this.overlay.style.display = 'flex';
         this.scene.input.keyboard?.disableGlobalCapture();
         this.focusZone = 'list';
         this.focusedIdx = 0;
@@ -193,7 +173,7 @@ export class HoshiUpgradeModal implements GameComponent {
         const btn = this.detailEl?.querySelector<HTMLButtonElement>('#hoshi-upgrade-confirm');
         if (!btn) return;
         if (this.focusZone === 'button') {
-            btn.style.outline = '2px solid #ffea7a';
+            btn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
             btn.style.outlineOffset = '2px';
             btn.style.boxShadow = '0 0 12px rgba(255,234,122,0.8)';
         } else {
@@ -205,26 +185,25 @@ export class HoshiUpgradeModal implements GameComponent {
 
     close(): void {
         if (!this.visible) return;
-        this.visible = false;
-        if (this.overlay) this.overlay.style.display = 'none';
         this.scene.input.keyboard?.enableGlobalCapture();
+        this.teardownShell();
     }
 
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
-        this.localeUnsub?.();
-        this.localeUnsub = undefined;
+    protected teardownShell(): void {
+        super.teardownShell();
+        this.currencyEl = undefined;
+        this.listEl = undefined;
+        this.detailEl = undefined;
     }
 
     /** Refresh list items + currency. Gọi sau open + sau mỗi upgrade thành công. */
     private async refresh(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
-            this.setStatus(t('hoshi.error_no_character'), '#ff8a8a');
+            this.shell?.setStatus(t('hoshi.error_no_character'), 'error');
             return;
         }
-        this.setStatus(t('hoshi.loading'), '#aaa');
+        this.shell?.setStatus(t('hoshi.loading'), 'muted');
         try {
             const [inv, wallet, list] = await Promise.all([
                 inventoryAPI.list(character.id),
@@ -241,56 +220,39 @@ export class HoshiUpgradeModal implements GameComponent {
             this.renderList();
             this.renderDetail();
             this.renderCurrency();
-            this.setStatus('', '#fff');
+            this.shell?.setStatus('', 'muted');
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('hoshi.error_load');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         }
     }
 
-    private buildOverlay(): void {
-        const overlay = document.createElement('div');
-        overlay.classList.add('kageverse-overlay', 'kageverse-overlay-hoshi-upgrade');
-        overlay.style.cssText = `
-            position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.55); z-index: 200;
-            font-family: system-ui, sans-serif; color: #ffffff;
-        `;
-        const panel = document.createElement('div');
-        panel.style.cssText = `
-            width: min(720px, 92vw); max-height: 80vh; display: flex; flex-direction: column;
-            background: linear-gradient(180deg, rgba(28,32,40,0.98), rgba(18,22,28,0.98));
-            border: 2px solid #ffea7a; border-radius: 8px;
-            padding: 16px; gap: 12px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-        `;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-hoshi-upgrade',
+            size: 'lg',
+            layer: 'blockingDialog',
+            mount: 'document-body',
+            withStatus: true,
+            title: t('hoshi.title'),
+            onClose: () => this.close(),
+        };
+    }
 
-        const header = document.createElement('div');
-        header.style.cssText = `display: flex; justify-content: space-between; align-items: center;`;
-        const title = document.createElement('div');
-        title.textContent = t('hoshi.title');
-        title.style.cssText = `font-size: 16px; font-weight: 700; color: #ffea7a;`;
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = t('hoshi.close');
-        closeBtn.style.cssText = `
-            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
-            color: #fff; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
-        `;
-        closeBtn.addEventListener('click', () => this.close());
-        header.appendChild(title);
-        header.appendChild(closeBtn);
-        this.titleEl = title;
-        this.closeBtnEl = closeBtn;
-
+    protected populateShell(shell: ModalShell): void {
+        // Currency row.
         const currency = document.createElement('div');
         currency.style.cssText = `
-            display: flex; gap: 16px; padding: 6px 10px;
-            background: rgba(0,0,0,0.3); border-radius: 4px; font-size: 12px;
+            display: flex; gap: 16px; padding: 8px 14px;
+            background: rgba(0,0,0,0.3); font-size: 12px; flex-shrink: 0;
+            border-bottom: 1px solid ${MODAL_COLORS.divider};
         `;
         this.currencyEl = currency;
+        shell.body.appendChild(currency);
 
-        const body = document.createElement('div');
-        body.style.cssText = `display: flex; gap: 12px; flex: 1; min-height: 0;`;
+        // Two-column body: list (left) + detail (right).
+        const cols = document.createElement('div');
+        cols.style.cssText = 'display: flex; gap: 12px; flex: 1; min-height: 0; padding: 12px;';
 
         const list = document.createElement('div');
         list.style.cssText = `
@@ -304,32 +266,20 @@ export class HoshiUpgradeModal implements GameComponent {
         detail.style.cssText = `
             flex: 1; min-width: 240px; padding: 10px;
             background: rgba(0,0,0,0.3); border-radius: 4px;
-            font-size: 12px; line-height: 1.5;
+            font-size: 12px; line-height: 1.5; position: relative;
         `;
         this.detailEl = detail;
 
-        body.appendChild(list);
-        body.appendChild(detail);
+        cols.appendChild(list);
+        cols.appendChild(detail);
+        shell.body.appendChild(cols);
 
-        const status = document.createElement('div');
-        status.style.cssText = `font-size: 12px; min-height: 16px;`;
-        this.statusEl = status;
-
-        panel.appendChild(header);
-        panel.appendChild(currency);
-        panel.appendChild(body);
-        panel.appendChild(status);
-        overlay.appendChild(panel);
-        document.body.appendChild(overlay);
-        this.overlay = overlay;
-
-        // ESC to close.
-        overlay.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') this.close();
-        });
-        // Click bên ngoài panel cũng close.
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) this.close();
+        // Re-render text khi locale đổi runtime — title + currency + list + detail.
+        shell.registerLocaleSync(() => {
+            this.shell?.setTitle(t('hoshi.title'));
+            this.renderCurrency();
+            this.renderList();
+            this.renderDetail();
         });
     }
 
@@ -370,15 +320,15 @@ export class HoshiUpgradeModal implements GameComponent {
             row.style.cssText = `
                 padding: 6px 8px; border-radius: 4px; cursor: pointer;
                 background: ${isSelected ? 'rgba(255,234,122,0.2)' : 'rgba(255,255,255,0.04)'};
-                border: 1px solid ${isSelected ? '#ffea7a' : 'transparent'};
+                border: 1px solid ${isSelected ? MODAL_COLORS.borderAccent : 'transparent'};
                 display: flex; justify-content: space-between; align-items: center; gap: 6px;
             `;
             const equippedTag = item.is_equipped
-                ? `<span style="color:#bdf0a0;font-size:10px;">${escapeHtml(t('hoshi.list_equipped_tag'))}</span>`
+                ? `<span style="color:${MODAL_COLORS.statusOk};font-size:10px;">${escapeHtml(t('hoshi.list_equipped_tag'))}</span>`
                 : '';
             const cat = item.upgrade_category ? t(CATEGORY_KEY[item.upgrade_category]) : t('hoshi.category_unknown');
             row.innerHTML = `
-                <span>${escapeHtml(displayName(item))} <b style="color:#ffea7a;">+${item.upgrade_level}</b> ${equippedTag}</span>
+                <span>${escapeHtml(displayName(item))} <b style="color:${MODAL_COLORS.title};">+${item.upgrade_level}</b> ${equippedTag}</span>
                 <span style="color:#aaa;font-size:11px;">${escapeHtml(cat)}</span>
             `;
             row.addEventListener('click', () => {
@@ -398,7 +348,7 @@ export class HoshiUpgradeModal implements GameComponent {
         }
         const item = this.items.find((i) => i.id === this.selectedItemId);
         if (!item || !item.upgrade_category) {
-            this.detailEl.innerHTML = `<div style="color:#ff8a8a;">${escapeHtml(t('hoshi.detail_item_not_found'))}</div>`;
+            this.detailEl.innerHTML = `<div style="color:${MODAL_COLORS.statusError};">${escapeHtml(t('hoshi.detail_item_not_found'))}</div>`;
             return;
         }
         const category = item.upgrade_category;
@@ -407,14 +357,14 @@ export class HoshiUpgradeModal implements GameComponent {
         const next = cur + 1;
         const atCap = cur >= cap;
 
-        let costBlock = '';
+        let costBlock: string;
         let confirmBtnHtml = '';
         if (atCap) {
-            costBlock = `<div style="color:#ffea7a;">${escapeHtml(t('hoshi.detail_at_cap', { cap, level: this.characterLevel }))}</div>`;
+            costBlock = `<div style="color:${MODAL_COLORS.title};">${escapeHtml(t('hoshi.detail_at_cap', { cap, level: this.characterLevel }))}</div>`;
         } else {
             const cost = nextCost(category, cur);
             if (!cost) {
-                costBlock = `<div style="color:#ff8a8a;">${escapeHtml(t('hoshi.detail_no_cost'))}</div>`;
+                costBlock = `<div style="color:${MODAL_COLORS.statusError};">${escapeHtml(t('hoshi.detail_no_cost'))}</div>`;
             } else {
                 const lacksStones = this.stonesAvailable < cost.stones;
                 const lacksYen = this.yenAvailable < cost.yen;
@@ -428,14 +378,14 @@ export class HoshiUpgradeModal implements GameComponent {
                 const bonusLine = t('hoshi.detail_bonus_new', { delta: deltaLine || t('hoshi.detail_bonus_no_equip') });
                 costBlock = `
                     <div style="margin-top:8px;"><b>${escapeHtml(t('hoshi.detail_cost_label', { n: next }))}</b></div>
-                    <div style="color:${lacksStones ? '#ff8a8a' : '#bdf0a0'};">${escapeHtml(stonesLine)}</div>
-                    <div style="color:${lacksYen ? '#ff8a8a' : '#ffea7a'};">${escapeHtml(yenLine)}</div>
+                    <div style="color:${lacksStones ? MODAL_COLORS.statusError : MODAL_COLORS.statusOk};">${escapeHtml(stonesLine)}</div>
+                    <div style="color:${lacksYen ? MODAL_COLORS.statusError : MODAL_COLORS.title};">${escapeHtml(yenLine)}</div>
                     <div style="margin-top:6px;color:#9affb4;">${escapeHtml(bonusLine)}</div>
                 `;
                 confirmBtnHtml = `
                     <button id="hoshi-upgrade-confirm" style="
                         margin-top: 10px; padding: 8px 16px;
-                        background: ${enough ? '#ffea7a' : '#555'};
+                        background: ${enough ? MODAL_COLORS.title : '#555'};
                         color: ${enough ? '#000' : '#aaa'};
                         border: none; border-radius: 4px; cursor: ${enough ? 'pointer' : 'not-allowed'};
                         font-weight: 600; font-size: 13px;
@@ -457,7 +407,7 @@ export class HoshiUpgradeModal implements GameComponent {
         });
 
         this.detailEl.innerHTML = `
-            <div style="font-weight:600;color:#ffea7a;">${escapeHtml(displayName(item))} +${cur}</div>
+            <div style="font-weight:600;color:${MODAL_COLORS.title};">${escapeHtml(displayName(item))} +${cur}</div>
             <div style="color:#aaa;font-size:11px;">${escapeHtml(metaLine)}</div>
             ${equippedNote}
             ${costBlock}
@@ -482,27 +432,21 @@ export class HoshiUpgradeModal implements GameComponent {
         const character = getCurrentCharacter();
         if (!character) return;
         this.actionInFlight = true;
-        this.setStatus(t('hoshi.upgrading'), '#aaa');
+        this.shell?.setStatus(t('hoshi.upgrading'), 'muted');
         try {
             const res = await equipmentUpgradeAPI.upgrade(character.id, this.selectedItemId);
-            this.setStatus(
+            this.shell?.setStatus(
                 t('hoshi.upgrade_success', { old: res.old_enchant_level, next: res.new_enchant_level }),
-                '#bdf0a0',
+                'ok',
             );
             this.onUpgraded?.();
             await this.refresh();
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('hoshi.error_upgrade');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         } finally {
             this.actionInFlight = false;
         }
-    }
-
-    private setStatus(text: string, color: string): void {
-        if (!this.statusEl) return;
-        this.statusEl.textContent = text;
-        this.statusEl.style.color = color;
     }
 }
 

@@ -6,10 +6,12 @@ import {
     type FoodBuffStartedDTO,
     type InventoryItemDTO,
     type InventoryItemType,
-} from '../../network/api';
-import { getCurrentCharacter } from '../playerSession';
-import { onLocaleChange, t } from '../../i18n';
-import type { GameComponent } from './types';
+} from '../../../network/api';
+import { getCurrentCharacter } from '../../playerSession';
+import { t } from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { MODAL_COLORS } from './theme';
 
 interface InventoryItem {
     page: number;
@@ -112,8 +114,7 @@ const SUBTYPE_TO_SLOT: Record<string, string> = {
     cloak: 'cloak',
 };
 
-export class InventoryModal implements GameComponent {
-    private overlay?: HTMLDivElement;
+export class InventoryModal extends BaseModal {
     private gridEl?: HTMLDivElement;
     private tabsEl?: HTMLDivElement;
     private counterEl?: HTMLDivElement;
@@ -122,7 +123,6 @@ export class InventoryModal implements GameComponent {
     private useBtn?: HTMLButtonElement;
     private equipBtn?: HTMLButtonElement;
     private dropBtn?: HTMLButtonElement;
-    private visible = false;
     private currentPage = 1;
     private selectedSlot: number | null = null;
     /** Vùng focus điều hướng bằng phím — 'tabs' = thanh Page, 'grid' = các ô
@@ -136,9 +136,6 @@ export class InventoryModal implements GameComponent {
     private errorMessage: string | null = null;
     private actionInFlight = false;
     private currencies: CharacterCurrencies = { ...ZERO_CURRENCIES };
-    private titleEl?: HTMLDivElement;
-    private localeUnsub?: () => void;
-    private scene: Phaser.Scene;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
     private onFoodBuffStarted?: (buff: FoodBuffStartedDTO) => void;
     private onEquipmentChanged?: () => void;
@@ -158,7 +155,7 @@ export class InventoryModal implements GameComponent {
             onSkillLearned?: (skillIDs: string[]) => void;
         },
     ) {
-        this.scene = scene;
+        super(scene);
         this.onStatsChanged = callbacks?.onStatsChanged;
         this.onFoodBuffStarted = callbacks?.onFoodBuffStarted;
         this.onEquipmentChanged = callbacks?.onEquipmentChanged;
@@ -166,60 +163,79 @@ export class InventoryModal implements GameComponent {
         this.onSkillLearned = callbacks?.onSkillLearned;
     }
 
-    create(): void {
-        const parent = this.scene.game.canvas.parentElement;
-        if (!parent) return;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-inventory',
+            size: 'md',
+            layer: 'modal',
+            withStatus: false,
+            title: t('inventory.title'),
+            onClose: () => this.toggle(),
+        };
+    }
 
-        this.overlay = document.createElement('div');
-        this.overlay.classList.add('kageverse-overlay', 'kageverse-overlay-inventory');
-        Object.assign(this.overlay.style, {
-            position: 'absolute', inset: '0',
-            background: 'rgba(0,0,0,0.55)',
-            zIndex: '110', display: 'none',
-        });
-        this.overlay.addEventListener('click', (e) => {
-            if (e.target === this.overlay) this.toggle();
-        });
-        parent.style.position = 'relative';
-        parent.appendChild(this.overlay);
+    protected populateShell(shell: ModalShell): void {
+        // Counter inline trong header (giữa title và close button).
+        const counter = document.createElement('div');
+        counter.style.cssText = `padding:10px 12px;font-size:12px;color:${MODAL_COLORS.text};flex-shrink:0;`;
+        // Insert trước close button (last child của headerEl).
+        shell.headerEl.insertBefore(counter, shell.headerEl.lastChild);
+        this.counterEl = counter;
 
-        const root = document.createElement('div');
-        Object.assign(root.style, {
-            position: 'absolute',
-            top: '50%', left: '50%',
-            transform: 'translate(-50%,-50%)',
-            width: 'min(560px, 88vw)',
-            maxHeight: '92vh',
-            background: 'linear-gradient(180deg, #2a1808 0%, #1a0f04 100%)',
-            border: '3px solid #e29e4a',
-            borderRadius: '14px',
-            display: 'flex',
-            flexDirection: 'column',
-            fontFamily: 'system-ui, sans-serif',
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            color: '#ffe4c4',
-        });
+        // Tabs (page 1..PAGES_COUNT)
+        const tabs = document.createElement('div');
+        tabs.style.cssText = 'display:flex;gap:4px;padding:8px 14px 0 14px;background:rgba(0,0,0,0.3);flex-shrink:0;';
+        shell.body.appendChild(tabs);
+        this.tabsEl = tabs;
 
-        root.innerHTML = this.buildHTML();
-        this.overlay.appendChild(root);
+        // Grid section
+        const gridWrap = document.createElement('div');
+        gridWrap.style.cssText = 'padding:10px 14px 14px 14px;background:rgba(0,0,0,0.25);flex-shrink:0;';
+        const grid = document.createElement('div');
+        grid.style.cssText = `display:grid;grid-template-columns:repeat(${COLS}, 56px);gap:6px;justify-content:center;`;
+        gridWrap.appendChild(grid);
+        shell.body.appendChild(gridWrap);
+        this.gridEl = grid;
 
-        this.titleEl = root.querySelector('#inv-title') as HTMLDivElement;
-        this.gridEl = root.querySelector('#inv-grid') as HTMLDivElement;
-        this.tabsEl = root.querySelector('#inv-tabs') as HTMLDivElement;
-        this.counterEl = root.querySelector('#inv-counter') as HTMLDivElement;
-        this.detailEl = root.querySelector('#inv-detail') as HTMLDivElement;
-        this.currenciesEl = root.querySelector('#inv-currencies') as HTMLDivElement;
-        this.useBtn = root.querySelector('#inv-use') as HTMLButtonElement;
-        this.equipBtn = root.querySelector('#inv-equip') as HTMLButtonElement;
-        this.dropBtn = root.querySelector('#inv-drop') as HTMLButtonElement;
-        const closeBtn = root.querySelector('#inv-close') as HTMLDivElement;
+        // Detail section
+        const detail = document.createElement('div');
+        detail.style.cssText = `padding:12px 16px;border-top:2px solid ${MODAL_COLORS.divider};background:rgba(45,26,10,0.6);min-height:64px;font-size:13px;line-height:1.5;flex-shrink:0;`;
+        shell.body.appendChild(detail);
+        this.detailEl = detail;
 
-        closeBtn.addEventListener('click', () => this.toggle());
+        // Currencies bar
+        const currencies = document.createElement('div');
+        currencies.style.cssText = `display:flex;justify-content:space-around;align-items:center;padding:8px 14px;border-top:2px solid ${MODAL_COLORS.divider};background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;`;
+        shell.body.appendChild(currencies);
+        this.currenciesEl = currencies;
+
+        // Footer action buttons
+        const footer = document.createElement('div');
+        footer.style.cssText = `display:flex;gap:8px;padding:10px 14px;border-top:2px solid ${MODAL_COLORS.divider};background:${MODAL_COLORS.footerBg};flex-shrink:0;`;
+
+        this.useBtn = document.createElement('button');
+        this.useBtn.disabled = true;
+        this.useBtn.textContent = t('inventory.btn_use');
+        this.useBtn.style.cssText = 'flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;';
         this.useBtn.addEventListener('click', () => void this.handleUse());
+
+        this.equipBtn = document.createElement('button');
+        this.equipBtn.disabled = true;
+        this.equipBtn.textContent = t('inventory.btn_equip');
+        this.equipBtn.style.cssText = 'flex:1;height:36px;border-radius:6px;border:2px solid #7a6a2a;background:#3a3014;color:#ffd070;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;';
         this.equipBtn.addEventListener('click', () => void this.handleEquipToggle());
+
+        this.dropBtn = document.createElement('button');
+        this.dropBtn.disabled = true;
+        this.dropBtn.textContent = t('inventory.btn_drop');
+        this.dropBtn.style.cssText = 'flex:1;height:36px;border-radius:6px;border:2px solid #7a3a3a;background:#4a1a1a;color:#f0a0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;';
         this.dropBtn.addEventListener('click', () => void this.handleDrop());
 
+        footer.append(this.useBtn, this.equipBtn, this.dropBtn);
+        shell.body.appendChild(footer);
+
+        // Initial render với state hiện tại (visible=false, không sao — render
+        // an toàn vì chỉ paint DOM, chưa đụng API).
         this.renderTabs();
         this.renderGrid();
         this.renderDetail();
@@ -227,8 +243,8 @@ export class InventoryModal implements GameComponent {
         this.renderCurrencies();
 
         // Re-render mọi text khi locale đổi runtime (vd post-login BE response).
-        this.localeUnsub = onLocaleChange(() => {
-            if (this.titleEl) this.titleEl.textContent = t('inventory.title');
+        shell.registerLocaleSync(() => {
+            this.shell?.setTitle(t('inventory.title'));
             this.renderTabs();
             this.renderGrid();
             this.renderDetail();
@@ -237,25 +253,24 @@ export class InventoryModal implements GameComponent {
         });
     }
 
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
+    protected teardownShell(): void {
+        super.teardownShell();
         this.gridEl = undefined;
         this.tabsEl = undefined;
         this.counterEl = undefined;
         this.detailEl = undefined;
         this.currenciesEl = undefined;
-        this.titleEl = undefined;
-        this.localeUnsub?.();
-        this.localeUnsub = undefined;
+        this.useBtn = undefined;
+        this.equipBtn = undefined;
+        this.dropBtn = undefined;
     }
 
     toggle(): void {
-        if (!this.overlay) return;
-        this.visible = !this.visible;
-        this.overlay.style.display = this.visible ? 'block' : 'none';
+        const willShow = !this.visible;
+        if (willShow) this.ensureShell();
+        this.visible = willShow;
 
-        if (this.visible) {
+        if (willShow) {
             this.currentPage = DATA_PAGE;
             this.selectedSlot = null;
             this.focusZone = 'grid';
@@ -264,6 +279,8 @@ export class InventoryModal implements GameComponent {
             this.renderActionFocus();
             void this.loadInventory();
             void this.loadWallet();
+        } else {
+            this.teardownShell();
         }
     }
 
@@ -279,8 +296,6 @@ export class InventoryModal implements GameComponent {
         }
         this.renderCurrencies();
     }
-
-    isOpen(): boolean { return this.visible; }
 
     /**
      * Điều hướng modal bằng mũi tên / D-pad theo focus zone:
@@ -416,7 +431,7 @@ export class InventoryModal implements GameComponent {
         btns.forEach((btn, idx) => {
             if (!btn) return;
             if (focused && this.focusedAction === idx) {
-                btn.style.outline = '2px solid #ffea7a';
+                btn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
                 btn.style.outlineOffset = '2px';
                 btn.style.boxShadow = '0 0 10px rgba(255,234,122,0.7)';
             } else {
@@ -425,33 +440,6 @@ export class InventoryModal implements GameComponent {
                 btn.style.boxShadow = '';
             }
         });
-    }
-
-    private buildHTML(): string {
-        return [
-            // Header
-            `<div style="display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;">`,
-            `  <div id="inv-title" style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">${escapeHtml(t('inventory.title'))}</div>`,
-            `  <div id="inv-counter" style="padding:10px 12px;font-size:12px;color:#ffe4c4;"></div>`,
-            `  <div id="inv-close" style="width:40px;text-align:center;cursor:pointer;font-size:18px;font-weight:bold;color:#ff8a8a;padding:10px 0;flex-shrink:0;">&#10005;</div>`,
-            `</div>`,
-            // Tabs (trang 1 / 2 / ...)
-            `<div id="inv-tabs" style="display:flex;gap:4px;padding:8px 14px 0 14px;background:rgba(0,0,0,0.3);"></div>`,
-            // Grid
-            `<div style="padding:10px 14px 14px 14px;background:rgba(0,0,0,0.25);">`,
-            `  <div id="inv-grid" style="display:grid;grid-template-columns:repeat(${COLS}, 56px);gap:6px;justify-content:center;"></div>`,
-            `</div>`,
-            // Detail
-            `<div id="inv-detail" style="padding:12px 16px;border-top:2px solid #4d2d13;background:rgba(45,26,10,0.6);min-height:64px;font-size:13px;line-height:1.5;flex-shrink:0;"></div>`,
-            // Currencies bar (Xu / Vàng / Kim Cương)
-            `<div id="inv-currencies" style="display:flex;justify-content:space-around;align-items:center;padding:8px 14px;border-top:2px solid #4d2d13;background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;"></div>`,
-            // Footer buttons
-            `<div style="display:flex;gap:8px;padding:10px 14px;border-top:2px solid #4d2d13;background:#1a0f04;flex-shrink:0;">`,
-            `  <button id="inv-use" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">${escapeHtml(t('inventory.btn_use'))}</button>`,
-            `  <button id="inv-equip" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a6a2a;background:#3a3014;color:#ffd070;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">${escapeHtml(t('inventory.btn_equip'))}</button>`,
-            `  <button id="inv-drop" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #7a3a3a;background:#4a1a1a;color:#f0a0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;">${escapeHtml(t('inventory.btn_drop'))}</button>`,
-            `</div>`,
-        ].join('');
     }
 
     private async loadInventory(): Promise<void> {
@@ -504,7 +492,7 @@ export class InventoryModal implements GameComponent {
             const bgColor = item ? item.iconBg : 'rgba(20,12,4,0.6)';
             // Highlight: vàng + glow khi grid là focus zone, cam dịu khi đã rời
             // grid (tabs/actions) — vẫn nhớ slot đã chọn nhưng không chiếm focus.
-            const selBorder = isSelected ? (gridFocused ? '#ffea7a' : '#ffd070') : borderColor;
+            const selBorder = isSelected ? (gridFocused ? MODAL_COLORS.borderAccent : '#ffd070') : borderColor;
             const selShadow = isSelected && gridFocused ? '0 0 8px rgba(255,234,122,0.6)' : 'none';
             Object.assign(cell.style, {
                 width: '56px', height: '56px',
@@ -529,10 +517,10 @@ export class InventoryModal implements GameComponent {
                         ? `<div style="position:absolute;right:2px;bottom:0;font-size:11px;font-weight:bold;color:#fff;text-shadow:0 0 3px #000,1px 1px 0 #000;">${item.amount}</div>`
                         : '',
                     item.upgradeLevel > 0
-                        ? `<div style="position:absolute;left:2px;top:0;font-size:10px;font-weight:bold;color:#ffea7a;text-shadow:0 0 3px #000,1px 1px 0 #000;">+${item.upgradeLevel}</div>`
+                        ? `<div style="position:absolute;left:2px;top:0;font-size:10px;font-weight:bold;color:${MODAL_COLORS.title};text-shadow:0 0 3px #000,1px 1px 0 #000;">+${item.upgradeLevel}</div>`
                         : '',
                     item.isBound
-                        ? `<div style="position:absolute;right:2px;top:0;font-size:9px;color:#ff8a8a;text-shadow:0 0 3px #000;">🔒</div>`
+                        ? `<div style="position:absolute;right:2px;top:0;font-size:9px;color:${MODAL_COLORS.statusError};text-shadow:0 0 3px #000;">🔒</div>`
                         : '',
                 ].join('');
             }
@@ -562,7 +550,7 @@ export class InventoryModal implements GameComponent {
             return;
         }
         if (this.errorMessage) {
-            this.detailEl.innerHTML = `<div style="color:#ff8a8a;">⚠ ${escapeHtml(this.errorMessage)}</div>`;
+            this.detailEl.innerHTML = `<div style="color:${MODAL_COLORS.statusError};">⚠ ${escapeHtml(this.errorMessage)}</div>`;
             this.setButtonsEnabled(false, false);
             return;
         }
@@ -578,16 +566,16 @@ export class InventoryModal implements GameComponent {
             this.setButtonsEnabled(false, false);
             return;
         }
-        const lockBadge = item.isBound ? `<span style="margin-left:6px;color:#ff8a8a;font-size:11px;">${escapeHtml(t('inventory.bound_badge'))}</span>` : '';
-        const upgradeBadge = item.upgradeLevel > 0 ? `<span style="margin-left:6px;color:#ffea7a;">+${item.upgradeLevel}</span>` : '';
+        const lockBadge = item.isBound ? `<span style="margin-left:6px;color:${MODAL_COLORS.statusError};font-size:11px;">${escapeHtml(t('inventory.bound_badge'))}</span>` : '';
+        const upgradeBadge = item.upgradeLevel > 0 ? `<span style="margin-left:6px;color:${MODAL_COLORS.title};">+${item.upgradeLevel}</span>` : '';
         this.detailEl.innerHTML = [
             `<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">`,
-            `  <span style="font-size:14px;font-weight:bold;color:#ffea7a;">${escapeHtml(item.name)}</span>`,
+            `  <span style="font-size:14px;font-weight:bold;color:${MODAL_COLORS.title};">${escapeHtml(item.name)}</span>`,
             upgradeBadge,
             `  <span style="font-size:11px;color:${TYPE_BORDER[item.type]};">[${escapeHtml(t(TYPE_KEY[item.type]))}]</span>`,
             lockBadge,
             `</div>`,
-            `<div style="margin-top:4px;color:#ffe4c4;">${escapeHtml(item.description)}</div>`,
+            `<div style="margin-top:4px;color:${MODAL_COLORS.text};">${escapeHtml(item.description)}</div>`,
             `<div style="margin-top:4px;color:#aaa;font-size:11px;">${escapeHtml(t('inventory.amount_label', { amount: item.amount, max: item.maxStack }))}</div>`,
         ].join('');
 
@@ -649,9 +637,9 @@ export class InventoryModal implements GameComponent {
                 fontSize: '12px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
-                color: active ? '#ffea7a' : '#ffe4c4',
+                color: active ? MODAL_COLORS.title : MODAL_COLORS.text,
                 background: active ? '#6b3a14' : 'rgba(45,26,10,0.5)',
-                border: `2px solid ${active ? '#ffea7a' : '#4d2d13'}`,
+                border: `2px solid ${active ? MODAL_COLORS.borderAccent : MODAL_COLORS.divider}`,
                 borderBottom: 'none',
                 borderTopLeftRadius: '6px',
                 borderTopRightRadius: '6px',

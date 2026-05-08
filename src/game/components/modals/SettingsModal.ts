@@ -1,14 +1,14 @@
-import * as Phaser from 'phaser';
 import {
     LOCALE_DISPLAY_NAMES,
     SUPPORTED_LOCALES,
     getLocale,
-    onLocaleChange,
     setLocale,
     t,
     type Locale,
-} from '../../i18n';
-import type { GameComponent } from './types';
+} from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { MODAL_COLORS } from './theme';
 
 // Locale có file dịch thật — đặt badge ở Settings để user biết ngôn ngữ nào
 // đầy đủ. Các locale còn lại sẽ fallback sang English ở những key chưa dịch.
@@ -23,72 +23,49 @@ const TRANSLATED_LOCALES: ReadonlySet<Locale> = new Set<Locale>(['en', 'vi']);
  * Locale change áp dụng ngay (setLocale → onLocaleChange listeners). Sticky qua
  * localStorage 'kageverse_locale' (xem i18n/index.ts).
  */
-export class SettingsModal implements GameComponent {
-    private scene: Phaser.Scene;
-    private overlay?: HTMLDivElement;
-    private titleEl?: HTMLDivElement;
-    private langSectionEl?: HTMLDivElement;
+export class SettingsModal extends BaseModal {
+    private langSectionTitleEl?: HTMLDivElement;
+    private langGridEl?: HTMLDivElement;
     private langHintEl?: HTMLDivElement;
     private comingSoonEl?: HTMLDivElement;
-    private statusEl?: HTMLDivElement;
-    private closeBtn?: HTMLButtonElement;
-    private localeUnsub?: () => void;
-    private visible = false;
     /** Index nút locale đang focus (0..SUPPORTED_LOCALES.length-1). */
     private focusedIdx = 0;
 
-    constructor(scene: Phaser.Scene) {
-        this.scene = scene;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-settings',
+            size: 'md',
+            layer: 'blockingDialog',
+            mount: 'document-body',
+            withStatus: true,
+            title: t('settings.title'),
+            onClose: () => this.close(),
+        };
     }
 
-    create(): void {
-        const overlay = document.createElement('div');
-        overlay.classList.add('kageverse-overlay', 'kageverse-overlay-settings');
-        overlay.style.cssText = `
-            position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.55); z-index: 200;
-            font-family: system-ui, sans-serif; color: #ffe4c4;
-        `;
-        const panel = document.createElement('div');
-        panel.style.cssText = `
-            width: min(520px, 92vw); max-height: 80vh; display: flex; flex-direction: column;
-            background: linear-gradient(180deg, #2a1808 0%, #1a0f04 100%);
-            border: 3px solid #e29e4a; border-radius: 14px;
-            overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.7);
-        `;
+    protected teardownShell(): void {
+        super.teardownShell();
+        this.langSectionTitleEl = undefined;
+        this.langGridEl = undefined;
+        this.langHintEl = undefined;
+        this.comingSoonEl = undefined;
+    }
 
-        // Header
-        const header = document.createElement('div');
-        header.style.cssText = 'display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;';
-        const title = document.createElement('div');
-        title.textContent = t('settings.title');
-        title.style.cssText = 'flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;';
-        header.appendChild(title);
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = t('settings.close');
-        closeBtn.style.cssText = `
-            margin: 6px 10px; padding: 6px 14px;
-            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
-            color: #fff; border-radius: 4px; cursor: pointer; font-size: 12px;
-        `;
-        closeBtn.addEventListener('click', () => this.close());
-        header.appendChild(closeBtn);
-        panel.appendChild(header);
-        this.titleEl = title;
-        this.closeBtn = closeBtn;
-
-        // Body
-        const body = document.createElement('div');
-        body.style.cssText = 'padding: 14px 18px; overflow-y: auto; flex: 1;';
-        panel.appendChild(body);
+    protected populateShell(shell: ModalShell): void {
+        // Body content area — 1 section Language + coming-soon hint.
+        const bodyContent = document.createElement('div');
+        bodyContent.style.cssText = 'padding: 14px 18px; overflow-y: auto; flex: 1;';
+        shell.body.appendChild(bodyContent);
 
         // Section: Language
         const langSection = document.createElement('div');
         langSection.style.cssText = 'margin-bottom: 18px;';
+
         const langTitle = document.createElement('div');
         langTitle.textContent = t('settings.section_language');
-        langTitle.style.cssText = 'font-size: 13px; font-weight: 600; color: #ffea7a; margin-bottom: 8px; letter-spacing: 0.5px;';
+        langTitle.style.cssText = `font-size: 13px; font-weight: 600; color: ${MODAL_COLORS.title}; margin-bottom: 8px; letter-spacing: 0.5px;`;
         langSection.appendChild(langTitle);
+        this.langSectionTitleEl = langTitle;
 
         const langGrid = document.createElement('div');
         langGrid.style.cssText = 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;';
@@ -96,53 +73,31 @@ export class SettingsModal implements GameComponent {
             langGrid.appendChild(this.buildLocaleButton(code));
         }
         langSection.appendChild(langGrid);
+        this.langGridEl = langGrid;
 
         const hint = document.createElement('div');
         hint.textContent = t('settings.language_hint');
-        hint.style.cssText = 'margin-top: 10px; font-size: 11px; color: #a89070; line-height: 1.5;';
+        hint.style.cssText = `margin-top: 10px; font-size: 11px; color: ${MODAL_COLORS.textMuted}; line-height: 1.5;`;
         langSection.appendChild(hint);
-        body.appendChild(langSection);
-        this.langSectionEl = langSection;
         this.langHintEl = hint;
+        bodyContent.appendChild(langSection);
 
         // Coming soon placeholder section
         const comingSoon = document.createElement('div');
         comingSoon.textContent = t('settings.coming_soon_section');
         comingSoon.style.cssText = 'padding: 12px; text-align: center; color: #888; font-style: italic; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 8px;';
-        body.appendChild(comingSoon);
+        bodyContent.appendChild(comingSoon);
         this.comingSoonEl = comingSoon;
-
-        // Status footer
-        const status = document.createElement('div');
-        status.style.cssText = 'padding: 6px 14px; font-size: 11px; color: #aaa; background: #0a0604; text-align: center; min-height: 18px; border-top: 1px solid #4d2d13;';
-        panel.appendChild(status);
-        this.statusEl = status;
-
-        overlay.appendChild(panel);
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) this.close();
-        });
-        document.body.appendChild(overlay);
-        this.overlay = overlay;
 
         // Re-render khi locale đổi runtime (vd user pick language ở đây thì
         // chính static labels của Settings cũng phải tự dịch).
-        this.localeUnsub = onLocaleChange(() => this.applyTranslations());
+        shell.registerLocaleSync(() => this.applyTranslations());
     }
-
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
-        this.localeUnsub?.();
-        this.localeUnsub = undefined;
-    }
-
-    isOpen(): boolean { return this.visible; }
 
     open(): void {
-        if (!this.overlay) return;
+        const shell = this.ensureShell();
+        if (!shell) return;
         this.visible = true;
-        this.overlay.style.display = 'flex';
         this.scene.input.keyboard?.disableGlobalCapture();
         // Focus mặc định vào locale đang dùng (giúp user thấy ngay vị trí của họ).
         const cur = getLocale();
@@ -150,14 +105,13 @@ export class SettingsModal implements GameComponent {
         this.focusedIdx = idx >= 0 ? idx : 0;
         this.refreshActiveButton();
         this.renderFocus();
-        this.setStatus('');
+        shell.setStatus('');
     }
 
     close(): void {
-        if (!this.overlay) return;
-        this.visible = false;
-        this.overlay.style.display = 'none';
+        if (!this.visible && !this.shell) return;
         this.scene.input.keyboard?.enableGlobalCapture();
+        this.teardownShell();
     }
 
     /** Grid 2 cột — ↑/↓/←/→ điều hướng giữa các nút locale. */
@@ -182,17 +136,17 @@ export class SettingsModal implements GameComponent {
 
     /** Enter = chọn locale đang focus (tương đương click). */
     confirm(): void {
-        if (!this.visible || !this.langSectionEl) return;
-        const buttons = this.langSectionEl.querySelectorAll<HTMLButtonElement>('[data-locale]');
+        if (!this.visible || !this.langGridEl) return;
+        const buttons = this.langGridEl.querySelectorAll<HTMLButtonElement>('[data-locale]');
         buttons[this.focusedIdx]?.click();
     }
 
     private renderFocus(): void {
-        if (!this.langSectionEl) return;
-        const buttons = this.langSectionEl.querySelectorAll<HTMLButtonElement>('[data-locale]');
+        if (!this.langGridEl) return;
+        const buttons = this.langGridEl.querySelectorAll<HTMLButtonElement>('[data-locale]');
         buttons.forEach((btn, idx) => {
             if (idx === this.focusedIdx) {
-                btn.style.outline = '2px solid #ffea7a';
+                btn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
                 btn.style.outlineOffset = '2px';
                 btn.style.boxShadow = '0 0 10px rgba(255,234,122,0.7)';
             } else {
@@ -206,12 +160,8 @@ export class SettingsModal implements GameComponent {
     // applyTranslations re-text static element. Locale buttons không re-text vì
     // hiển thị native name (LOCALE_DISPLAY_NAMES) — không phụ thuộc locale.
     private applyTranslations(): void {
-        if (this.titleEl) this.titleEl.textContent = t('settings.title');
-        if (this.closeBtn) this.closeBtn.textContent = t('settings.close');
-        if (this.langSectionEl) {
-            const langTitle = this.langSectionEl.firstChild as HTMLDivElement | null;
-            if (langTitle) langTitle.textContent = t('settings.section_language');
-        }
+        this.shell?.setTitle(t('settings.title'));
+        if (this.langSectionTitleEl) this.langSectionTitleEl.textContent = t('settings.section_language');
         if (this.langHintEl) this.langHintEl.textContent = t('settings.language_hint');
         if (this.comingSoonEl) this.comingSoonEl.textContent = t('settings.coming_soon_section');
         this.refreshActiveButton();
@@ -229,32 +179,28 @@ export class SettingsModal implements GameComponent {
         btn.style.cssText = `
             display: flex; align-items: center; justify-content: space-between;
             padding: 8px 10px; border-radius: 6px;
-            border: 2px solid #4d2d13; background: rgba(45,26,10,0.5);
-            color: #ffe4c4; font-size: 13px; cursor: pointer; text-align: left;
+            border: 2px solid ${MODAL_COLORS.divider}; background: rgba(45,26,10,0.5);
+            color: ${MODAL_COLORS.text}; font-size: 13px; cursor: pointer; text-align: left;
             font-family: inherit;
         `;
         btn.addEventListener('click', () => {
             setLocale(code);
             this.refreshActiveButton();
-            this.setStatus(t('settings.language_saved'));
+            this.shell?.setStatus(t('settings.language_saved'), 'ok');
         });
         return btn;
     }
 
     private refreshActiveButton(): void {
-        if (!this.langSectionEl) return;
+        if (!this.langGridEl) return;
         const cur = getLocale();
-        const buttons = this.langSectionEl.querySelectorAll<HTMLButtonElement>('[data-locale]');
+        const buttons = this.langGridEl.querySelectorAll<HTMLButtonElement>('[data-locale]');
         buttons.forEach((b) => {
             const active = b.dataset.locale === cur;
-            b.style.borderColor = active ? '#ffea7a' : '#4d2d13';
+            b.style.borderColor = active ? MODAL_COLORS.borderAccent : MODAL_COLORS.divider;
             b.style.background = active ? '#6b3a14' : 'rgba(45,26,10,0.5)';
-            b.style.color = active ? '#ffea7a' : '#ffe4c4';
+            b.style.color = active ? MODAL_COLORS.title : MODAL_COLORS.text;
         });
-    }
-
-    private setStatus(text: string): void {
-        if (this.statusEl) this.statusEl.textContent = text;
     }
 }
 

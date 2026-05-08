@@ -1,8 +1,10 @@
 import * as Phaser from 'phaser';
-import { questAPI, type QuestBoardCategoryDTO, type QuestDTO, type QuestObjectiveDTO } from '../../network/api';
-import { getCurrentCharacter } from '../playerSession';
-import { onLocaleChange, t, tOpt } from '../../i18n';
-import type { GameComponent } from './types';
+import { questAPI, type QuestBoardCategoryDTO, type QuestDTO, type QuestObjectiveDTO } from '../../../network/api';
+import { getCurrentCharacter } from '../../playerSession';
+import { t, tOpt } from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { MODAL_COLORS } from './theme';
 
 // Status / objective verb labels resolve qua i18n key. Fallback raw status
 // hoặc raw type nếu thiếu key (defensive — BE có thể trả type mới).
@@ -58,57 +60,39 @@ const TAB_KEY: Record<TabKey, string> = {
     event: 'quest.log.tab_event',
 };
 
-export class QuestLogPanel implements GameComponent {
-    private overlay?: HTMLDivElement;
+export class QuestLogPanel extends BaseModal {
     private bodyEl?: HTMLDivElement;
     private tabsEl?: HTMLDivElement;
-    private statusEl?: HTMLDivElement;
-    private visible = false;
     private board: Record<string, QuestBoardCategoryDTO> = {};
     private flatQuests: QuestDTO[] = [];
     private loading = false;
     private currentTab: TabKey = 'main';
-    private scene: Phaser.Scene;
     private onClosed?: () => void;
     private onQuestsUpdated?: (quests: QuestDTO[]) => void;
-    private localeUnsub?: () => void;
-    private titleEl?: HTMLDivElement;
 
     constructor(
         scene: Phaser.Scene,
         opts?: { onClosed?: () => void; onQuestsUpdated?: (quests: QuestDTO[]) => void },
     ) {
-        this.scene = scene;
+        super(scene);
         this.onClosed = opts?.onClosed;
         this.onQuestsUpdated = opts?.onQuestsUpdated;
-    }
-
-    create(): void {
-        this.buildOverlay();
-        // Subscribe locale changes — re-render khi user đổi ngôn ngữ runtime
-        // (vd post-login BE response setLocale, hoặc settings switcher).
-        this.localeUnsub = onLocaleChange(() => {
-            if (this.titleEl) this.titleEl.textContent = t('quest.log.title');
-            this.renderTabs();
-            this.renderBody();
-        });
     }
 
     isVisible(): boolean { return this.visible; }
 
     open(): void {
         if (this.visible) return;
+        if (!this.ensureShell()) return;
         this.visible = true;
-        if (this.overlay) this.overlay.style.display = 'flex';
         this.scene.input.keyboard?.disableGlobalCapture();
         void this.refresh();
     }
 
     close(): void {
         if (!this.visible) return;
-        this.visible = false;
-        if (this.overlay) this.overlay.style.display = 'none';
         this.scene.input.keyboard?.enableGlobalCapture();
+        this.teardownShell();
         this.onClosed?.();
     }
 
@@ -118,7 +102,7 @@ export class QuestLogPanel implements GameComponent {
         if (!character) return;
         if (this.loading) return;
         this.loading = true;
-        this.setStatus(t('quest.log.loading'), '#aaaaaa');
+        this.shell?.setStatus(t('quest.log.loading'), 'muted');
         try {
             const res = await questAPI.board(character.id);
             this.board = {};
@@ -129,11 +113,11 @@ export class QuestLogPanel implements GameComponent {
             }
             this.renderTabs();
             this.renderBody();
-            this.setStatus('', '#fff');
+            this.shell?.setStatus('', 'muted');
             this.onQuestsUpdated?.(this.flatQuests);
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('quest.log.error');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         } finally {
             this.loading = false;
         }
@@ -142,79 +126,52 @@ export class QuestLogPanel implements GameComponent {
     /** Cached quests phẳng (active+completed mọi category) — tracker dùng. */
     getQuests(): QuestDTO[] { return this.flatQuests; }
 
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
-        this.localeUnsub?.();
-        this.localeUnsub = undefined;
+    protected teardownShell(): void {
+        super.teardownShell();
+        this.bodyEl = undefined;
+        this.tabsEl = undefined;
     }
 
-    private buildOverlay(): void {
-        const overlay = document.createElement('div');
-        overlay.classList.add('kageverse-overlay', 'kageverse-overlay-quest-log');
-        overlay.style.cssText = `
-            position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.55); z-index: 200;
-            font-family: system-ui, sans-serif; color: #ffffff;
-        `;
-        const panel = document.createElement('div');
-        panel.style.cssText = `
-            width: min(720px, 92vw); max-height: 80vh; display: flex; flex-direction: column;
-            background: linear-gradient(180deg, rgba(20,28,36,0.96), rgba(14,18,24,0.96));
-            border: 1px solid rgba(189,240,160,0.3); border-radius: 14px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.6); overflow: hidden;
-        `;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-quest-log',
+            size: 'lg',
+            layer: 'blockingDialog',
+            mount: 'document-body',
+            withStatus: true,
+            title: t('quest.log.title'),
+            onClose: () => this.close(),
+        };
+    }
 
-        const header = document.createElement('div');
-        header.style.cssText = `
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 12px 18px; border-bottom: 1px solid rgba(189,240,160,0.2);
-        `;
-        const title = document.createElement('div');
-        title.textContent = t('quest.log.title');
-        title.style.cssText = 'font-size: 17px; font-weight: 600; color: #ffea7a;';
-        this.titleEl = title;
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = '✕';
-        closeBtn.style.cssText = `
-            background: transparent; color: #fff; border: none; font-size: 18px;
-            cursor: pointer; padding: 4px 10px;
-        `;
-        closeBtn.onclick = () => this.close();
-        header.append(title, closeBtn);
-
+    protected populateShell(shell: ModalShell): void {
+        // Tabs row — ngay đầu body.
         const tabs = document.createElement('div');
         tabs.style.cssText = `
             display: flex; gap: 4px; padding: 10px 14px 0 14px;
             background: rgba(0,0,0,0.25); border-bottom: 1px solid rgba(189,240,160,0.15);
+            flex-shrink: 0;
         `;
+        this.tabsEl = tabs;
+        shell.body.appendChild(tabs);
 
+        // Body — fixed height list, scrollable. Không co dãn theo content. Tránh
+        // modal nhảy mỗi khi switch tab giữa Chính tuyến (nhiều quest) và Phụ
+        // tuyến (ít hơn).
         const body = document.createElement('div');
-        // Fixed height — không co dãn theo content. Tránh modal nhảy mỗi khi
-        // switch tab giữa Chính tuyến (nhiều quest) và Phụ tuyến (ít hơn).
         body.style.cssText = `
             height: 420px; overflow-y: auto; padding: 12px 18px; display: flex;
             flex-direction: column; gap: 10px;
         `;
-
-        const status = document.createElement('div');
-        status.style.cssText = `
-            padding: 8px 18px; font-size: 13px; color: #aaaaaa;
-            border-top: 1px solid rgba(189,240,160,0.2);
-            min-height: 24px;
-        `;
-
-        panel.append(header, tabs, body, status);
-        overlay.appendChild(panel);
-        overlay.addEventListener('click', (ev) => {
-            if (ev.target === overlay) this.close();
-        });
-        document.body.appendChild(overlay);
-
-        this.overlay = overlay;
-        this.tabsEl = tabs;
         this.bodyEl = body;
-        this.statusEl = status;
+        shell.body.appendChild(body);
+
+        // Subscribe locale changes — re-render khi user đổi ngôn ngữ runtime.
+        shell.registerLocaleSync(() => {
+            this.shell?.setTitle(t('quest.log.title'));
+            this.renderTabs();
+            this.renderBody();
+        });
 
         this.renderTabs();
         this.renderBody();
@@ -236,7 +193,7 @@ export class QuestLogPanel implements GameComponent {
             tab.style.cssText = `
                 padding: 7px 14px; font-size: 13px; font-weight: 600;
                 cursor: ${disabled ? 'not-allowed' : 'pointer'};
-                color: ${isCurrent ? '#ffea7a' : disabled ? '#666' : '#ffe4c4'};
+                color: ${isCurrent ? MODAL_COLORS.title : disabled ? '#666' : MODAL_COLORS.text};
                 background: ${isCurrent ? 'rgba(255,234,122,0.12)' : 'transparent'};
                 border: 1px solid ${isCurrent ? 'rgba(255,234,122,0.4)' : 'transparent'};
                 border-bottom: none;
@@ -357,7 +314,7 @@ export class QuestLogPanel implements GameComponent {
         const head = document.createElement('div');
         head.style.cssText = 'display: flex; justify-content: space-between; gap: 8px; align-items: baseline;';
         const title = document.createElement('div');
-        title.innerHTML = `<span style="color:#ffea7a;font-weight:600;font-size:14px;">${escapeHtml(opts.title)}</span>`;
+        title.innerHTML = `<span style="color:${MODAL_COLORS.title};font-weight:600;font-size:14px;">${escapeHtml(opts.title)}</span>`;
         head.appendChild(title);
         if (opts.statusBadge) {
             const badge = document.createElement('div');
@@ -383,7 +340,7 @@ export class QuestLogPanel implements GameComponent {
         // Highlight token {level} bằng span — split template + inject HTML.
         const lvLine = document.createElement('div');
         const lvText = t('quest.log.level_requirement', { level: '\u0001LV\u0001' });
-        const lvHighlight = `<span style="color:#ffea7a;">${opts.minLevel}</span>`;
+        const lvHighlight = `<span style="color:${MODAL_COLORS.title};">${opts.minLevel}</span>`;
         lvLine.innerHTML = '• ' + escapeHtml(lvText).replace('\u0001LV\u0001', lvHighlight);
         body.appendChild(lvLine);
 
@@ -394,7 +351,7 @@ export class QuestLogPanel implements GameComponent {
             const done = Math.min(o.done, o.count);
             const isDone = done >= o.count;
             const line = document.createElement('div');
-            line.innerHTML = `• ${verb} <span style="color:${isDone ? '#bdf0a0' : '#ffe4c4'};">${escapeHtml(target)}</span> `
+            line.innerHTML = `• ${verb} <span style="color:${isDone ? '#bdf0a0' : MODAL_COLORS.text};">${escapeHtml(target)}</span> `
                 + `<span style="color:${isDone ? '#bdf0a0' : '#aaa'};">${done}/${o.count}</span>`
                 + (isDone ? ' <span style="color:#bdf0a0;">✓</span>' : '');
             body.appendChild(line);
@@ -421,12 +378,6 @@ export class QuestLogPanel implements GameComponent {
         }
 
         return row;
-    }
-
-    private setStatus(text: string, color: string): void {
-        if (!this.statusEl) return;
-        this.statusEl.textContent = text;
-        this.statusEl.style.color = color;
     }
 }
 

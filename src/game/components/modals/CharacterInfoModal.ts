@@ -1,8 +1,10 @@
 import * as Phaser from 'phaser';
-import { charactersAPI, type CharacterDTO } from '../../network/api';
-import { getCurrentCharacter } from '../playerSession';
-import { t } from '../../i18n';
-import type { GameComponent } from './types';
+import { charactersAPI, type CharacterDTO } from '../../../network/api';
+import { getCurrentCharacter } from '../../playerSession';
+import { t } from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { MODAL_COLORS } from './theme';
 
 const CLASS_KEY: Record<string, string> = {
     none: 'class.none',
@@ -43,70 +45,37 @@ interface InfoRow {
  *
  * Scroll: ẩn scrollbar browser; dùng arrow keys (UP/DOWN) hoặc drag chuột.
  */
-export class CharacterInfoModal implements GameComponent {
-    private overlay?: HTMLDivElement;
+export class CharacterInfoModal extends BaseModal {
     private bodyEl?: HTMLDivElement;
-    private statusEl?: HTMLDivElement;
-    private visible = false;
     private loading = false;
-    private scene: Phaser.Scene;
     private upKey?: Phaser.Input.Keyboard.Key;
     private downKey?: Phaser.Input.Keyboard.Key;
     private rows: InfoRow[] = [];
     private selectedIdx = 0;
 
-    constructor(scene: Phaser.Scene) {
-        this.scene = scene;
+    /** Override — đăng ký Phaser key luôn ở create (không phụ thuộc DOM),
+     * an toàn vì update() đã gate bằng this.visible. */
+    create(): void {
+        this.upKey = this.scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
+        this.downKey = this.scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
     }
 
-    create(): void {
-        const parent = this.scene.game.canvas.parentElement;
-        if (!parent) return;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-character-info',
+            size: 'sm',
+            layer: 'modal',
+            withStatus: true,
+            title: t('character_info.title'),
+            onClose: () => this.close(),
+        };
+    }
 
-        this.overlay = document.createElement('div');
-        this.overlay.classList.add('kageverse-overlay', 'kageverse-overlay-character-info');
-        Object.assign(this.overlay.style, {
-            position: 'absolute', inset: '0',
-            background: 'rgba(0,0,0,0.55)',
-            zIndex: '110', display: 'none',
-            fontFamily: 'system-ui, sans-serif',
-        });
-        this.overlay.addEventListener('click', (e) => {
-            if (e.target === this.overlay) this.close();
-        });
-        parent.style.position = 'relative';
-        parent.appendChild(this.overlay);
-
-        const root = document.createElement('div');
-        Object.assign(root.style, {
-            position: 'absolute', top: '50%', left: '50%',
-            transform: 'translate(-50%,-50%)',
-            width: 'min(360px, 90vw)',
-            background: 'linear-gradient(180deg, #2a1808 0%, #1a0f04 100%)',
-            border: '3px solid #e29e4a',
-            borderRadius: '12px',
-            display: 'flex', flexDirection: 'column',
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            color: '#ffe4c4',
-        });
-        this.overlay.appendChild(root);
-
-        // Header — ◄ Thông tin ► + close. ◄ ► tạm disabled vì MVP chỉ
-        // 1 character/user; sẽ enable khi mở rộng prev/next character profile.
-        const header = document.createElement('div');
-        header.style.cssText = 'display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;';
-        header.innerHTML =
-            `<div data-arrow="prev" style="width:34px;text-align:center;color:#7a5a3a;cursor:not-allowed;font-size:16px;padding:8px 0;user-select:none;">◄</div>`
-            + `<div style="flex:1;text-align:center;padding:8px 0;font-size:14px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">THÔNG TIN</div>`
-            + `<div data-arrow="next" style="width:34px;text-align:center;color:#7a5a3a;cursor:not-allowed;font-size:16px;padding:8px 0;user-select:none;">►</div>`
-            + `<div data-close style="width:36px;text-align:center;cursor:pointer;font-size:16px;font-weight:bold;color:#ff8a8a;padding:8px 0;flex-shrink:0;">✕</div>`;
-        root.appendChild(header);
-
+    protected populateShell(shell: ModalShell): void {
+        // Body — fixed-height list. Hidden scrollbar (Firefox / IE / WebKit) —
+        // body chỉ tự động scroll khi selected row off-view. User không scroll
+        // trực tiếp; arrow keys + wheel luôn dịch chuyển con trỏ ▶, body follow.
         const body = document.createElement('div');
-        // Hidden scrollbar (Firefox / IE / WebKit) — body chỉ tự động scroll khi
-        // selected row off-view. User không scroll trực tiếp; arrow keys + wheel
-        // luôn dịch chuyển con trỏ ▶, body follow.
         body.style.cssText = `
             height: 320px; overflow-y: auto; padding: 12px 16px;
             background: rgba(20,12,4,0.7);
@@ -120,13 +89,6 @@ export class CharacterInfoModal implements GameComponent {
             styleEl.textContent = '.cim-scroll::-webkit-scrollbar{display:none;}';
             document.head.appendChild(styleEl);
         }
-        root.appendChild(body);
-
-        const status = document.createElement('div');
-        status.style.cssText = 'padding:6px 14px;font-size:11px;color:#aaa;background:#1a0f04;border-top:2px solid #4d2d13;text-align:center;min-height:18px;';
-        root.appendChild(status);
-
-        (header.querySelector('[data-close]') as HTMLDivElement).addEventListener('click', () => this.close());
 
         // Wheel chuột → dịch con trỏ thay vì scroll. preventDefault để body
         // không tự scroll theo wheel; mỗi tick wheel = di 1 hàng.
@@ -136,34 +98,27 @@ export class CharacterInfoModal implements GameComponent {
             else if (e.deltaY < 0) this.moveCursor(-1);
         }, { passive: false });
 
+        shell.body.appendChild(body);
         this.bodyEl = body;
-        this.statusEl = status;
-
-        // Phaser keyboard — UP/DOWN scroll khi modal mở.
-        this.upKey = this.scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
-        this.downKey = this.scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
     }
 
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
+    protected teardownShell(): void {
+        super.teardownShell();
+        this.bodyEl = undefined;
     }
-
-    isOpen(): boolean { return this.visible; }
 
     /** Mở modal hiển thị info của character. Default = current character. */
     open(characterId?: string): void {
-        if (!this.overlay) return;
+        const shell = this.ensureShell();
+        if (!shell) return;
         this.visible = true;
-        this.overlay.style.display = 'block';
         if (this.bodyEl) this.bodyEl.scrollTop = 0;
         void this.load(characterId);
     }
 
     close(): void {
-        if (!this.overlay) return;
-        this.visible = false;
-        this.overlay.style.display = 'none';
+        if (!this.visible && !this.shell) return;
+        this.teardownShell();
     }
 
     toggle(characterId?: string): void {
@@ -193,7 +148,7 @@ export class CharacterInfoModal implements GameComponent {
         els.forEach((el, i) => {
             const isSel = i === this.selectedIdx;
             el.textContent = isSel ? '▶' : '•';
-            el.style.color = isSel ? '#bdf0a0' : '#7a5a3a';
+            el.style.color = isSel ? MODAL_COLORS.statusOk : '#7a5a3a';
         });
     }
 
@@ -212,11 +167,11 @@ export class CharacterInfoModal implements GameComponent {
     private async load(characterId?: string): Promise<void> {
         if (this.loading) return;
         this.loading = true;
-        this.setStatus(t('character_info.loading'), '#aaa');
+        this.shell?.setStatus(t('character_info.loading'), 'muted');
         try {
             const id = characterId ?? getCurrentCharacter()?.id;
             if (!id) {
-                this.setStatus(t('character_info.error_no_character'), '#ff8a8a');
+                this.shell?.setStatus(t('character_info.error_no_character'), 'error');
                 return;
             }
             // MVP chỉ có endpoint /characters (list của user hiện tại). Khi mở
@@ -224,14 +179,14 @@ export class CharacterInfoModal implements GameComponent {
             const res = await charactersAPI.list();
             const c = res.characters.find((x) => x.id === id);
             if (!c) {
-                this.setStatus(t('character_info.error_not_found'), '#ff8a8a');
+                this.shell?.setStatus(t('character_info.error_not_found'), 'error');
                 return;
             }
             this.render(c);
-            this.setStatus(t('character_info.scroll_hint'), '#888');
+            this.shell?.setStatus(t('character_info.scroll_hint'), 'muted');
         } catch (err) {
             const msg = err instanceof Error ? err.message : t('character_info.error_load');
-            this.setStatus(msg, '#ff8a8a');
+            this.shell?.setStatus(msg, 'error');
         } finally {
             this.loading = false;
         }
@@ -251,13 +206,13 @@ export class CharacterInfoModal implements GameComponent {
         const expPct = c.exp_to_next_level > 0 ? (c.exp / c.exp_to_next_level) * 100 : 0;
 
         this.rows = [
-            { label: t('character_info.row_character'), value: c.display_name, valueColor: '#bdf0a0' },
+            { label: t('character_info.row_character'), value: c.display_name, valueColor: MODAL_COLORS.statusOk },
             { label: t('character_info.row_gender'), value: gender },
             { label: t('character_info.row_level'), value: String(c.level) },
             { label: t('character_info.row_exp'), value: `${c.exp} / ${c.exp_to_next_level} (${expPct.toFixed(2)}%)` },
             { label: t('character_info.row_class'), value: className },
             { label: t('character_info.row_school'), value: school },
-            { label: t('character_info.row_combat_power'), value: combatPower.toLocaleString('en-US'), valueColor: '#ffea7a' },
+            { label: t('character_info.row_combat_power'), value: combatPower.toLocaleString('en-US'), valueColor: MODAL_COLORS.title },
             { label: 'HP', value: `${c.current_hp.toLocaleString('en-US')} / ${c.max_hp.toLocaleString('en-US')}`, valueColor: '#ff8a8a' },
             { label: 'MP', value: `${c.current_mp.toLocaleString('en-US')} / ${c.max_mp.toLocaleString('en-US')}`, valueColor: '#8aaaff' },
             { label: t('character_info.row_attack'), value: `${c.min_attack} – ${c.max_attack}` },
@@ -269,22 +224,16 @@ export class CharacterInfoModal implements GameComponent {
             .map((r, i) => {
                 const isSel = i === this.selectedIdx;
                 const bulletChar = isSel ? '▶' : '•';
-                const bulletColor = isSel ? '#bdf0a0' : '#7a5a3a';
-                const valueColor = r.valueColor ?? '#ffe4c4';
+                const bulletColor = isSel ? MODAL_COLORS.statusOk : '#7a5a3a';
+                const valueColor = r.valueColor ?? MODAL_COLORS.text;
                 return `<div style="font-size:13px;line-height:1.7;display:flex;gap:6px;align-items:baseline;">`
                     + `<span data-bullet style="color:${bulletColor};margin-right:4px;width:12px;display:inline-block;">${bulletChar}</span>`
-                    + `<span style="color:#a89070;">${escapeHtml(r.label)}:</span>`
+                    + `<span style="color:${MODAL_COLORS.textMuted};">${escapeHtml(r.label)}:</span>`
                     + ` <span style="color:${valueColor};font-weight:600;">${escapeHtml(r.value)}</span>`
                     + `</div>`;
             })
             .join('');
         this.bodyEl.scrollTop = 0;
-    }
-
-    private setStatus(text: string, color: string): void {
-        if (!this.statusEl) return;
-        this.statusEl.textContent = text;
-        this.statusEl.style.color = color;
     }
 }
 

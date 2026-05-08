@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
-import { t } from '../../i18n';
-import type { GameComponent } from './types';
+import { t } from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
 
 export type DeathChoice = 'respawn_village' | 'respawn_here' | 'spectate';
 
@@ -14,91 +15,81 @@ interface DeathMenuCallbacks {
  *   stage='menu'   — 3 nút: Quay về | Hồi sinh tại chỗ | Đóng.
  *   stage='hidden' — đóng (player chọn Đóng → chuyển spectating, Enter mở lại).
  */
-export class DeathMenu implements GameComponent {
-    private overlay?: HTMLDivElement;
-    private centerEl?: HTMLDivElement;
+export class DeathMenu extends BaseModal {
     private stage: 'hidden' | 'button' | 'menu' = 'hidden';
-    private scene: Phaser.Scene;
     private callbacks: DeathMenuCallbacks;
 
     constructor(scene: Phaser.Scene, callbacks: DeathMenuCallbacks) {
-        this.scene = scene;
+        super(scene);
         this.callbacks = callbacks;
     }
 
-    create(): void {
-        const parent = this.scene.game.canvas.parentElement;
-        if (!parent) return;
-
-        const overlay = document.createElement('div');
-        overlay.classList.add('kageverse-overlay', 'kageverse-overlay-death');
-        Object.assign(overlay.style, {
-            position: 'absolute', inset: '0',
-            background: 'rgba(0,0,0,0.65)',
-            zIndex: '250', display: 'none',
-            alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'system-ui, sans-serif',
-        });
-        parent.style.position = 'relative';
-        parent.appendChild(overlay);
-
-        const center = document.createElement('div');
-        center.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:14px;';
-        overlay.appendChild(center);
-
-        this.overlay = overlay;
-        this.centerEl = center;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-death',
+            layer: 'cinematic',
+            panelStyle: 'cinematic',
+            // No close button / status; click backdrop = no-op (player phải
+            // chọn 1 trong các option).
+        };
     }
 
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
+    protected populateShell(shell: ModalShell): void {
+        // Tăng độ tối backdrop so với default (death = blocking event).
+        shell.overlay.style.background = 'rgba(0,0,0,0.65)';
+        // Body content render lazy ở showKietSucButton / showOptions.
     }
 
+    protected teardownShell(): void {
+        super.teardownShell();
+        this.stage = 'hidden';
+    }
+
+    /** Override — DeathMenu dùng `stage` thay cho `visible` flag. */
     isOpen(): boolean { return this.stage !== 'hidden'; }
     getStage(): 'hidden' | 'button' | 'menu' { return this.stage; }
 
     showKietSucButton(): void {
-        if (!this.overlay || !this.centerEl) return;
+        const shell = this.ensureShell();
+        if (!shell) return;
         this.stage = 'button';
-        this.overlay.style.display = 'flex';
-        this.centerEl.innerHTML = '';
+        shell.body.innerHTML = '';
 
         const banner = document.createElement('div');
         banner.style.cssText = 'font-size:34px;font-weight:bold;color:#ff8a8a;text-shadow:0 0 12px rgba(255,138,138,0.6),2px 2px 0 #000;letter-spacing:4px;';
         banner.textContent = t('death.banner');
-        this.centerEl.appendChild(banner);
+        shell.body.appendChild(banner);
 
         const btn = this.makeButton(t('death.btn_collapsed'), '#7a3a3a', '#ff8a8a', () => this.showOptions());
         btn.style.fontSize = '20px';
         btn.style.padding = '14px 36px';
-        this.centerEl.appendChild(btn);
+        shell.body.appendChild(btn);
 
         const hint = document.createElement('div');
         hint.style.cssText = 'font-size:12px;color:#aaa;margin-top:6px;';
         hint.textContent = t('death.hint_press_enter');
-        this.centerEl.appendChild(hint);
+        shell.body.appendChild(hint);
     }
 
     showOptions(): void {
-        if (!this.overlay || !this.centerEl) return;
+        const shell = this.ensureShell();
+        if (!shell) return;
         this.stage = 'menu';
-        this.overlay.style.display = 'flex';
-        this.centerEl.innerHTML = '';
+        shell.body.innerHTML = '';
 
         const title = document.createElement('div');
         title.style.cssText = 'font-size:24px;font-weight:bold;color:#ffea7a;letter-spacing:2px;';
         title.textContent = t('death.options_title');
-        this.centerEl.appendChild(title);
+        shell.body.appendChild(title);
 
         const sub = document.createElement('div');
         sub.style.cssText = 'font-size:13px;color:#ccc;margin-bottom:6px;';
         sub.textContent = t('death.choose_recovery');
-        this.centerEl.appendChild(sub);
+        shell.body.appendChild(sub);
 
         const btnRow = document.createElement('div');
         btnRow.style.cssText = 'display:flex;gap:10px;';
-        this.centerEl.appendChild(btnRow);
+        shell.body.appendChild(btnRow);
 
         btnRow.appendChild(this.makeButton(t('death.btn_respawn_village'), '#4a7a3a', '#bdf0a0', () => this.callbacks.onChoice('respawn_village')));
         btnRow.appendChild(this.makeButton(t('death.btn_respawn_here'), '#7a6a2a', '#ffd070', () => this.callbacks.onChoice('respawn_here'), true));
@@ -107,13 +98,11 @@ export class DeathMenu implements GameComponent {
         const note = document.createElement('div');
         note.style.cssText = 'font-size:11px;color:#888;margin-top:6px;';
         note.textContent = t('death.note');
-        this.centerEl.appendChild(note);
+        shell.body.appendChild(note);
     }
 
     hide(): void {
-        if (!this.overlay) return;
-        this.stage = 'hidden';
-        this.overlay.style.display = 'none';
+        this.teardownShell();
     }
 
     private makeButton(label: string, borderColor: string, textColor: string, onClick: () => void, disabled: boolean = false): HTMLButtonElement {

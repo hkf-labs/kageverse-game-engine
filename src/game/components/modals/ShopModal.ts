@@ -1,4 +1,3 @@
-import * as Phaser from 'phaser';
 import {
     charactersAPI,
     shopAPI,
@@ -7,10 +6,12 @@ import {
     type ShopListingDTO,
     type ShopPriceDTO,
     type WalletDTO,
-} from '../../network/api';
-import { getCurrentCharacter } from '../playerSession';
-import { onLocaleChange, t } from '../../i18n';
-import type { GameComponent } from './types';
+} from '../../../network/api';
+import { getCurrentCharacter } from '../../playerSession';
+import { t } from '../../../i18n';
+import { BaseModal } from './BaseModal';
+import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { MODAL_COLORS } from './theme';
 
 const COLS = 4;
 
@@ -69,17 +70,14 @@ interface OpenParams {
     subTypeFilter?: string;
 }
 
-export class ShopModal implements GameComponent {
-    private overlay?: HTMLDivElement;
+export class ShopModal extends BaseModal {
     private gridEl?: HTMLDivElement;
-    private headerEl?: HTMLDivElement;
     private detailEl?: HTMLDivElement;
     private amountInput?: HTMLInputElement;
     private buyBtn?: HTMLButtonElement;
     private balanceEl?: HTMLDivElement;
-    private feedbackEl?: HTMLDivElement;
+    private amountLabelEl?: HTMLLabelElement;
 
-    private visible = false;
     private listings: ShopListingDTO[] = [];
     private classFilter: string | null = null;
     private subTypeFilter: string | null = null;
@@ -91,93 +89,105 @@ export class ShopModal implements GameComponent {
     private npcTemplateId = '';
     private npcName = '';
     private wallet: WalletDTO | null = null;
-    private localeUnsub?: () => void;
     /** 'grid' = listings; 'controls' = nút Mua + amount input. */
     private focusZone: 'grid' | 'controls' = 'grid';
 
-    private scene: Phaser.Scene;
-
-    constructor(scene: Phaser.Scene) {
-        this.scene = scene;
+    protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
+        return {
+            overlayClassName: 'kageverse-overlay-shop',
+            size: 'md',
+            layer: 'modal',
+            withStatus: true,
+            title: t('shop.title'),
+            onClose: () => this.close(),
+        };
     }
 
-    create(): void {
-        const parent = this.scene.game.canvas.parentElement;
-        if (!parent) return;
-
-        this.overlay = document.createElement('div');
-        this.overlay.classList.add('kageverse-overlay', 'kageverse-overlay-shop');
-        Object.assign(this.overlay.style, {
-            position: 'absolute', inset: '0',
-            background: 'rgba(0,0,0,0.55)',
-            zIndex: '111', display: 'none',
+    protected populateShell(shell: ModalShell): void {
+        // Section 1: grid (scrollable, max-height giới hạn để detail/controls
+        // dưới đáy luôn thấy được).
+        const gridWrap = document.createElement('div');
+        gridWrap.style.cssText = 'padding:10px 14px;background:rgba(0,0,0,0.25);overflow-y:auto;max-height:46vh;';
+        this.gridEl = document.createElement('div');
+        Object.assign(this.gridEl.style, {
+            display: 'grid',
+            gridTemplateColumns: `repeat(${COLS}, 1fr)`,
+            gap: '8px',
         });
-        this.overlay.addEventListener('click', (e) => {
-            if (e.target === this.overlay) this.close();
-        });
-        parent.style.position = 'relative';
-        parent.appendChild(this.overlay);
+        gridWrap.appendChild(this.gridEl);
 
-        const root = document.createElement('div');
-        Object.assign(root.style, {
-            position: 'absolute',
-            top: '50%', left: '50%',
-            transform: 'translate(-50%,-50%)',
-            width: 'min(560px, 88vw)',
-            maxHeight: '92vh',
-            background: 'linear-gradient(180deg, #2a1808 0%, #1a0f04 100%)',
-            border: '3px solid #e29e4a',
-            borderRadius: '14px',
-            display: 'flex',
-            flexDirection: 'column',
-            fontFamily: 'system-ui, sans-serif',
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            color: '#ffe4c4',
-        });
+        // Section 2: detail
+        this.detailEl = document.createElement('div');
+        this.detailEl.style.cssText =
+            `padding:12px 16px;border-top:2px solid ${MODAL_COLORS.divider};` +
+            `background:rgba(45,26,10,0.6);min-height:84px;font-size:13px;` +
+            `line-height:1.5;flex-shrink:0;`;
 
-        root.innerHTML = this.buildHTML();
-        this.overlay.appendChild(root);
+        // Section 3: balance bar
+        this.balanceEl = document.createElement('div');
+        this.balanceEl.style.cssText =
+            `display:flex;justify-content:space-around;align-items:center;` +
+            `padding:8px 14px;border-top:2px solid ${MODAL_COLORS.divider};` +
+            `background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;`;
 
-        this.headerEl = root.querySelector('#shop-header') as HTMLDivElement;
-        this.gridEl = root.querySelector('#shop-grid') as HTMLDivElement;
-        this.detailEl = root.querySelector('#shop-detail') as HTMLDivElement;
-        this.amountInput = root.querySelector('#shop-amount') as HTMLInputElement;
-        this.buyBtn = root.querySelector('#shop-buy') as HTMLButtonElement;
-        this.balanceEl = root.querySelector('#shop-balance') as HTMLDivElement;
-        this.feedbackEl = root.querySelector('#shop-feedback') as HTMLDivElement;
-        const closeBtn = root.querySelector('#shop-close') as HTMLDivElement;
+        // Section 4: buy controls
+        const buyRow = document.createElement('div');
+        buyRow.style.cssText =
+            `display:flex;gap:8px;padding:10px 14px;` +
+            `border-top:2px solid ${MODAL_COLORS.divider};` +
+            `background:${MODAL_COLORS.footerBg};align-items:center;flex-shrink:0;`;
 
-        closeBtn.addEventListener('click', () => this.close());
-        this.buyBtn.addEventListener('click', () => void this.handleBuy());
+        this.amountLabelEl = document.createElement('label');
+        this.amountLabelEl.style.cssText = `font-size:12px;color:${MODAL_COLORS.text};`;
+        this.amountLabelEl.textContent = t('shop.amount_label');
+
+        this.amountInput = document.createElement('input');
+        this.amountInput.type = 'number';
+        this.amountInput.min = '1';
+        this.amountInput.max = '99';
+        this.amountInput.value = '1';
+        this.amountInput.style.cssText =
+            `width:60px;height:32px;border-radius:6px;border:2px solid ${MODAL_COLORS.divider};` +
+            `background:${MODAL_COLORS.panelBgTop};color:${MODAL_COLORS.text};` +
+            `font-size:13px;text-align:center;font-family:inherit;`;
         this.amountInput.addEventListener('input', () => this.renderDetail());
 
-        // Re-render mọi text khi locale đổi runtime.
-        this.localeUnsub = onLocaleChange(() => {
-            // Rebuild static labels (number input label, buy button) bằng cách
-            // re-write innerHTML container. Đơn giản hơn track từng node.
-            this.renderHeader();
+        this.buyBtn = document.createElement('button');
+        this.buyBtn.disabled = true;
+        this.buyBtn.textContent = t('shop.btn_buy');
+        this.buyBtn.style.cssText =
+            'flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;' +
+            'background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;' +
+            'cursor:pointer;font-family:inherit;opacity:0.5;';
+        this.buyBtn.addEventListener('click', () => void this.handleBuy());
+
+        buyRow.append(this.amountLabelEl, this.amountInput, this.buyBtn);
+
+        shell.body.append(gridWrap, this.detailEl, this.balanceEl, buyRow);
+
+        shell.registerLocaleSync(() => {
+            this.applyTitle();
+            if (this.amountLabelEl) this.amountLabelEl.textContent = t('shop.amount_label');
+            if (this.buyBtn) this.buyBtn.textContent = t('shop.btn_buy');
             this.renderGrid();
             this.renderDetail();
             this.renderBalance();
-            // amount label + buy button — locate qua DOM query.
-            const amountLabel = this.overlay?.querySelector('label[data-shop-amount-label]') as HTMLLabelElement | null;
-            if (amountLabel) amountLabel.textContent = t('shop.amount_label');
-            if (this.buyBtn) this.buyBtn.textContent = t('shop.btn_buy');
         });
     }
 
-    destroy(): void {
-        this.overlay?.remove();
-        this.overlay = undefined;
-        this.localeUnsub?.();
-        this.localeUnsub = undefined;
+    protected teardownShell(): void {
+        super.teardownShell();
+        this.gridEl = undefined;
+        this.detailEl = undefined;
+        this.amountInput = undefined;
+        this.buyBtn = undefined;
+        this.balanceEl = undefined;
+        this.amountLabelEl = undefined;
     }
 
-    isOpen(): boolean { return this.visible; }
-
     open(params: OpenParams): void {
-        if (!this.overlay) return;
+        const shell = this.ensureShell();
+        if (!shell) return;
         this.mapId = params.mapId;
         this.npcTemplateId = params.npcTemplateId;
         this.npcName = params.npcName;
@@ -188,10 +198,9 @@ export class ShopModal implements GameComponent {
         this.listings = [];
         this.wallet = null;
         this.focusZone = 'grid';
-        this.feedbackEl && (this.feedbackEl.textContent = '');
+        shell.setStatus('');
         this.visible = true;
-        this.overlay.style.display = 'block';
-        this.renderHeader();
+        this.applyTitle();
         this.renderDetail();
         this.renderBalance();
         this.renderControlsFocus();
@@ -199,9 +208,8 @@ export class ShopModal implements GameComponent {
     }
 
     close(): void {
-        if (!this.overlay) return;
-        this.visible = false;
-        this.overlay.style.display = 'none';
+        if (!this.visible && !this.shell) return;
+        this.teardownShell();
     }
 
     /**
@@ -287,7 +295,7 @@ export class ShopModal implements GameComponent {
         const focused = this.focusZone === 'controls';
         if (this.buyBtn) {
             if (focused) {
-                this.buyBtn.style.outline = '2px solid #ffea7a';
+                this.buyBtn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
                 this.buyBtn.style.outlineOffset = '2px';
                 this.buyBtn.style.boxShadow = '0 0 12px rgba(255,234,122,0.8)';
             } else {
@@ -297,44 +305,15 @@ export class ShopModal implements GameComponent {
             }
         }
         if (this.amountInput) {
-            this.amountInput.style.borderColor = focused ? '#ffea7a' : '#4d2d13';
+            this.amountInput.style.borderColor = focused ? MODAL_COLORS.borderAccent : MODAL_COLORS.divider;
         }
     }
 
-    private buildHTML(): string {
-        return [
-            // Header
-            `<div id="shop-header" style="display:flex;align-items:center;background:#4d2d13;border-bottom:2px solid #e29e4a;flex-shrink:0;">`,
-            `  <div style="flex:1;padding:10px 16px;font-size:15px;font-weight:bold;color:#ffea7a;letter-spacing:1px;">${escapeHtml(t('shop.title'))}</div>`,
-            `  <div id="shop-close" style="width:40px;text-align:center;cursor:pointer;font-size:18px;font-weight:bold;color:#ff8a8a;padding:10px 0;flex-shrink:0;">&#10005;</div>`,
-            `</div>`,
-            // Grid
-            `<div style="padding:10px 14px 14px 14px;background:rgba(0,0,0,0.25);overflow-y:auto;max-height:46vh;">`,
-            `  <div id="shop-grid" style="display:grid;grid-template-columns:repeat(${COLS}, 1fr);gap:8px;"></div>`,
-            `</div>`,
-            // Detail
-            `<div id="shop-detail" style="padding:12px 16px;border-top:2px solid #4d2d13;background:rgba(45,26,10,0.6);min-height:84px;font-size:13px;line-height:1.5;flex-shrink:0;"></div>`,
-            // Balance bar
-            `<div id="shop-balance" style="display:flex;justify-content:space-around;align-items:center;padding:8px 14px;border-top:2px solid #4d2d13;background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;"></div>`,
-            // Buy controls
-            `<div style="display:flex;gap:8px;padding:10px 14px;border-top:2px solid #4d2d13;background:#1a0f04;align-items:center;flex-shrink:0;">`,
-            `  <label data-shop-amount-label style="font-size:12px;color:#ffe4c4;">${escapeHtml(t('shop.amount_label'))}</label>`,
-            `  <input id="shop-amount" type="number" min="1" max="99" value="1" style="width:60px;height:32px;border-radius:6px;border:2px solid #4d2d13;background:#2a1808;color:#ffe4c4;font-size:13px;text-align:center;font-family:inherit;" />`,
-            `  <button id="shop-buy" disabled style="flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:inherit;opacity:0.5;">${escapeHtml(t('shop.btn_buy'))}</button>`,
-            `</div>`,
-            // Feedback
-            `<div id="shop-feedback" style="padding:6px 14px;background:#1a0f04;color:#ffd070;font-size:12px;text-align:center;min-height:18px;flex-shrink:0;"></div>`,
-        ].join('');
-    }
-
-    private renderHeader(): void {
-        if (!this.headerEl) return;
-        const titleSpan = this.headerEl.querySelector('div') as HTMLDivElement | null;
-        if (titleSpan) {
-            titleSpan.textContent = this.npcName
-                ? t('shop.title_with_npc', { npc: this.npcName.toUpperCase() })
-                : t('shop.title');
-        }
+    private applyTitle(): void {
+        if (!this.shell) return;
+        this.shell.setTitle(this.npcName
+            ? t('shop.title_with_npc', { npc: this.npcName.toUpperCase() })
+            : t('shop.title'));
     }
 
     private async loadWallet(): Promise<void> {
@@ -354,7 +333,7 @@ export class ShopModal implements GameComponent {
     private async loadListings(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
-            this.setFeedback(t('shop.error_no_character'), 'error');
+            this.shell?.setStatus(t('shop.error_no_character'), 'error');
             return;
         }
         this.loading = true;
@@ -372,7 +351,7 @@ export class ShopModal implements GameComponent {
             });
         } catch (err) {
             this.listings = [];
-            this.setFeedback(err instanceof Error ? err.message : t('shop.error_load'), 'error');
+            this.shell?.setStatus(err instanceof Error ? err.message : t('shop.error_load'), 'error');
         } finally {
             this.loading = false;
             this.renderGrid();
@@ -403,7 +382,7 @@ export class ShopModal implements GameComponent {
             const cur = primaryPrice ? CURRENCY_META[primaryPrice.currency_type] : CURRENCY_META.coin;
 
             Object.assign(cell.style, {
-                border: `2px solid ${isSelected ? '#ffea7a' : borderColor}`,
+                border: `2px solid ${isSelected ? MODAL_COLORS.borderAccent : borderColor}`,
                 borderRadius: '6px',
                 background: bgColor,
                 cursor: 'pointer',
@@ -431,7 +410,7 @@ export class ShopModal implements GameComponent {
 
             cell.innerHTML = [
                 `<div style="font-size:24px;line-height:1;">${icon}</div>`,
-                `<div style="font-size:10px;color:#ffe4c4;text-align:center;line-height:1.2;height:24px;overflow:hidden;">${item.name_key}</div>`,
+                `<div style="font-size:10px;color:${MODAL_COLORS.text};text-align:center;line-height:1.2;height:24px;overflow:hidden;">${item.name_key}</div>`,
                 priceLine,
                 multiBadge,
             ].join('');
@@ -492,18 +471,18 @@ export class ShopModal implements GameComponent {
         const currencyChooser = item.prices.length > 1
             ? this.renderCurrencyChooser(item.prices)
             : selectedPrice
-                ? `<div style="margin-top:4px;font-size:12px;color:#ffe4c4;">`
+                ? `<div style="margin-top:4px;font-size:12px;color:${MODAL_COLORS.text};">`
                     + `${escapeHtml(t('shop.unit_price'))} <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${selectedPrice.price.toLocaleString('en-US')}</span>`
                     + `</div>`
                 : '';
 
         const totalLine = selectedPrice
-            ? `<div style="margin-top:4px;font-size:12px;color:#ffe4c4;">${escapeHtml(t('shop.total_price', { n: amount }))} <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${total.toLocaleString('en-US')}</span></div>`
+            ? `<div style="margin-top:4px;font-size:12px;color:${MODAL_COLORS.text};">${escapeHtml(t('shop.total_price', { n: amount }))} <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${total.toLocaleString('en-US')}</span></div>`
             : '';
 
         this.detailEl.innerHTML = [
             `<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">`,
-            `  <span style="font-size:14px;font-weight:bold;color:#ffea7a;">${escapeHtml(item.name_key)}</span>`,
+            `  <span style="font-size:14px;font-weight:bold;color:${MODAL_COLORS.title};">${escapeHtml(item.name_key)}</span>`,
             `  <span style="font-size:11px;color:${TYPE_BORDER[item.item_type]};">[${escapeHtml(t(TYPE_KEY[item.item_type]))}]</span>`,
             `  <span style="font-size:11px;color:#aaa;">${escapeHtml(t('shop.required_level', { n: item.required_level }))}</span>`,
             `</div>`,
@@ -532,7 +511,7 @@ export class ShopModal implements GameComponent {
         const buttons = prices.map((p) => {
             const cur = CURRENCY_META[p.currency_type];
             const active = this.selectedCurrency === p.currency_type;
-            const border = active ? '#ffea7a' : '#4d2d13';
+            const border = active ? MODAL_COLORS.borderAccent : MODAL_COLORS.divider;
             const bg = active ? '#6b3a14' : 'rgba(45,26,10,0.5)';
             return `<div data-currency="${p.currency_type}" style="`
                 + `cursor:pointer;padding:6px 10px;border-radius:6px;`
@@ -599,29 +578,23 @@ export class ShopModal implements GameComponent {
         this.buyBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
     }
 
-    private setFeedback(message: string, kind: 'ok' | 'error'): void {
-        if (!this.feedbackEl) return;
-        this.feedbackEl.textContent = message;
-        this.feedbackEl.style.color = kind === 'ok' ? '#bdf0a0' : '#ff8a8a';
-    }
-
     private async handleBuy(): Promise<void> {
         const item = this.findSelected();
         if (!item || this.actionInFlight) return;
         const price = this.findSelectedPrice(item);
         if (!price) {
-            this.setFeedback(t('shop.error_no_payment'), 'error');
+            this.shell?.setStatus(t('shop.error_no_payment'), 'error');
             return;
         }
         const character = getCurrentCharacter();
         if (!character) {
-            this.setFeedback(t('shop.error_no_character'), 'error');
+            this.shell?.setStatus(t('shop.error_no_character'), 'error');
             return;
         }
         const amount = this.getAmount();
         this.actionInFlight = true;
         this.setBuyEnabled(false);
-        this.setFeedback(t('shop.processing'), 'ok');
+        this.shell?.setStatus(t('shop.processing'), 'ok');
         try {
             const res = await shopAPI.buy(character.id, {
                 map_id: this.mapId,
@@ -636,7 +609,7 @@ export class ShopModal implements GameComponent {
                 this.wallet = { ...this.wallet, [res.currency.type]: res.currency.balance_after };
                 this.renderBalance();
             }
-            this.setFeedback(
+            this.shell?.setStatus(
                 t('shop.bought', {
                     amount,
                     name: item.name_key,
@@ -648,7 +621,7 @@ export class ShopModal implements GameComponent {
             // Sync lại 3 loại tiền (đề phòng tickets / quest cùng lúc).
             void this.loadWallet();
         } catch (err) {
-            this.setFeedback(err instanceof Error ? err.message : t('shop.error_buy'), 'error');
+            this.shell?.setStatus(err instanceof Error ? err.message : t('shop.error_buy'), 'error');
         } finally {
             this.actionInFlight = false;
             this.renderDetail();
