@@ -51,6 +51,22 @@ export class AuthScene extends Phaser.Scene {
                     void this.handleRegister();
                 }
             });
+            // Enter trong input bất kỳ → submit form view tương ứng. Native
+            // listener trên DOM node thay vì Phaser DOMElement event vì
+            // Phaser không capture keydown nội bộ form. preventDefault để
+            // tránh browser tự reload / submit form (form không có action).
+            const formNode = this.domElement.node as HTMLElement;
+            formNode.addEventListener('keydown', (event: KeyboardEvent) => {
+                if (event.key !== 'Enter') return;
+                const target = event.target as HTMLElement | null;
+                if (!target || target.tagName !== 'INPUT') return;
+                event.preventDefault();
+                if (target.closest('#login-view')) {
+                    void this.handleLogin();
+                } else if (target.closest('#register-view')) {
+                    void this.handleRegister();
+                }
+            });
             this.applyTranslations();
             // Re-apply translations khi locale đổi runtime — chỉ trigger sau
             // register/login khi BE response set lại theo user.preferred_language

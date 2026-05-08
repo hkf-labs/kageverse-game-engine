@@ -115,9 +115,26 @@ export const vi: TranslationTable = {
 
     // Quest tracker (HUD bottom-left)
     'quest.tracker.unknown_npc': 'NPC trả nhiệm vụ',
+    'quest.tracker.completed_turn_in': '✅ Hoàn thành — về gặp {npc}',
 
     // Chat panel
     'chat.input_placeholder': 'Nhập tin nhắn...',
+    'chat.tab_current': 'Hiện tại',
+    'chat.tab_world': 'Thế giới',
+    'chat.btn_send': 'Gửi',
+    'chat.system_sender': '[Hệ Thống]',
+    'chat.error_rate_limited': 'Bạn nhắn quá nhanh, đợi chút nhé.',
+    'chat.error_text_too_long': 'Tin nhắn quá dài (tối đa 256 ký tự).',
+    'chat.error_empty_text': 'Tin nhắn không được rỗng.',
+    'chat.error_invalid_text': 'Tin nhắn chứa ký tự không hợp lệ.',
+    'chat.error_not_in_map': 'Bạn cần vào map trước khi chat.',
+    'chat.error_invalid_channel': 'Kênh chat không hợp lệ.',
+    'chat.error_missing_scope': 'Thiếu thông tin nhóm/guild để gửi.',
+    'chat.error_repository': 'Lưu chat thất bại, thử lại sau.',
+
+    // Rotate-to-landscape prompt (mobile portrait)
+    'rotate.title': 'Vui lòng xoay ngang thiết bị',
+    'rotate.subtitle': 'Game được thiết kế cho chế độ ngang',
 
     // Main menu (ESC menu chức năng)
     'menu.title': 'Menu',

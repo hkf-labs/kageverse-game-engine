@@ -8,6 +8,19 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Rotate-to-landscape prompt — chỉ hiện trên màn hình nhỏ (≤1024px) ở
+      chế độ portrait. Game thiết kế cho landscape; portrait UI sẽ bị bóp
+      méo nên buộc user xoay ngang. Inline DOM + CSS (App.css) để hoạt
+      động ngay cả khi React chưa mount.
+    -->
+    <div id="rotate-prompt" aria-hidden="true">
+      <div class="rotate-icon">📱</div>
+      <div class="rotate-text">
+        <div class="rotate-text-primary" data-i18n="rotate.title">Vui lòng xoay ngang thiết bị</div>
+        <div class="rotate-text-secondary" data-i18n="rotate.subtitle">Game được thiết kế cho chế độ ngang</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

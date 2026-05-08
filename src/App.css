@@ -56,3 +56,64 @@
   50% { opacity: 1; transform: scale(1); }
   100% { opacity: 0.5; transform: scale(0.98); }
 }
+
+/*
+ * Rotate-to-landscape prompt
+ * - Mặc định ẩn (display:none).
+ * - Hiện khi: orientation portrait + viewport width <= 1024px (mobile +
+ *   tablet portrait). Desktop browser dù bóp cửa sổ dọc cũng không trigger
+ *   nếu width > 1024px — game vẫn dùng được.
+ * - z-index cao nhất + fixed inset:0 để phủ toàn màn hình kể cả lúc game
+ *   chưa load (script chưa chạy).
+ */
+#rotate-prompt {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0a0a0a;
+  color: #ffea7a;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+  padding: 24px;
+  user-select: none;
+}
+
+#rotate-prompt .rotate-icon {
+  font-size: 80px;
+  line-height: 1;
+  animation: rotate-prompt-spin 2s ease-in-out infinite;
+  transform-origin: center center;
+}
+
+#rotate-prompt .rotate-text {
+  margin-top: 28px;
+  line-height: 1.6;
+}
+
+#rotate-prompt .rotate-text-primary {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+#rotate-prompt .rotate-text-secondary {
+  font-size: 12px;
+  color: #aaaaaa;
+  margin-top: 6px;
+  font-weight: 400;
+}
+
+@keyframes rotate-prompt-spin {
+  0%, 20% { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(-90deg); }
+}
+
+@media (orientation: portrait) and (max-width: 1024px) {
+  #rotate-prompt { display: flex; }
+  /* Khoá scroll body để overlay không bị mép address bar/notch đẩy lệch. */
+  html, body { overflow: hidden; }
+}

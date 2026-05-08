@@ -115,11 +115,28 @@ export const en: TranslationTable = {
 
     // Quest tracker (HUD bottom-left)
     'quest.tracker.unknown_npc': 'Quest turn-in NPC',
+    'quest.tracker.completed_turn_in': '✅ Complete — return to {npc}',
 
     // Chat panel
     'chat.input_placeholder': 'Type a message...',
+    'chat.tab_current': 'Current',
+    'chat.tab_world': 'World',
+    'chat.btn_send': 'Send',
+    'chat.system_sender': '[System]',
+    'chat.error_rate_limited': 'You are typing too fast, please wait a moment.',
+    'chat.error_text_too_long': 'Message is too long (max 256 characters).',
+    'chat.error_empty_text': 'Message cannot be empty.',
+    'chat.error_invalid_text': 'Message contains invalid characters.',
+    'chat.error_not_in_map': 'You need to enter a map before chatting.',
+    'chat.error_invalid_channel': 'Invalid chat channel.',
+    'chat.error_missing_scope': 'Missing party/guild context.',
+    'chat.error_repository': 'Failed to save chat, try again later.',
 
     // Main menu (ESC menu)
+    // Rotate-to-landscape prompt (mobile portrait)
+    'rotate.title': 'Please rotate your device',
+    'rotate.subtitle': 'Game is designed for landscape mode',
+
     'menu.title': 'Menu',
     'menu.self': 'Self',
     'menu.info': 'Info',

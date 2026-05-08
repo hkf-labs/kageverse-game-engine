@@ -68,13 +68,13 @@ export class ChatPanel extends BaseModal {
         const tabCurrent = document.createElement('div');
         tabCurrent.id = 'tab-current';
         tabCurrent.style.cssText = `flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-weight:bold;color:${MODAL_COLORS.title};background:#6b3a14;border-bottom:2px solid ${MODAL_COLORS.title};`;
-        tabCurrent.textContent = 'Hiện tại';
+        tabCurrent.textContent = t('chat.tab_current');
         tabCurrent.addEventListener('click', () => this.setActiveTab('current'));
 
         const tabWorld = document.createElement('div');
         tabWorld.id = 'tab-world';
         tabWorld.style.cssText = `flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-weight:bold;color:${MODAL_COLORS.text};background:transparent;border-bottom:2px solid transparent;`;
-        tabWorld.textContent = 'Thế giới';
+        tabWorld.textContent = t('chat.tab_world');
         tabWorld.addEventListener('click', () => this.setActiveTab('world'));
 
         const closeBtn = document.createElement('div');
@@ -122,7 +122,7 @@ export class ChatPanel extends BaseModal {
 
         const sendBtn = document.createElement('button');
         sendBtn.style.cssText = `width:70px;height:34px;border-radius:6px;border:2px solid ${MODAL_COLORS.border};background:#6b3a14;color:${MODAL_COLORS.title};font-size:14px;font-weight:bold;font-family:system-ui,sans-serif;cursor:pointer;`;
-        sendBtn.textContent = 'Gửi';
+        sendBtn.textContent = t('chat.btn_send');
         sendBtn.addEventListener('click', () => this.handleSend());
 
         inputRow.append(input, sendBtn);
@@ -138,6 +138,18 @@ export class ChatPanel extends BaseModal {
         this.rtUnsubs.push(
             wsClient.events.on('error', (p) => this.handleErrorEvent(p)),
         );
+
+        // Re-render text static (tabs + send button + sender tag mỗi message)
+        // khi user đổi locale runtime. Input placeholder không tự dịch — set
+        // lại qua attribute. Re-render messages list để [Hệ Thống] đổi theo.
+        shell.registerLocaleSync(() => {
+            if (this.tabCurrentEl) this.tabCurrentEl.textContent = t('chat.tab_current');
+            if (this.tabWorldEl) this.tabWorldEl.textContent = t('chat.tab_world');
+            const sendBtnEl = shell.body.querySelector<HTMLButtonElement>('button');
+            if (sendBtnEl) sendBtnEl.textContent = t('chat.btn_send');
+            if (this.inputEl) this.inputEl.placeholder = t('chat.input_placeholder');
+            this.renderActiveTab();
+        });
     }
 
     protected teardownShell(): void {
@@ -267,7 +279,7 @@ export class ChatPanel extends BaseModal {
 
         const senderColor = isSystem ? '#9affff' : (isOwn ? '#9affb4' : MODAL_COLORS.title);
         const senderTag = isSystem
-            ? '[Hệ Thống]'
+            ? t('chat.system_sender')
             : `[${escapeHtml(m.sender_display_name)}${m.sender_level ? ` Lv${m.sender_level}` : ''}]`;
         div.innerHTML =
             `<span style="color:${senderColor};font-weight:bold;">${escapeHtml(senderTag)}</span> ` +
@@ -334,22 +346,14 @@ export class ChatPanel extends BaseModal {
 // thuộc range chat (caller fallback msg_key).
 function chatErrorMessage(code: number): string | undefined {
     switch (code) {
-        case CHAT_ERROR_CODES.RATE_LIMITED:
-            return 'Bạn nhắn quá nhanh, đợi chút nhé.';
-        case CHAT_ERROR_CODES.TEXT_TOO_LONG:
-            return 'Tin nhắn quá dài (tối đa 256 ký tự).';
-        case CHAT_ERROR_CODES.EMPTY_TEXT:
-            return 'Tin nhắn không được rỗng.';
-        case CHAT_ERROR_CODES.INVALID_TEXT:
-            return 'Tin nhắn chứa ký tự không hợp lệ.';
-        case CHAT_ERROR_CODES.NOT_IN_MAP:
-            return 'Bạn cần vào map trước khi chat.';
-        case CHAT_ERROR_CODES.INVALID_CHANNEL:
-            return 'Kênh chat không hợp lệ.';
-        case CHAT_ERROR_CODES.MISSING_SCOPE:
-            return 'Thiếu thông tin nhóm/guild để gửi.';
-        case CHAT_ERROR_CODES.REPOSITORY:
-            return 'Lưu chat thất bại, thử lại sau.';
+        case CHAT_ERROR_CODES.RATE_LIMITED:    return t('chat.error_rate_limited');
+        case CHAT_ERROR_CODES.TEXT_TOO_LONG:   return t('chat.error_text_too_long');
+        case CHAT_ERROR_CODES.EMPTY_TEXT:      return t('chat.error_empty_text');
+        case CHAT_ERROR_CODES.INVALID_TEXT:    return t('chat.error_invalid_text');
+        case CHAT_ERROR_CODES.NOT_IN_MAP:      return t('chat.error_not_in_map');
+        case CHAT_ERROR_CODES.INVALID_CHANNEL: return t('chat.error_invalid_channel');
+        case CHAT_ERROR_CODES.MISSING_SCOPE:   return t('chat.error_missing_scope');
+        case CHAT_ERROR_CODES.REPOSITORY:      return t('chat.error_repository');
     }
     return undefined;
 }

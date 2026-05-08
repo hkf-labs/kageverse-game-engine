@@ -211,7 +211,7 @@ export class QuestTracker implements GameComponent {
             const npcName = turnInNpc ? targetDisplayName(turnInNpc) : t('quest.tracker.unknown_npc');
             this.bodyText
                 .setStyle(BODY_COMPLETED_STYLE)
-                .setText(`✅ Hoàn thành — về gặp ${npcName}`);
+                .setText(t('quest.tracker.completed_turn_in', { npc: npcName }));
         } else {
             const verbKey = OBJECTIVE_KEY[objective.type];
             const verb = verbKey ? t(verbKey) : objective.type;
