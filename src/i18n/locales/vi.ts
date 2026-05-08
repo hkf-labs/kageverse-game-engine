@@ -121,6 +121,7 @@ export const vi: TranslationTable = {
 
     // Main menu (ESC menu chức năng)
     'menu.title': 'Menu',
+    'menu.self': 'Bản thân',
     'menu.info': 'Thông tin',
     'menu.inventory': 'Túi đồ',
     'menu.equipment': 'Trang bị',

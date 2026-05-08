@@ -69,6 +69,21 @@ export class Portal implements GameComponent {
         ).setOrigin(0.5).setDepth(8).setVisible(false);
     }
 
+    /** Toggle visibility — scene gọi khi mở Menu chức năng. Snapshot hint
+     * (state-dependent — chỉ visible khi inRange) để restore đúng. */
+    private prevHintVisible = false;
+    setVisible(visible: boolean): void {
+        if (!visible) {
+            this.prevHintVisible = !!this.hint?.visible;
+            this.hint?.setVisible(false);
+        }
+        this.graphics?.setVisible(visible);
+        this.label?.setVisible(visible);
+        if (visible && this.prevHintVisible) {
+            this.hint?.setVisible(true);
+        }
+    }
+
     isLocked(): boolean { return this.locked; }
     getLockedMessage(): string | undefined { return this.config.lockedMessage; }
     getTargetSceneKey(): string { return this.config.targetSceneKey; }

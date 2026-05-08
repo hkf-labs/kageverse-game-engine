@@ -53,9 +53,19 @@ export abstract class BaseMapScene extends Phaser.Scene {
      * F2 dùng cờ này để quyết định: chỉ đóng modal vs đóng modal + mở lại
      * menu. Auto-reset trong update() khi không có menu/modal nào mở. */
     private cameFromMenu = false;
+    /** Tên menu đã mở modal hiện tại — F2 dùng để quyết định reopen 'main'
+     * (menu chức năng gốc) hay 'self' (sub-menu Bản thân). */
+    private lastMenuName: 'main' | 'self' | null = null;
     /** Key item của menu đang được active khi mở modal — F2 quay lại menu sẽ
      * khôi phục focus về item này thay vì reset về đầu danh sách. */
     private lastMenuKey: string | null = null;
+    /** Menu nào đang hiển thị (actionMenu single-instance, dùng cờ này để
+     * phân biệt main vs self khi xử lý F2 từ chính menu đó). null khi không
+     * có menu nào đang mở. */
+    private currentMenuName: 'main' | 'self' | null = null;
+    /** Trạng thái visibility world entities trước khi menu mở. Polled trong
+     * update() — chỉ toggle khi state đổi để tránh setVisible mỗi frame. */
+    private worldHiddenForMenu = false;
     private lastKnownLevel = 1;
     private lastKnownExp = { exp: 0, expToNext: 1 };
     private lastKnownStats = { max_hp: 100, max_mp: 50 };
@@ -633,6 +643,27 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     /**
+     * Toggle visibility tất cả world entity (NPC / quái / portal / player /
+     * remote players + floating UI gắn entity) khi menu chức năng mở/đóng.
+     * Map background + HUD (topbar / minimap / buff / quest tracker / hotbar)
+     * GIỮ NGUYÊN — player vẫn thấy bối cảnh map và stat của mình. Mục tiêu:
+     * giảm rối map khi menu open theo yêu cầu UX.
+     */
+    private setWorldVisible(visible: boolean): void {
+        this.playerCtrl?.setVisible?.(visible);
+        this.npcs?.setVisible?.(visible);
+        this.monsters?.setVisible?.(visible);
+        this.remotePlayers?.setVisible?.(visible);
+        this.bossHPBar?.setVisible?.(visible);
+        this.targetFrame?.setVisible?.(visible);
+        this.npcChatBubble?.setVisible?.(visible);
+        this.playerChatBubble?.setVisible?.(visible);
+        for (const portal of this.portals) {
+            portal.setVisible?.(visible);
+        }
+    }
+
+    /**
      * Reflow QuestTracker để xếp dọc dưới BuffIndicator: có buff → tracker
      * dịch xuống dưới panel buff (~y=176); không buff → về vị trí mặc định
      * (y=80, ngay dưới topbar).
@@ -860,6 +891,17 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (!this.isInputBlockingModalOpen()) {
             this.cameFromMenu = false;
             this.lastMenuKey = null;
+            this.lastMenuName = null;
+            this.currentMenuName = null;
+        }
+
+        // Sync visibility world entities theo menu state — chỉ toggle khi
+        // chuyển trạng thái để tránh setVisible mỗi frame. Action menu open
+        // → ẩn NPC / quái / players / portal cho đỡ rối; close → restore.
+        const menuOpen = this.actionMenu.isOpen();
+        if (menuOpen !== this.worldHiddenForMenu) {
+            this.worldHiddenForMenu = menuOpen;
+            this.setWorldVisible(!menuOpen);
         }
 
         // Bất kỳ modal/menu nào đang mở → không cho nhân vật di chuyển. Forward
@@ -877,9 +919,17 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 else if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) this.actionMenu.confirm();
                 else if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.actionMenu.close();
                 else if (this.backKey && Phaser.Input.Keyboard.JustDown(this.backKey)) {
-                    this.actionMenu.close();
-                    this.cameFromMenu = false;
-                    this.lastMenuKey = null;
+                    // F2 từ sub-menu 'Bản thân' = quay về main menu (giữ self
+                    // được highlight). F2 từ main menu = đóng hẳn.
+                    if (this.currentMenuName === 'self') {
+                        this.openMainMenu('self');
+                    } else {
+                        this.actionMenu.close();
+                        this.cameFromMenu = false;
+                        this.lastMenuKey = null;
+                        this.lastMenuName = null;
+                        this.currentMenuName = null;
+                    }
                 }
                 return;
             }
@@ -1466,26 +1516,53 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     private openMainMenu(initialKey?: string | null): void {
-        // Wrap = đặt cameFromMenu + lastMenuKey trước khi mở modal để F2 biết
-        // nguồn gốc và item nào cần active khi back. Suicide / logout không
-        // mở modal nên skip wrap.
+        // Wrap = đặt cameFromMenu + lastMenuName + lastMenuKey trước khi mở
+        // modal để F2 biết nguồn gốc (main vs self) và item nào cần active khi
+        // back. Suicide / logout không mở modal nên skip wrap.
         const wrap = (key: string, fn: () => void) => () => {
             this.cameFromMenu = true;
+            this.lastMenuName = 'main';
             this.lastMenuKey = key;
             fn();
         };
+        this.currentMenuName = 'main';
         this.actionMenu.open({
             title: t('menu.title'),
+            initialSelectedKey: initialKey ?? undefined,
+            items: [
+                // Bản thân — sub-menu mở char-related modals (info / inventory
+                // / equipment / skills). Không wrap (chỉ chuyển menu).
+                { key: 'self', label: t('menu.self'), icon: '🥷', action: () => this.openSelfMenu() },
+                { key: 'quests', label: t('menu.quests'), icon: '📜', action: wrap('quests', () => this.questLog.open()) },
+                { key: 'suicide', label: t('menu.suicide'), icon: '☠️', action: () => void this.handleSuicide() },
+                { key: 'settings', label: t('menu.settings'), icon: '⚙️', action: wrap('settings', () => this.settingsModal.open()) },
+                { key: 'logout', label: t('menu.logout'), icon: '🚪', action: () => this.handleLogout() },
+            ],
+        });
+    }
+
+    /**
+     * Sub-menu "Bản thân" — gom 4 chức năng character-related (Thông tin /
+     * Túi đồ / Trang bị / Kỹ năng) thành 1 nhóm. Mở từ main menu → 'self' item.
+     * F2 trong sub-menu = về main menu (xem update loop). F2 trong modal mở
+     * từ sub-menu = về sub-menu (xem handleBack).
+     */
+    private openSelfMenu(initialKey?: string | null): void {
+        const wrap = (key: string, fn: () => void) => () => {
+            this.cameFromMenu = true;
+            this.lastMenuName = 'self';
+            this.lastMenuKey = key;
+            fn();
+        };
+        this.currentMenuName = 'self';
+        this.actionMenu.open({
+            title: t('menu.self'),
             initialSelectedKey: initialKey ?? undefined,
             items: [
                 { key: 'info', label: t('menu.info'), icon: '📋', action: wrap('info', () => this.characterInfo.open()) },
                 { key: 'inventory', label: t('menu.inventory'), icon: '🎒', action: wrap('inventory', () => this.inventory.toggle()) },
                 { key: 'equipment', label: t('menu.equipment'), icon: '⚔️', action: wrap('equipment', () => this.equipment.toggle()) },
-                { key: 'quests', label: t('menu.quests'), icon: '📜', action: wrap('quests', () => this.questLog.open()) },
                 { key: 'skills', label: t('menu.skills'), icon: '⚡', action: wrap('skills', () => this.skillModal.open()) },
-                { key: 'suicide', label: t('menu.suicide'), icon: '☠️', action: () => void this.handleSuicide() },
-                { key: 'settings', label: t('menu.settings'), icon: '⚙️', action: wrap('settings', () => this.settingsModal.open()) },
-                { key: 'logout', label: t('menu.logout'), icon: '🚪', action: () => this.handleLogout() },
             ],
         });
     }
@@ -1505,18 +1582,31 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
         if (this.actionMenu.isOpen()) {
-            this.actionMenu.close();
-            this.cameFromMenu = false;
-            this.lastMenuKey = null;
+            // F2 trên sub-menu 'Bản thân' = về main menu (giữ self highlight).
+            // F2 trên main menu = đóng hẳn.
+            if (this.currentMenuName === 'self') {
+                this.openMainMenu('self');
+            } else {
+                this.actionMenu.close();
+                this.cameFromMenu = false;
+                this.lastMenuKey = null;
+                this.lastMenuName = null;
+                this.currentMenuName = null;
+            }
             return;
         }
         if (!this.closeTopModal()) return;
         if (this.cameFromMenu) {
             const key = this.lastMenuKey;
+            const menu = this.lastMenuName;
             this.cameFromMenu = false;
-            // lastMenuKey vẫn giữ — openMainMenu sẽ dùng làm initialSelectedKey,
-            // sau đó wrap() ghi đè khi user chọn item mới.
-            this.openMainMenu(key);
+            // Reopen menu nguồn gốc — 'self' nếu modal mở từ sub-menu, ngược
+            // lại 'main'. lastMenuKey dùng làm initialSelectedKey để giữ focus.
+            if (menu === 'self') {
+                this.openSelfMenu(key);
+            } else {
+                this.openMainMenu(key);
+            }
         }
     }
 

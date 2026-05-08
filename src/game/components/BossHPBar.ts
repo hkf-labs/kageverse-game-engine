@@ -126,6 +126,20 @@ export class BossHPBar implements GameComponent {
         this.currentInstanceId = null;
     }
 
+    /** Toggle visibility — scene gọi khi mở Menu chức năng. Snapshot state
+     * "đang engage boss" để restore đúng (không force visible khi không có
+     * boss). */
+    private prevVisible = false;
+    setVisible(visible: boolean): void {
+        if (!this.container) return;
+        if (!visible) {
+            this.prevVisible = this.container.visible;
+            this.container.setVisible(false);
+        } else if (this.prevVisible) {
+            this.container.setVisible(true);
+        }
+    }
+
     destroy(): void {
         this.container?.destroy();
         this.container = undefined;

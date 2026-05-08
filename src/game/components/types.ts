@@ -4,6 +4,14 @@ export interface GameComponent {
     create(): void;
     update?(): void;
     destroy?(): void;
+    /**
+     * Optional — toggle visibility chung của component. Scene dùng để ẩn các
+     * world entity (NPC, monster, player, portal, ...) khi mở Menu chức năng
+     * → giảm rối mắt cho player. Implementations nên snapshot state trước khi
+     * `false` để restore lại đúng (vd BossHPBar chỉ visible khi có boss
+     * engaged — không phải lúc nào setVisible(true) cũng đúng ngữ nghĩa).
+     */
+    setVisible?(visible: boolean): void;
 }
 
 export interface NpcEntry {

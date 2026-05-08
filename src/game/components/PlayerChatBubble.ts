@@ -104,6 +104,15 @@ export class PlayerChatBubble implements GameComponent {
         this.clear();
     }
 
+    /** Toggle visibility tất cả bubble. Scene gọi khi mở Menu chức năng. Vì
+     * bubble có TTL ngắn (4s default), restore force-visible an toàn — bubble
+     * nào đã hết hạn sẽ tự dispose ở update() tick kế. */
+    setVisible(visible: boolean): void {
+        for (const entry of this.bubbles.values()) {
+            entry.container.setVisible(visible);
+        }
+    }
+
     // --- internals ---
 
     private createBubble(

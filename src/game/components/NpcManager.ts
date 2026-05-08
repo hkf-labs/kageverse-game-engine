@@ -172,6 +172,41 @@ export class NpcManager implements GameComponent {
         this.selectionIndicator = this.scene.add.graphics().setDepth(9).setVisible(false);
     }
 
+    /** Snapshot trạng thái visible của các element state-dependent (badge,
+     * selection indicator) trước khi setVisible(false) — khi menu đóng,
+     * restore đúng theo logic hiện tại thay vì force tất cả về true. */
+    private prevBadgeVisible = new Map<string, boolean>();
+    private prevSelectionIndicatorVisible = false;
+
+    /** Toggle visibility tất cả NPC sprite + name + badge + selection ring.
+     * Scene gọi khi mở Menu chức năng để giảm rối; menu đóng → restore. */
+    setVisible(visible: boolean): void {
+        if (!visible) {
+            // Snapshot state-dependent visibility.
+            this.prevBadgeVisible.clear();
+            for (const [k, b] of this.questBadges) {
+                this.prevBadgeVisible.set(k, b.visible);
+                b.setVisible(false);
+            }
+            this.prevSelectionIndicatorVisible = !!this.selectionIndicator?.visible;
+            this.selectionIndicator?.setVisible(false);
+        }
+        for (const npc of this.npcList) {
+            npc.sprite.setVisible(visible);
+            npc.nameText.setVisible(visible);
+        }
+        if (visible) {
+            // Restore state-dependent.
+            for (const [k, prev] of this.prevBadgeVisible) {
+                this.questBadges.get(k)?.setVisible(prev);
+            }
+            this.prevBadgeVisible.clear();
+            if (this.prevSelectionIndicatorVisible) {
+                this.selectionIndicator?.setVisible(true);
+            }
+        }
+    }
+
     getInteractingNpc(): NpcEntry | null { return this.interactingNpc; }
     getSelectedNpc(): NpcEntry | null { return this.selectedNpc; }
     getAutoMoveTargetX(): number | null { return this.autoMoveTargetX; }

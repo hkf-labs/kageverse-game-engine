@@ -147,6 +147,18 @@ export class PlayerController implements GameComponent {
         this.bottomSprite?.setFlipX(left);
     }
 
+    /** Toggle visibility — scene gọi khi mở/đóng menu để giảm rối map. Hitbox
+     * (player rectangle) cũng ẩn nhưng physics body vẫn đứng yên (input đã
+     * block ở scene update khi menu open, không di chuyển). Camera follow
+     * không phụ thuộc visibility nên không lệch khi ẩn. */
+    setVisible(visible: boolean): void {
+        this.bodyContainer?.setVisible(visible);
+        this.playerNameText?.setVisible(visible);
+        // Hitbox alpha 0 nên không thấy được vẫn hide để debug body color không lộ.
+        const hitboxRect = this.player as unknown as Phaser.GameObjects.Rectangle | undefined;
+        hitboxRect?.setVisible(visible);
+    }
+
     getPlayer(): Phaser.Types.Physics.Arcade.SpriteWithDynamicBody | undefined { return this.player; }
     getCursors(): Phaser.Types.Input.Keyboard.CursorKeys | undefined { return this.cursors; }
     getVirtualInputs(): { left: boolean; right: boolean; up: boolean } { return this.virtualInputs; }

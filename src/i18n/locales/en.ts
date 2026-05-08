@@ -121,6 +121,7 @@ export const en: TranslationTable = {
 
     // Main menu (ESC menu)
     'menu.title': 'Menu',
+    'menu.self': 'Self',
     'menu.info': 'Info',
     'menu.inventory': 'Inventory',
     'menu.equipment': 'Equipment',

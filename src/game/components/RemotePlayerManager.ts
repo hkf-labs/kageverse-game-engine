@@ -61,6 +61,18 @@ export class RemotePlayerManager implements GameComponent {
         // No-op: state khởi tạo ở constructor; sprite tạo theo nhu cầu.
     }
 
+    /** Toggle visibility tất cả remote player sprite + name. Scene gọi khi
+     * mở Menu chức năng để giảm rối; sprite mới add khi menu đang mở
+     * (vd network event tới) — tự động kế thừa parent container behavior
+     * không có ở đây vì add trực tiếp scene. Trong thực tế menu blocking
+     * input nên hiếm khi có player mới spawn lúc đó. */
+    setVisible(visible: boolean): void {
+        for (const rp of this.players.values()) {
+            rp.container.setVisible(visible);
+            rp.nameText.setVisible(visible);
+        }
+    }
+
     setOwnCharacterID(id: string): void {
         this.ownCharacterID = id;
     }

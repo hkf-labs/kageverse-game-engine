@@ -58,3 +58,6 @@ ehthumbs.db
 
 # Antigravity
 .agent
+
+# Draw thing for macos
+tools/drawthings

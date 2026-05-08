@@ -88,6 +88,20 @@ export class NpcChatBubble implements GameComponent {
 
     isVisible(): boolean { return !!this.container?.visible; }
 
+    /** Toggle visibility — scene gọi khi mở Menu chức năng. Snapshot state
+     * "đang hiện dialog" để restore đúng (không force show khi không có
+     * dialog active). */
+    private prevVisible = false;
+    setVisible(visible: boolean): void {
+        if (!this.container) return;
+        if (!visible) {
+            this.prevVisible = this.container.visible;
+            this.container.setVisible(false);
+        } else if (this.prevVisible) {
+            this.container.setVisible(true);
+        }
+    }
+
     private advanceType(): void {
         if (!this.textObj) return;
         if (this.typedLen >= this.fullText.length) return;

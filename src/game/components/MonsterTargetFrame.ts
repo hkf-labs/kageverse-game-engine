@@ -127,6 +127,19 @@ export class MonsterTargetFrame implements GameComponent {
         this.currentSnapshot = null;
     }
 
+    /** Toggle visibility — scene gọi khi mở Menu chức năng. Snapshot state
+     * "đang có target" để restore đúng (không force visible khi clear). */
+    private prevVisible = false;
+    setVisible(visible: boolean): void {
+        if (!this.container) return;
+        if (!visible) {
+            this.prevVisible = this.container.visible;
+            this.container.setVisible(false);
+        } else if (this.prevVisible) {
+            this.container.setVisible(true);
+        }
+    }
+
     isShowing(): boolean { return this.currentSnapshot != null; }
 
     getCurrentInstanceId(): string | null {

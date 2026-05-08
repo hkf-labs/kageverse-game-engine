@@ -113,6 +113,19 @@ export class MonsterManager implements GameComponent {
     /** Pause/resume combat tick (vd khi player chết / Đóng menu). */
     setTickPaused(paused: boolean): void { this.tickPaused = paused; }
 
+    /** Toggle visibility tất cả monster sprite + HP bar + label. Scene gọi
+     * khi mở Menu chức năng để giảm rối map. Không pause combat tick (giữ
+     * BE state đồng bộ); chỉ ẩn render. */
+    setVisible(visible: boolean): void {
+        for (const m of this.monsters) {
+            m.body.setVisible(visible);
+            m.label.setVisible(visible);
+            m.hpBarBg.setVisible(visible);
+            m.hpBarFill.setVisible(visible);
+            m.hitArea.setVisible(visible);
+        }
+    }
+
     private hasAliveMonster(): boolean {
         for (const m of this.monsters) {
             if (m.dto.state === 'alive') return true;
