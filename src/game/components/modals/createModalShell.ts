@@ -89,7 +89,9 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
     const panelStyle = opts.panelStyle ?? 'modal';
     const isCinematic = panelStyle === 'cinematic';
     const layer = MODAL_Z_INDEX[opts.layer ?? 'modal'];
-    const width = MODAL_SIZES.width[opts.size ?? 'md'];
+    const sizeKey = opts.size ?? 'md';
+    const width = MODAL_SIZES.width[sizeKey];
+    const designWidthPx = MODAL_SIZES.designWidthPx[sizeKey];
     // Cinematic không có header/status — force false bất chấp opts.
     const withStatus = !isCinematic && opts.withStatus !== false;
     const withCloseButton = !isCinematic && opts.withCloseButton !== false;
@@ -158,6 +160,13 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
     if (!isCinematic) {
         headerEl.style.cssText = MODAL_HEADER_CSS;
         if (withTitle) {
+            // Spacer trái cân đối close button (40px) để title text-align center
+            // nằm đúng giữa panel, không bị lệch trái.
+            if (withCloseButton) {
+                const headerSpacer = document.createElement('div');
+                headerSpacer.style.cssText = 'width:40px;flex-shrink:0;';
+                headerEl.appendChild(headerSpacer);
+            }
             Object.assign(titleEl.style, {
                 flex: '1',
                 padding: `${MODAL_SIZES.headerPaddingY} ${MODAL_SIZES.headerPaddingX}`,
@@ -165,6 +174,7 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
                 fontWeight: 'bold',
                 color: MODAL_COLORS.title,
                 letterSpacing: '1px',
+                textAlign: 'center',
             });
             titleEl.textContent = opts.title ?? '';
             headerEl.appendChild(titleEl);
@@ -212,6 +222,30 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
         panel.appendChild(statusEl);
     }
 
+    // Responsive zoom — scale panel theo viewport. Dùng CSS `zoom` (Chrome/
+    // Firefox 126+/Safari 16+) để mọi pixel hardcode bên trong (slot 56px,
+    // font 12-14px, padding...) shrink đồng đều khi màn hình bé. Tính trên
+    // cả width và height: lấy min để panel luôn fit cả 2 chiều. Margin 16px
+    // mỗi cạnh để chừa breathing room.
+    const VIEWPORT_MARGIN = 16;
+    // Design height "ước lượng" cho zoom theo chiều cao — 92vh là max-height
+    // hiện tại nên dùng 720px làm benchmark; nếu màn hình rất ngắn (vd
+    // landscape phone < 500px), zoom sẽ shrink theo chiều cao.
+    const DESIGN_HEIGHT_PX = 720;
+    const computeZoom = (): number => {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const zw = (vw - VIEWPORT_MARGIN * 2) / designWidthPx;
+        const zh = (vh - VIEWPORT_MARGIN * 2) / DESIGN_HEIGHT_PX;
+        return Math.max(0.4, Math.min(1, zw, zh));
+    };
+    const applyZoom = () => {
+        // CSS `zoom` không có trong CSSStyleDeclaration type — dùng setProperty.
+        panel.style.setProperty('zoom', String(computeZoom()));
+    };
+    applyZoom();
+    window.addEventListener('resize', applyZoom);
+
     // Locale subscription registry — nhiều handler cùng cleanup khi teardown.
     const localeUnsubs: Array<() => void> = [];
 
@@ -238,6 +272,7 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
             localeUnsubs.push(onLocaleChange(handler));
         },
         teardown() {
+            window.removeEventListener('resize', applyZoom);
             for (const unsub of localeUnsubs) {
                 try { unsub(); } catch { /* ignore */ }
             }

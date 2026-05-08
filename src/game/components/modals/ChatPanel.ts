@@ -56,11 +56,13 @@ export class ChatPanel extends BaseModal {
         // Backdrop nhạt hơn modal thường — chat overlay user vẫn có thể nhìn
         // được map phía sau, không cần dim hẳn.
         shell.overlay.style.background = 'rgba(0,0,0,0.35)';
-        // Override panel size — chat compact hơn modal chuẩn (height fixed).
+        // Override panel size — chat compact hơn modal chuẩn. Fixed pixel
+        // (không vw/vh) để zoom của createModalShell xử lý viewport fit
+        // — tránh double-clamp.
         Object.assign(shell.panel.style, {
-            width: 'min(700px, 75vw)',
-            height: 'min(360px, 55vh)',
-            maxHeight: 'min(360px, 55vh)',
+            width: '700px',
+            height: '360px',
+            maxHeight: '360px',
             background: 'rgba(26,18,8,0.96)',
         });
 

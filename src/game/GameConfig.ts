@@ -15,17 +15,27 @@ import { VillageToIce002Scene } from './scenes/VillageToIce002Scene';
 import { BambooForestScene } from './scenes/BambooForestScene';
 import { RockyHillScene } from './scenes/RockyHillScene';
 
+// Design viewport — mọi scene render ở 1280×720 logic pixel; Phaser FIT scale
+// canvas khớp viewport thật (giữ aspect 16:9, letterbox khi viewport tỉ lệ
+// khác). Lý do dùng FIT thay vì RESIZE: HUD/buttons/items hardcode pixel coord
+// (HUD HP_BAR.x=105, Minimap mmWidth=160, ...) — RESIZE giữ nguyên pixel size
+// trên mọi màn hình → tí xíu trên 4K, khổng lồ trên 480p. FIT scale toàn bộ
+// canvas đồng đều theo viewport, world content (player/monster/NPC dùng
+// scale.height/1440 = const 0.5) cũng đồng nhất giữa các thiết bị.
+const DESIGN_WIDTH = 1280;
+const DESIGN_HEIGHT = 720;
+
 export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
     return {
         type: Phaser.AUTO,
         parent: parent,
-        width: window.innerWidth,
-        height: window.innerHeight,
         backgroundColor: '#0a0a0a',
         pixelArt: true,
         scale: {
-            mode: Phaser.Scale.RESIZE,
+            mode: Phaser.Scale.FIT,
             autoCenter: Phaser.Scale.CENTER_BOTH,
+            width: DESIGN_WIDTH,
+            height: DESIGN_HEIGHT,
         },
         dom: {
             createContainer: true

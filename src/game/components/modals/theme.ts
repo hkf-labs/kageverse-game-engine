@@ -40,11 +40,21 @@ export const MODAL_COLORS = {
 export const MODAL_SIZES = {
     borderRadius: '14px',
     borderWidth: '3px',
-    /** Panel width breakpoints. Chọn theo content density. */
+    /**
+     * Panel width breakpoints. Cố định pixel — viewport fit do CSS `zoom`
+     * trên panel xử lý (xem createModalShell). Đừng dùng vw/vh trong width
+     * ở đây vì zoom sẽ double-clamp.
+     */
     width: {
-        sm: 'min(440px, 90vw)',
-        md: 'min(560px, 88vw)',
-        lg: 'min(720px, 92vw)',
+        sm: '440px',
+        md: '560px',
+        lg: '720px',
+    },
+    /** Numeric design width tương ứng — dùng để tính zoom factor. */
+    designWidthPx: {
+        sm: 440,
+        md: 560,
+        lg: 720,
     },
     /** Header padding. */
     headerPaddingY: '10px',
