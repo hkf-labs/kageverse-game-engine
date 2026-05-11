@@ -67,6 +67,17 @@ export class BossHPBar implements GameComponent {
             stroke: '#000', strokeThickness: 3,
         }).setOrigin(0.5, 0.5);
         this.container.add(this.hpText);
+
+        this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+        this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+        });
+    }
+
+    private layout(): void {
+        if (!this.container) return;
+        this.container.setPosition(this.scene.scale.width / 2, 50);
+        if (this.currentInstanceId) this.repaint();
     }
 
     isEngaged(): boolean { return this.currentInstanceId != null; }
@@ -141,6 +152,7 @@ export class BossHPBar implements GameComponent {
     }
 
     destroy(): void {
+        this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
         this.container?.destroy();
         this.container = undefined;
         this.currentInstanceId = null;

@@ -90,10 +90,15 @@ export class SkillHotbar implements GameComponent {
 
     create(): void {
         const totalWidth = SLOT_COUNT * SLOT_SIZE + (SLOT_COUNT - 1) * SLOT_GAP;
-        // Vị trí: bottom-center, cách đáy 88px (chừa chỗ cho buttons + minimap mobile).
+        // Vị trí: bottom-center, cách đáy 70px. Re-anchor on resize event.
         const cx = this.scene.scale.width / 2;
         const y = this.scene.scale.height - 70;
         this.container = this.scene.add.container(cx - totalWidth / 2, y).setScrollFactor(0).setDepth(95);
+
+        this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+        this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+        });
 
         // Key bindings 1-5 → dispatch slot press.
         const keyboard = this.scene.input.keyboard;
@@ -161,6 +166,7 @@ export class SkillHotbar implements GameComponent {
     }
 
     destroy(): void {
+        this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
         for (const k of this.keyHandlers) {
             k.removeAllListeners();
             this.scene.input.keyboard?.removeKey(k, true);
@@ -169,6 +175,12 @@ export class SkillHotbar implements GameComponent {
         this.container?.destroy();
         this.container = undefined;
         this.slots = [];
+    }
+
+    private layout(): void {
+        if (!this.container) return;
+        const totalWidth = SLOT_COUNT * SLOT_SIZE + (SLOT_COUNT - 1) * SLOT_GAP;
+        this.container.setPosition(this.scene.scale.width / 2 - totalWidth / 2, this.scene.scale.height - 70);
     }
 
     private handleSlotPressed(slotIdx: number): void {

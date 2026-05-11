@@ -80,6 +80,15 @@ export class MonsterTargetFrame implements GameComponent {
             stroke: '#000', strokeThickness: 2,
         }).setOrigin(0.5, 0.5);
         this.container.add(this.hpText);
+
+        this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+        this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+        });
+    }
+
+    private layout(): void {
+        this.container?.setPosition(this.scene.scale.width / 2, 100);
     }
 
     setTarget(m: MonsterInstanceDTO): void {

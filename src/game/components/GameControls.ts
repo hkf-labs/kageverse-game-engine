@@ -3,10 +3,20 @@ import type { GameComponent } from './types';
 
 interface DirBtnEntry {
     g: Phaser.GameObjects.Graphics;
+    hit: Phaser.GameObjects.Arc;
     dir: 'left' | 'right' | 'up';
     cx: number;
     cy: number;
     r: number;
+    /** Offset from anchor (left bottom corner). Recomputed on resize. */
+    dx: number;
+    dy: number;
+}
+
+interface SatBtnEntry {
+    bg: Phaser.GameObjects.Arc;
+    txt: Phaser.GameObjects.Text;
+    angleDeg: number;
 }
 
 export interface ControlCallbacks {
@@ -19,9 +29,20 @@ export interface ControlCallbacks {
     onDirUp?: () => void;
 }
 
+const DIR_ANCHOR_X = 80;
+const DIR_BOTTOM_OFFSET = 70;
+const DIR_RADIUS = 28;
+const DIR_BTN_GAP = 64;
+const ATTACK_RIGHT_OFFSET = 72;
+const ATTACK_BOTTOM_OFFSET = 78;
+const SAT_RADIUS = 22;
+const SAT_DISTANCE = 78;
+
 export class GameControls implements GameComponent {
     private virtualInputs = { left: false, right: false, up: false };
     private dirBtns: DirBtnEntry[] = [];
+    private attackBtn?: Phaser.GameObjects.Image;
+    private satBtns: SatBtnEntry[] = [];
     private switchTargetBtn?: { bg: Phaser.GameObjects.Arc; txt: Phaser.GameObjects.Text };
     private scene: Phaser.Scene;
     private callbacks: ControlCallbacks;
@@ -32,52 +53,39 @@ export class GameControls implements GameComponent {
     }
 
     create(): void {
-        const width = this.scene.scale.width;
-        const height = this.scene.scale.height;
-
-        const cx = 80;
-        const cy = height - 70;
-        const dirRadius = 28;
-        const offset = 64;
-
-        const makeDirBtn = (x: number, y: number, dir: 'left' | 'right' | 'up', onPress?: () => void) => {
+        // Dir buttons — store offset from anchor (left=DIR_ANCHOR_X, bottom).
+        // dx/dy relative to (DIR_ANCHOR_X, scale.height - DIR_BOTTOM_OFFSET).
+        const makeDirBtn = (dx: number, dy: number, dir: 'left' | 'right' | 'up', onPress?: () => void) => {
             const dirG = this.scene.add.graphics().setScrollFactor(0).setDepth(100);
-            const hit = this.scene.add.circle(x, y, dirRadius, 0xffffff, 0.001)
+            const hit = this.scene.add.circle(0, 0, DIR_RADIUS, 0xffffff, 0.001)
                 .setScrollFactor(0).setDepth(101)
                 .setInteractive({ useHandCursor: true });
-            const entry: DirBtnEntry = { g: dirG, dir, cx: x, cy: y, r: dirRadius };
+            const entry: DirBtnEntry = { g: dirG, hit, dir, cx: 0, cy: 0, r: DIR_RADIUS, dx, dy };
             this.dirBtns.push(entry);
-            this.redrawDirBtn(entry, false);
 
             hit.on('pointerdown', () => { if (onPress) onPress(); this.virtualInputs[dir] = true; });
             hit.on('pointerup', () => { this.virtualInputs[dir] = false; });
             hit.on('pointerout', () => { this.virtualInputs[dir] = false; });
         };
 
-        makeDirBtn(cx, cy - offset, 'up', this.callbacks.onDirUp);
-        makeDirBtn(cx - offset, cy, 'left', this.callbacks.onDirLeft);
-        makeDirBtn(cx + offset, cy, 'right', this.callbacks.onDirRight);
+        makeDirBtn(0, -DIR_BTN_GAP, 'up', this.callbacks.onDirUp);
+        makeDirBtn(-DIR_BTN_GAP, 0, 'left', this.callbacks.onDirLeft);
+        makeDirBtn(DIR_BTN_GAP, 0, 'right', this.callbacks.onDirRight);
 
-        const ATTACK_X = width - 72;
-        const ATTACK_Y = height - 78;
-        const attackBtn = this.scene.add.image(ATTACK_X, ATTACK_Y, 'btn_attack')
+        // Attack button — right-anchored. Position recomputed in layout().
+        const attackBtn = this.scene.add.image(0, 0, 'btn_attack')
             .setScrollFactor(0).setDepth(100).setScale(0.7)
             .setInteractive({ useHandCursor: true });
         attackBtn.on('pointerdown', () => { attackBtn.setScale(0.66); this.callbacks.onInteract(); });
         attackBtn.on('pointerup', () => attackBtn.setScale(0.7));
         attackBtn.on('pointerout', () => attackBtn.setScale(0.7));
+        this.attackBtn = attackBtn;
 
-        const SAT_RADIUS = 22;
-        const SAT_DISTANCE = 78;
         const makeSatBtn = (angleDeg: number, fillColor: number, label: string, labelColor: string, onClick: () => void) => {
-            const rad = Phaser.Math.DegToRad(angleDeg);
-            const x = ATTACK_X + Math.cos(rad) * SAT_DISTANCE;
-            const y = ATTACK_Y + Math.sin(rad) * SAT_DISTANCE;
-
-            const bg = this.scene.add.circle(x, y, SAT_RADIUS, fillColor, 0.92)
+            const bg = this.scene.add.circle(0, 0, SAT_RADIUS, fillColor, 0.92)
                 .setStrokeStyle(3, 0xe29e4a).setScrollFactor(0).setDepth(100)
                 .setInteractive({ useHandCursor: true });
-            const txt = this.scene.add.text(x, y, label, {
+            const txt = this.scene.add.text(0, 0, label, {
                 fontSize: '14px', fontStyle: 'bold', color: labelColor,
                 fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
             }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
@@ -88,12 +96,46 @@ export class GameControls implements GameComponent {
             });
             bg.on('pointerup', () => bg.setScale(1));
             bg.on('pointerout', () => bg.setScale(1));
-            return { bg, txt };
+
+            const entry: SatBtnEntry = { bg, txt, angleDeg };
+            this.satBtns.push(entry);
+            return entry;
         };
 
         makeSatBtn(180, 0x7a1a1a, 'HP', '#ffe4e4', this.callbacks.onHpPotion);
         makeSatBtn(225, 0x163d6e, 'MP', '#dceeff', this.callbacks.onMpPotion);
-        this.switchTargetBtn = makeSatBtn(270, 0x4d2d13, '⇄', '#ffea7a', this.callbacks.onCycleTarget);
+        const swEntry = makeSatBtn(270, 0x4d2d13, '⇄', '#ffea7a', this.callbacks.onCycleTarget);
+        this.switchTargetBtn = { bg: swEntry.bg, txt: swEntry.txt };
+
+        this.layout();
+        this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+        this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+        });
+    }
+
+    private layout(): void {
+        const dirAnchorY = this.scene.scale.height - DIR_BOTTOM_OFFSET;
+        for (const btn of this.dirBtns) {
+            const newX = DIR_ANCHOR_X + btn.dx;
+            const newY = dirAnchorY + btn.dy;
+            btn.cx = newX;
+            btn.cy = newY;
+            btn.hit.setPosition(newX, newY);
+            this.redrawDirBtn(btn, this.virtualInputs[btn.dir]);
+        }
+
+        const attackX = this.scene.scale.width - ATTACK_RIGHT_OFFSET;
+        const attackY = this.scene.scale.height - ATTACK_BOTTOM_OFFSET;
+        this.attackBtn?.setPosition(attackX, attackY);
+
+        for (const sat of this.satBtns) {
+            const rad = Phaser.Math.DegToRad(sat.angleDeg);
+            const x = attackX + Math.cos(rad) * SAT_DISTANCE;
+            const y = attackY + Math.sin(rad) * SAT_DISTANCE;
+            sat.bg.setPosition(x, y);
+            sat.txt.setPosition(x, y);
+        }
     }
 
     getVirtualInputs(): { left: boolean; right: boolean; up: boolean } { return this.virtualInputs; }

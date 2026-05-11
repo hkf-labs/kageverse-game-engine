@@ -421,13 +421,18 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Minimap ignore UI
         this.minimap.ignoreUIElements();
 
-        // Map display name
+        // Map display name — top-center, re-anchor on resize.
         const displayName = this.getMapDisplayName();
         if (displayName) {
-            this.add.text(width / 2, 26, displayName, {
+            const mapNameText = this.add.text(width / 2, 26, displayName, {
                 fontSize: '16px', color: '#0d2c4a', fontFamily: 'system-ui, sans-serif',
                 backgroundColor: '#c7edff', padding: { left: 8, right: 8, top: 4, bottom: 4 },
             }).setOrigin(0.5).setScrollFactor(0);
+            const reanchor = () => mapNameText.setX(this.scale.width / 2);
+            this.scale.on(Phaser.Scale.Events.RESIZE, reanchor);
+            this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+                this.scale.off(Phaser.Scale.Events.RESIZE, reanchor);
+            });
         }
 
         // Remote players — render player khác trong map. Tạo trước
