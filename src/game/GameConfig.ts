@@ -30,7 +30,15 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
         type: Phaser.AUTO,
         parent: parent,
         backgroundColor: '#0a0a0a',
-        pixelArt: true,
+        // Asset là hi-res art (NPC 1254×1254, BG 1445×720) — KHÔNG phải pixel art.
+        // `pixelArt: true` set canvas CSS `image-rendering: pixelated` → khi FIT
+        // upscale từ 1280×720 lên viewport thật, browser NEAREST-scale toàn bộ
+        // canvas → text mờ, stroke gãy + sprite cứng. Default (pixelArt: false)
+        // dùng bilinear smooth scaling → text + art crisp.
+        render: {
+            antialias: true,
+            roundPixels: true,
+        },
         scale: {
             mode: Phaser.Scale.FIT,
             autoCenter: Phaser.Scale.CENTER_BOTH,
