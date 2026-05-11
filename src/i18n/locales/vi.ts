@@ -26,7 +26,6 @@ export const vi: TranslationTable = {
     // NPC names — content-level translation. Hiển thị label trên sprite NPC.
     'npc.name.npc_genji': 'Trưởng Làng Genji',
     'npc.name.npc_healer_ayame': 'Y Sĩ Ayame',
-    'npc.name.npc_tetsu': 'Thợ Rèn Tetsu',
     'npc.name.npc_chef_kuma': 'Bếp Trưởng Kuma',
     'npc.name.npc_merchant': 'Thương Gia',
     'npc.name.npc_kura': 'Quản Kho Kura',
@@ -293,7 +292,6 @@ export const vi: TranslationTable = {
     'quest.mq_first_trial_sword.name': 'Khảo Hạch Sơ Cấp',
     'quest.mq_first_trial_bow.name': 'Khảo Hạch Sơ Cấp',
     // Side quests
-    'quest.sq_blacksmith_intro.name': 'Lò Rèn Đầu Tiên',
     'quest.sq_stash_intro.name': 'Kho Báu Cá Nhân',
     // Legacy (pre-Phase-1-reseed) — giữ tránh quest cũ leak
     'quest.mq_awakening.name': 'Tỉnh Mộng',
@@ -329,7 +327,6 @@ export const vi: TranslationTable = {
     'item.name.material_turtle_shell': 'Mai Rùa',
     'item.name.material_herb_flower': 'Bông Thảo Dược',
     'item.name.quest_letter_q16_genji': 'Thư Cho Genji',
-    'item.name.quest_letter_q16_tetsu': 'Thư Cho Tetsu',
     'item.name.quest_letter_q16_hoshi': 'Thư Cho Hoshi',
 
     // Consumables — name_keys do BE seed (item.consumable.<short>_lv<n>),
@@ -460,7 +457,6 @@ export const vi: TranslationTable = {
     'item.material.herb_flower':       'Hoa Thảo Dược',
     'item.material.anchor_shard':      'Mảnh Mỏ Neo',
     'item.quest.letter_q16_genji': 'Thư Cho Genji',
-    'item.quest.letter_q16_tetsu': 'Thư Cho Tetsu',
     'item.quest.letter_q16_hoshi': 'Thư Cho Hoshi',
 
     // Monster names (content). BE trả monster_template_id → FE map qua key này.

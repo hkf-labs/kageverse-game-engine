@@ -29,7 +29,7 @@ export class VillageScene extends BaseMapScene {
 
     protected getNpcConfigs(): NpcConfig[] {
         return [
-            { key: 'npc_blacksmith', name: t('npc.name.npc_tetsu'), x: 740, y: undefined, offsetY: 0, templateId: 'npc_tetsu' },
+            { key: 'npc_hoshi', name: t('npc.name.npc_hoshi'), x: 740, y: undefined, offsetY: 0, templateId: 'npc_hoshi' },
             { key: 'npc_healer', name: t('npc.name.npc_healer_ayame'), x: 1400, y: undefined, offsetY: 0, templateId: 'npc_healer_ayame' },
             { key: 'npc_chef', name: t('npc.name.npc_chef_kuma'), x: 2000, y: undefined, offsetY: 0, templateId: 'npc_chef_kuma' },
             { key: 'npc_merchant', name: t('npc.name.npc_merchant'), x: 2600, y: undefined, offsetY: 0 },
@@ -58,7 +58,7 @@ export class VillageScene extends BaseMapScene {
 
     protected preloadMapAssets(): void {
         this.load.image('npc_elder', 'assets/maps/village_001/npcs/village_elder.png');
-        this.load.image('npc_blacksmith', 'assets/maps/village_001/npcs/blacksmith.png');
+        this.load.image('npc_hoshi', 'assets/maps/village_001/npcs/blacksmith.png');
         this.load.image('npc_healer', 'assets/maps/village_001/npcs/healer.png');
         this.load.image('npc_chef', 'assets/maps/village_001/npcs/merchant.png');
         this.load.image('npc_merchant', 'assets/maps/village_001/npcs/merchant.png');

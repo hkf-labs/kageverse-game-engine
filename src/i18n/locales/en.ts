@@ -26,7 +26,6 @@ export const en: TranslationTable = {
     // NPC names — content-level. Shown as label above NPC sprite.
     'npc.name.npc_genji': 'Village Elder Genji',
     'npc.name.npc_healer_ayame': 'Healer Ayame',
-    'npc.name.npc_tetsu': 'Blacksmith Tetsu',
     'npc.name.npc_chef_kuma': 'Chef Kuma',
     'npc.name.npc_merchant': 'Merchant',
     'npc.name.npc_kura': 'Stash Keeper Kura',
@@ -286,7 +285,6 @@ export const en: TranslationTable = {
     'quest.mq_letter_delivery_bow.name': 'Message Delivery',
     'quest.mq_first_trial_sword.name': 'First Trial',
     'quest.mq_first_trial_bow.name': 'First Trial',
-    'quest.sq_blacksmith_intro.name': 'First Forge',
     'quest.sq_stash_intro.name': 'Personal Stash',
     'quest.mq_awakening.name': 'Awakening',
     'quest.mq_first_potion.name': 'Learn to Heal',
@@ -321,7 +319,6 @@ export const en: TranslationTable = {
     'item.name.material_turtle_shell': 'Turtle Shell',
     'item.name.material_herb_flower': 'Herb Flower',
     'item.name.quest_letter_q16_genji': 'Letter for Genji',
-    'item.name.quest_letter_q16_tetsu': 'Letter for Tetsu',
     'item.name.quest_letter_q16_hoshi': 'Letter for Hoshi',
 
     // Consumables — name_keys do BE seed (item.consumable.<short>_lv<n>),
@@ -451,7 +448,6 @@ export const en: TranslationTable = {
     'item.material.herb_flower':       'Herb Flower',
     'item.material.anchor_shard':      'Anchor Shard',
     'item.quest.letter_q16_genji': 'Letter for Genji',
-    'item.quest.letter_q16_tetsu': 'Letter for Tetsu',
     'item.quest.letter_q16_hoshi': 'Letter for Hoshi',
 
     // Monster names (content)
