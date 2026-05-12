@@ -148,6 +148,22 @@ export class GameControls implements GameComponent {
         this.virtualInputs.up = false;
     }
 
+    /** Ẩn/hiện toàn bộ D-pad + nút attack + satellite (HP/MP potion, cycle target).
+     * Scene gọi khi modal mở → bottom controls không chen với panel. Reset
+     * virtualInputs khi ẩn để pointerdown đang giữ không bleed sau khi modal đóng. */
+    setVisible(visible: boolean): void {
+        if (!visible) this.resetVirtualInputs();
+        for (const btn of this.dirBtns) {
+            btn.g.setVisible(visible);
+            btn.hit.setVisible(visible);
+        }
+        this.attackBtn?.setVisible(visible);
+        for (const sat of this.satBtns) {
+            sat.bg.setVisible(visible);
+            sat.txt.setVisible(visible);
+        }
+    }
+
     updateVisuals(cursors?: Phaser.Types.Input.Keyboard.CursorKeys): void {
         for (const btn of this.dirBtns) {
             const keyDown = cursors ? !!cursors[btn.dir]?.isDown : false;

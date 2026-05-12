@@ -165,6 +165,10 @@ export class SkillHotbar implements GameComponent {
         this.repaint();
     }
 
+    setVisible(visible: boolean): void {
+        this.container?.setVisible(visible);
+    }
+
     destroy(): void {
         this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
         for (const k of this.keyHandlers) {

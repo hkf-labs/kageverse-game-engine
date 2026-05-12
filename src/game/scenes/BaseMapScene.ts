@@ -66,6 +66,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
     /** Trạng thái visibility world entities trước khi menu mở. Polled trong
      * update() — chỉ toggle khi state đổi để tránh setVisible mỗi frame. */
     private worldHiddenForMenu = false;
+    /** Trạng thái visibility map UI (HUD / controls / hotbar / chat+menu icon)
+     * khi modal mở. Polled trong update() — chỉ toggle khi state đổi. */
+    private mapUIHiddenForModal = false;
+    /** Ref nút chat / menu góc minimap — lưu để toggle visibility khi modal mở. */
+    private chatBtn?: Phaser.GameObjects.Image;
+    private menuBtn?: Phaser.GameObjects.Image;
     private lastKnownLevel = 1;
     private lastKnownExp = { exp: 0, expToNext: 1 };
     private lastKnownStats = { max_hp: 100, max_mp: 50 };
@@ -674,6 +680,21 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     /**
+     * Toggle visibility map UI controls (D-pad + attack + potion satellite,
+     * SkillHotbar, nút chat & nút menu chức năng) khi modal mở/đóng. Mục
+     * tiêu: lúc modal hiện, các nút trong map không chen vào panel làm rối
+     * UI. HUD (topbar HP/MP/level/exp), Minimap, BuffIndicator, QuestTracker
+     * giữ nguyên để player vẫn theo dõi được vitals + context map khi đang
+     * tương tác modal.
+     */
+    private setMapUIVisible(visible: boolean): void {
+        this.controls?.setVisible?.(visible);
+        this.skillHotbar?.setVisible?.(visible);
+        this.chatBtn?.setVisible(visible);
+        this.menuBtn?.setVisible(visible);
+    }
+
+    /**
      * Reflow QuestTracker để xếp dọc dưới BuffIndicator: có buff → tracker
      * dịch xuống dưới panel buff (~y=176); không buff → về vị trí mặc định
      * (y=80, ngay dưới topbar).
@@ -912,6 +933,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (menuOpen !== this.worldHiddenForMenu) {
             this.worldHiddenForMenu = menuOpen;
             this.setWorldVisible(!menuOpen);
+        }
+
+        // Sync visibility map UI (HUD / controls / hotbar / chat+menu btn) theo
+        // modal state — bất kỳ modal nào mở (chat / inventory / shop / action
+        // menu / ...) đều ẩn cụm UI dưới để không chen panel.
+        const modalOpen = this.isInputBlockingModalOpen();
+        if (modalOpen !== this.mapUIHiddenForModal) {
+            this.mapUIHiddenForModal = modalOpen;
+            this.setMapUIVisible(!modalOpen);
         }
 
         // Bất kỳ modal/menu nào đang mở → không cho nhân vật di chuyển. Forward
@@ -1496,20 +1526,21 @@ export abstract class BaseMapScene extends Phaser.Scene {
         const SPACING = 60;
         const SCALE = 0.5;
 
-        const makeBtn = (x: number, y: number, key: string, onClick: () => void) => {
+        const makeBtn = (x: number, y: number, key: string, onClick: () => void): Phaser.GameObjects.Image => {
             const btn = this.add.image(x, y, key)
                 .setScrollFactor(0).setDepth(100).setScale(SCALE)
                 .setInteractive({ useHandCursor: true });
             btn.on('pointerdown', () => { btn.setScale(SCALE * 0.94); onClick(); });
             btn.on('pointerup', () => btn.setScale(SCALE));
             btn.on('pointerout', () => btn.setScale(SCALE));
+            return btn;
         };
 
-        makeBtn(cx - SPACING / 2, btnY, 'btn_chat', () => {
+        this.chatBtn = makeBtn(cx - SPACING / 2, btnY, 'btn_chat', () => {
             if (this.actionMenu.isOpen()) this.actionMenu.close();
             this.chat.toggle();
         });
-        makeBtn(cx + SPACING / 2, btnY, 'btn_menu', () => this.toggleMainMenu());
+        this.menuBtn = makeBtn(cx + SPACING / 2, btnY, 'btn_menu', () => this.toggleMainMenu());
     }
 
     private toggleMainMenu(): void {
