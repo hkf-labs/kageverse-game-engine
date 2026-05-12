@@ -310,13 +310,23 @@ export class InventoryModal extends BaseModal {
         this.navGrid(direction);
     }
 
-    /** Enter trên zone đang focus — actions: click nút; tabs/grid: no-op
-     * (page đã đổi qua ←/→, slot chọn đã update qua mũi tên). */
+    /** Enter trên zone đang focus:
+     *   - actions: click nút focused (Sử dụng / Xem / Vứt / ...).
+     *   - grid: shortcut cho nút Xem — toggle sub-modal chi tiết item nếu slot
+     *     đang focus có item. Không có item → no-op.
+     *   - tabs: no-op (page đã đổi qua ←/→). */
     confirm(): void {
         if (!this.visible) return;
-        if (this.focusZone !== 'actions') return;
-        const btn = this.actionButtons[this.focusedAction];
-        if (btn && !btn.disabled) btn.click();
+        if (this.focusZone === 'actions') {
+            const btn = this.actionButtons[this.focusedAction];
+            if (btn && !btn.disabled) btn.click();
+            return;
+        }
+        if (this.focusZone === 'grid') {
+            const item = this.findSelectedItem();
+            if (!item) return;
+            this.toggleDetailModal();
+        }
     }
 
     private navTabs(direction: 'left' | 'right' | 'up' | 'down'): void {

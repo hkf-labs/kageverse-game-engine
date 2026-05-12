@@ -278,6 +278,10 @@ export class EquipmentModal extends BaseModal {
         this.focusedRow = row;
         this.focusedCol = col;
         this.renderFocus();
+        // Parity với mouse click — arrow tới slot equipped thì action bar tự
+        // hiện Tháo/Xem; tới ô trống → hint + clear; tới locked → clear.
+        const focused = this.getFocusedDef();
+        if (focused) this.selectSlot(focused);
     }
 
     private navActions(direction: 'left' | 'right' | 'up' | 'down'): void {
@@ -304,7 +308,11 @@ export class EquipmentModal extends BaseModal {
         }
     }
 
-    /** Enter — actions zone: click nút focus; grid: click slot (mở action bar). */
+    /** Enter:
+     *   - actions: click nút focused (Tháo / Xem).
+     *   - grid: shortcut cho nút Xem — toggle sub-modal chi tiết nếu slot
+     *     đang focus có item equipped. Ô trống / locked → no-op (navigate đã
+     *     auto-select; nếu không có selection thì không có gì để xem). */
     confirm(): void {
         if (!this.visible) return;
         if (this.focusZone === 'actions') {
@@ -312,9 +320,7 @@ export class EquipmentModal extends BaseModal {
             if (btn && !btn.disabled) btn.click();
             return;
         }
-        const def = this.getFocusedDef();
-        if (!def || def.locked) return;
-        this.handleSlotClick(def);
+        if (this.selectedSlotKey) this.toggleDetailModal();
     }
 
     private getFocusedDef(): SlotDef | null {
@@ -447,10 +453,23 @@ export class EquipmentModal extends BaseModal {
     }
 
     private handleSlotClick(def: SlotDef): void {
-        if (!def.beSlotId) return;
-        // Sync keyboard focus về slot vừa click — nếu không, outline khung sáng
-        // sẽ ở slot cũ (mặc định 0,0) trong khi action bar render theo slot mới.
+        // Click chuột — sync keyboard focus rồi gọi selectSlot. Tránh trường
+        // hợp outline ở slot cũ trong khi action bar render theo slot mới.
         this.syncFocusToSlot(def.key);
+        this.selectSlot(def);
+    }
+
+    /**
+     * Logic chung cho cả mouse click & keyboard nav: chọn slot, refresh action
+     * bar + sub-modal. Caller (handleSlotClick / navigate) đảm bảo focus đã sync
+     * trước khi gọi để outline và bar render cùng 1 slot.
+     */
+    private selectSlot(def: SlotDef): void {
+        if (!def.beSlotId) {
+            // Locked / no-BE slot — không có item nào để Tháo/Xem.
+            this.setSelectedSlot(null);
+            return;
+        }
         const equipped = this.equipped.get(def.beSlotId);
         if (!equipped) {
             // Ô trống — hint trên status footer + clear selection.
@@ -458,8 +477,8 @@ export class EquipmentModal extends BaseModal {
             this.setSelectedSlot(null);
             return;
         }
-        // Có item — chọn slot này để action bar Tháo/Xem render. Click cùng
-        // slot lần 2 vẫn giữ selection (idempotent), không deselect.
+        // Có item — chọn slot này để action bar Tháo/Xem render. Re-select cùng
+        // slot là idempotent (setSelectedSlot tự early-return).
         this.shell?.setStatus('', 'muted');
         this.setSelectedSlot(def.key);
     }
