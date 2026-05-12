@@ -761,7 +761,6 @@ export const vi: TranslationTable = {
     'equipment.loading': 'Đang tải trang bị...',
     'equipment.error_load': 'Không tải được trang bị',
     'equipment.empty_hint': '{slot}: chưa trang bị. Mở Túi Đồ chọn vật phẩm.',
-    'equipment.confirm_unequip': 'Tháo {slot} ({name})?',
     'equipment.unequipping': 'Đang tháo...',
     'equipment.unequipped': 'Đã tháo {slot}.',
     'equipment.error_unequip': 'Tháo trang bị thất bại',

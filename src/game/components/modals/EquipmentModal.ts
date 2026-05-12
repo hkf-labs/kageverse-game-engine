@@ -9,7 +9,17 @@ import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
-import { MODAL_COLORS } from './theme';
+import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
+
+type ActionSlot = 'left' | 'center' | 'right';
+
+interface ActionDef {
+    key: string;
+    slot: ActionSlot;
+    label: string;
+    palette: string;
+    onClick: () => void;
+}
 
 // 16 ô tổng = 10 active (5 trái + 5 phải) + 6 dưới khoá.
 // MVP BE chỉ support 7 slot (main_hand/shirt/pants/shoes/hat/ring/cloak); 3 slot
@@ -80,6 +90,20 @@ export class EquipmentModal extends BaseModal {
     /** 2D nav coords trên grid (LEFT_COL | RIGHT_COL) × 5 row. col=0 left, col=1 right. */
     private focusedRow = 0;
     private focusedCol = 0;
+    /** Slot đang được chọn → action bar render Xem/Tháo cho item đang mặc.
+     * null = chưa chọn slot (hoặc chọn slot trống) → bar trống. */
+    private selectedSlotKey: SlotKey | null = null;
+    /** Vùng focus điều hướng — 'grid' = ô slot, 'actions' = nút action bar. */
+    private focusZone: 'grid' | 'actions' = 'grid';
+    private focusedAction = 0;
+    /** Action bar overlay (Tháo + Xem) — pattern giống InventoryModal: sibling
+     * panel trong shell.overlay, absolute đáy màn hình. */
+    private actionBarEl?: HTMLDivElement;
+    private actionButtons: HTMLButtonElement[] = [];
+    /** Sub-modal "Xem chi tiết" item — overlay riêng z-index=tooltip. */
+    private detailOverlayEl?: HTMLDivElement;
+    private detailPanelEl?: HTMLDivElement;
+    private detailOpen = false;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
     private onEquipmentChanged?: () => void;
 
@@ -138,11 +162,28 @@ export class EquipmentModal extends BaseModal {
         for (const def of BOTTOM_ROW) bottom.appendChild(this.buildSlotCell(def));
         shell.body.appendChild(bottom);
 
+        // Action bar — sibling của panel trong overlay, absolute đáy màn hình.
+        // Share zoom với panel để cụm Tháo/Xem shrink theo viewport.
+        const bar = document.createElement('div');
+        Object.assign(bar.style, {
+            position: 'absolute',
+            left: '0',
+            right: '0',
+            bottom: '16px',
+            height: '44px',
+            pointerEvents: 'none',
+        });
+        shell.overlay.appendChild(bar);
+        shell.applyZoomTo(bar);
+        this.actionBarEl = bar;
+
         // Re-render mọi text khi locale đổi runtime.
         shell.registerLocaleSync(() => {
             this.shell?.setTitle(t('equipment.title'));
             this.renderSlots();
             this.renderStatsSummary();
+            this.renderActionBar();
+            if (this.detailOpen) this.renderDetailModalContent();
         });
     }
 
@@ -199,24 +240,39 @@ export class EquipmentModal extends BaseModal {
         if (willShow) {
             this.focusedRow = 0;
             this.focusedCol = 0;
+            this.selectedSlotKey = null;
+            this.focusZone = 'grid';
+            this.focusedAction = 0;
             this.renderFocus();
+            this.renderActionBar();
             void this.refresh();
         } else {
             this.teardownShell();
         }
     }
 
-    /** ↑/↓/←/→ điều hướng trên grid 5×2. Slot locked vẫn focus được nhưng
-     * Enter no-op. Bottom row 6 ô future bỏ qua khỏi nav (toàn locked). */
+    /** ↑/↓/←/→ điều hướng. Trên grid 5×2 hoặc trên action bar (Tháo/Xem) khi
+     * focusZone='actions'. Từ row cuối ↓ sang actions (nếu bar có nút); ↑ trên
+     * actions quay về grid. Slot locked vẫn focus được nhưng Enter no-op. */
     navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
         if (!this.visible) return;
+        if (this.focusZone === 'actions') return this.navActions(direction);
+
         let row = this.focusedRow;
         let col = this.focusedCol;
         switch (direction) {
             case 'left':  col = Math.max(0, col - 1); break;
             case 'right': col = Math.min(1, col + 1); break;
             case 'up':    row = Math.max(0, row - 1); break;
-            case 'down':  row = Math.min(4, row + 1); break;
+            case 'down':
+                if (row === 4 && this.actionButtons.length > 0) {
+                    this.focusZone = 'actions';
+                    this.focusedAction = 0;
+                    this.renderActionFocus();
+                    return;
+                }
+                row = Math.min(4, row + 1);
+                break;
         }
         if (row === this.focusedRow && col === this.focusedCol) return;
         this.focusedRow = row;
@@ -224,9 +280,38 @@ export class EquipmentModal extends BaseModal {
         this.renderFocus();
     }
 
-    /** Enter = click vào slot focus (handleSlotClick → unequip nếu có item). */
+    private navActions(direction: 'left' | 'right' | 'up' | 'down'): void {
+        switch (direction) {
+            case 'left':
+                if (this.focusedAction > 0) {
+                    this.focusedAction -= 1;
+                    this.renderActionFocus();
+                }
+                return;
+            case 'right':
+                if (this.focusedAction < this.actionButtons.length - 1) {
+                    this.focusedAction += 1;
+                    this.renderActionFocus();
+                }
+                return;
+            case 'up':
+                this.focusZone = 'grid';
+                this.renderActionFocus();
+                this.renderFocus();
+                return;
+            case 'down':
+                return;
+        }
+    }
+
+    /** Enter — actions zone: click nút focus; grid: click slot (mở action bar). */
     confirm(): void {
         if (!this.visible) return;
+        if (this.focusZone === 'actions') {
+            const btn = this.actionButtons[this.focusedAction];
+            if (btn && !btn.disabled) btn.click();
+            return;
+        }
         const def = this.getFocusedDef();
         if (!def || def.locked) return;
         this.handleSlotClick(def);
@@ -295,6 +380,11 @@ export class EquipmentModal extends BaseModal {
         super.teardownShell();
         this.slotsByKey.clear();
         this.statsEl = undefined;
+        this.actionBarEl = undefined;
+        this.actionButtons = [];
+        this.selectedSlotKey = null;
+        this.focusZone = 'grid';
+        this.closeDetailModal();
     }
 
     private renderSlots(): void {
@@ -358,27 +448,278 @@ export class EquipmentModal extends BaseModal {
 
     private handleSlotClick(def: SlotDef): void {
         if (!def.beSlotId) return;
+        // Sync keyboard focus về slot vừa click — nếu không, outline khung sáng
+        // sẽ ở slot cũ (mặc định 0,0) trong khi action bar render theo slot mới.
+        this.syncFocusToSlot(def.key);
         const equipped = this.equipped.get(def.beSlotId);
         if (!equipped) {
+            // Ô trống — hint trên status footer + clear selection.
             this.shell?.setStatus(t('equipment.empty_hint', { slot: t(def.labelKey) }), 'muted');
+            this.setSelectedSlot(null);
             return;
         }
-        void this.handleUnequip(def, equipped);
+        // Có item — chọn slot này để action bar Tháo/Xem render. Click cùng
+        // slot lần 2 vẫn giữ selection (idempotent), không deselect.
+        this.shell?.setStatus('', 'muted');
+        this.setSelectedSlot(def.key);
     }
 
-    private async handleUnequip(def: SlotDef, equipped: EquippedItemDTO): Promise<void> {
+    private setSelectedSlot(key: SlotKey | null): void {
+        if (this.selectedSlotKey === key) return;
+        this.selectedSlotKey = key;
+        // Đổi item → sub-modal Xem (nếu mở) refresh content; nếu mất item → đóng.
+        this.renderActionBar();
+        if (this.detailOpen) this.renderDetailModalContent();
+    }
+
+    private findSlotDef(key: SlotKey): SlotDef | null {
+        for (const def of LEFT_COL) if (def.key === key) return def;
+        for (const def of RIGHT_COL) if (def.key === key) return def;
+        return null;
+    }
+
+    private syncFocusToSlot(key: SlotKey): void {
+        const leftIdx = LEFT_COL.findIndex((d) => d.key === key);
+        if (leftIdx >= 0) {
+            this.focusedRow = leftIdx;
+            this.focusedCol = 0;
+            this.focusZone = 'grid';
+            this.renderFocus();
+            return;
+        }
+        const rightIdx = RIGHT_COL.findIndex((d) => d.key === key);
+        if (rightIdx >= 0) {
+            this.focusedRow = rightIdx;
+            this.focusedCol = 1;
+            this.focusZone = 'grid';
+            this.renderFocus();
+        }
+    }
+
+    /** Tập hợp action cho slot đang chọn. Empty → mảng rỗng (bar không render). */
+    private collectActions(): ActionDef[] {
+        if (!this.selectedSlotKey) return [];
+        const def = this.findSlotDef(this.selectedSlotKey);
+        if (!def?.beSlotId) return [];
+        const equipped = this.equipped.get(def.beSlotId);
+        if (!equipped) return [];
+
+        // equipped check pass → biết slot có item, handleUnequip không cần
+        // tham số equipped (refetch từ this.equipped trong handler).
+        void equipped;
+        return [
+            {
+                key: 'unequip',
+                slot: 'left',
+                label: t('inventory.btn_unequip'),
+                palette: 'border:2px solid #7a6a2a;background:#3a3014;color:#ffd070;',
+                onClick: () => void this.handleUnequip(def),
+            },
+            {
+                key: 'view',
+                slot: 'center',
+                label: this.detailOpen ? t('inventory.btn_close_detail') : t('inventory.btn_view'),
+                palette: 'border:2px solid #3a5a7a;background:#1a2a3a;color:#a0c8e0;',
+                onClick: () => this.toggleDetailModal(),
+            },
+        ];
+    }
+
+    private renderActionBar(): void {
+        if (!this.actionBarEl) return;
+        this.actionBarEl.innerHTML = '';
+        this.actionButtons = [];
+
+        const actions = this.collectActions();
+        if (actions.length === 0) {
+            if (this.focusZone === 'actions') this.focusZone = 'grid';
+            return;
+        }
+        if (this.focusedAction >= actions.length) this.focusedAction = 0;
+
+        const SLOT_POS: Record<ActionSlot, Partial<Pick<CSSStyleDeclaration, 'left' | 'right' | 'transform'>>> = {
+            left: { left: '24px' },
+            center: { left: '50%', transform: 'translateX(-50%)' },
+            right: { right: '24px' },
+        };
+
+        const disabled = this.actionInFlight;
+        actions.forEach((a) => {
+            const btn = document.createElement('button');
+            btn.textContent = a.label;
+            // View read-only — không bị disable bởi actionInFlight.
+            const isMutating = a.key !== 'view';
+            const btnDisabled = disabled && isMutating;
+            btn.disabled = btnDisabled;
+            const pos = SLOT_POS[a.slot];
+            Object.assign(btn.style, {
+                position: 'absolute',
+                bottom: '0',
+                left: pos.left ?? '',
+                right: pos.right ?? '',
+                transform: pos.transform ?? '',
+                minWidth: '92px',
+                height: '36px',
+                padding: '0 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: btnDisabled ? 'not-allowed' : 'pointer',
+                fontFamily: 'system-ui, sans-serif',
+                pointerEvents: 'auto',
+                opacity: btnDisabled ? '0.5' : '1',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.5)',
+                whiteSpace: 'nowrap',
+            });
+            btn.style.cssText += a.palette;
+            btn.addEventListener('click', a.onClick);
+            this.actionBarEl!.appendChild(btn);
+            this.actionButtons.push(btn);
+        });
+
+        this.renderActionFocus();
+    }
+
+    private renderActionFocus(): void {
+        const focused = this.focusZone === 'actions';
+        this.actionButtons.forEach((btn, idx) => {
+            if (focused && this.focusedAction === idx) {
+                btn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
+                btn.style.outlineOffset = '2px';
+                btn.style.boxShadow = '0 0 12px rgba(255,234,122,0.7), 0 4px 12px rgba(0,0,0,0.5)';
+            } else {
+                btn.style.outline = '';
+                btn.style.outlineOffset = '';
+                btn.style.boxShadow = '0 3px 10px rgba(0,0,0,0.5)';
+            }
+        });
+    }
+
+    private toggleDetailModal(): void {
+        if (this.detailOpen) this.closeDetailModal();
+        else this.openDetailModal();
+    }
+
+    private openDetailModal(): void {
+        if (this.detailOpen) return;
+        if (!this.selectedSlotKey) return;
+        const def = this.findSlotDef(this.selectedSlotKey);
+        if (!def?.beSlotId || !this.equipped.has(def.beSlotId)) return;
+        this.ensureDetailModalDOM();
+        this.detailOpen = true;
+        this.renderDetailModalContent();
+        this.renderActionBar();
+    }
+
+    private closeDetailModal(): void {
+        if (this.detailOverlayEl) {
+            this.detailOverlayEl.remove();
+            this.detailOverlayEl = undefined;
+            this.detailPanelEl = undefined;
+        }
+        if (!this.detailOpen) return;
+        this.detailOpen = false;
+        if (this.actionBarEl) this.renderActionBar();
+    }
+
+    private ensureDetailModalDOM(): void {
+        if (this.detailOverlayEl) return;
+        const parent = this.scene.game.canvas.parentElement;
+        if (!parent) return;
+
+        const overlay = document.createElement('div');
+        overlay.classList.add('kageverse-overlay-equipment-detail');
+        Object.assign(overlay.style, {
+            position: 'absolute',
+            inset: '0',
+            background: 'transparent',
+            zIndex: String(MODAL_Z_INDEX.tooltip),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            fontFamily: 'system-ui, sans-serif',
+        });
+
+        const panel = document.createElement('div');
+        Object.assign(panel.style, {
+            width: '300px',
+            maxHeight: '60vh',
+            background: `linear-gradient(180deg, ${MODAL_COLORS.panelBgTop} 0%, ${MODAL_COLORS.panelBgBottom} 100%)`,
+            border: `${MODAL_SIZES.borderWidth} solid ${MODAL_COLORS.border}`,
+            borderRadius: MODAL_SIZES.borderRadius,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            color: MODAL_COLORS.text,
+            padding: '14px 16px',
+            overflow: 'auto',
+            pointerEvents: 'auto',
+            fontSize: '13px',
+            lineHeight: '1.5',
+        });
+        overlay.appendChild(panel);
+        parent.appendChild(overlay);
+
+        this.detailOverlayEl = overlay;
+        this.detailPanelEl = panel;
+        this.shell?.applyZoomTo(panel);
+    }
+
+    private renderDetailModalContent(): void {
+        if (!this.detailPanelEl) return;
+        if (!this.selectedSlotKey) {
+            this.closeDetailModal();
+            return;
+        }
+        const def = this.findSlotDef(this.selectedSlotKey);
+        const equipped = def?.beSlotId ? this.equipped.get(def.beSlotId) : undefined;
+        if (!def || !equipped) {
+            this.closeDetailModal();
+            return;
+        }
+        const item = equipped.item;
+        const wrap = 'word-break:break-word;white-space:normal;';
+        const upgradeRow = item.upgrade_level > 0
+            ? `<div style="color:${MODAL_COLORS.title};font-size:13px;font-weight:bold;${wrap}">+${item.upgrade_level}</div>`
+            : '';
+        const boundRow = item.is_bound
+            ? `<div style="color:${MODAL_COLORS.statusError};font-size:12px;${wrap}">${escapeHtml(t('inventory.bound_badge'))}</div>`
+            : '';
+        const stats = item.rolled_stats ?? item.base_stats;
+        const statRows = stats
+            ? Object.entries(stats)
+                .filter(([, v]) => v !== 0)
+                .map(([k, v]) => {
+                    const sign = v > 0 ? '+' : '';
+                    return `<div style="${wrap}">${escapeHtml(statLabel(k))}: <span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${sign}${v}</span></div>`;
+                })
+                .join('')
+            : '';
+        this.detailPanelEl.innerHTML = [
+            `<div style="display:flex;flex-direction:column;gap:6px;">`,
+            `  <div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};${wrap}">${escapeHtml(t(item.name_key))}</div>`,
+            upgradeRow,
+            `  <div style="font-size:12px;color:#d4af37;${wrap}">[${escapeHtml(t(def.labelKey))}]</div>`,
+            boundRow,
+            statRows ? `<div style="margin-top:4px;font-size:12px;color:${MODAL_COLORS.text};display:flex;flex-direction:column;gap:3px;">${statRows}</div>` : '',
+            `</div>`,
+        ].join('');
+    }
+
+    private async handleUnequip(def: SlotDef): Promise<void> {
         if (this.actionInFlight || !def.beSlotId) return;
         const character = getCurrentCharacter();
         if (!character) return;
 
         const slotLabel = t(def.labelKey);
-        if (!window.confirm(t('equipment.confirm_unequip', { slot: slotLabel, name: equipped.item.name_key }))) return;
-
         this.actionInFlight = true;
+        this.renderActionBar();
         this.shell?.setStatus(t('equipment.unequipping'), 'muted');
         try {
             await inventoryAPI.unequip(character.id, def.beSlotId);
             this.shell?.setStatus(t('equipment.unequipped', { slot: slotLabel }), 'ok');
+            // Item rời slot → đóng sub-modal Xem + clear selection.
+            this.setSelectedSlot(null);
+            this.closeDetailModal();
             await this.refresh();
             // equip_item objective state có thể thay đổi (vd Q3 require equip
             // weapon — unequip khiến progress reset). Báo scene refresh.
@@ -400,6 +741,7 @@ export class EquipmentModal extends BaseModal {
             this.shell?.setStatus(msg, 'error');
         } finally {
             this.actionInFlight = false;
+            this.renderActionBar();
         }
     }
 }

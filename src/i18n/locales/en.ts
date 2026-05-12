@@ -750,7 +750,6 @@ export const en: TranslationTable = {
     'equipment.loading': 'Loading equipment...',
     'equipment.error_load': 'Failed to load equipment',
     'equipment.empty_hint': '{slot}: not equipped. Open Inventory to pick item.',
-    'equipment.confirm_unequip': 'Unequip {slot} ({name})?',
     'equipment.unequipping': 'Unequipping...',
     'equipment.unequipped': 'Unequipped {slot}.',
     'equipment.error_unequip': 'Failed to unequip',
