@@ -14,6 +14,7 @@ import { VillageToIce001Scene } from './scenes/VillageToIce001Scene';
 import { VillageToIce002Scene } from './scenes/VillageToIce002Scene';
 import { BambooForestScene } from './scenes/BambooForestScene';
 import { RockyHillScene } from './scenes/RockyHillScene';
+import { MahoragaBossScene } from './scenes/MahoragaBossScene';
 
 // Scale mode RESIZE — canvas internal size = viewport size (no letterbox bars).
 // HUD top-left anchored (HP_BAR.x=105, ...) stays fixed; edge-anchored (Minimap
@@ -61,7 +62,7 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
             VillageToFire001Scene, VillageToFire002Scene,
             VillageToWind001Scene, VillageToWind002Scene,
             VillageToIce001Scene, VillageToIce002Scene,
-            BambooForestScene, RockyHillScene, MainScene,
+            BambooForestScene, RockyHillScene, MahoragaBossScene, MainScene,
         ]
     };
 };

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mahoraga — Spine Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a12; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; height: 100vh; overflow: hidden; }
+    h1 { font-size: 14px; letter-spacing: 4px; padding: 10px; color: #f0a020; text-transform: uppercase; }
+    #spine-player { width: 100vw; height: calc(100vh - 80px); }
+    #controls { display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; justify-content: center; }
+    button {
+      background: #1a1a2e; border: 1px solid #f0a020; color: #f0a020;
+      padding: 4px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;
+      letter-spacing: 1px; text-transform: uppercase; transition: background 0.2s;
+    }
+    button:hover { background: #f0a020; color: #000; }
+    button.active { background: #f0a020; color: #000; }
+  </style>
+  <!-- Spine Web Player 4.2 -->
+  <link rel="stylesheet" href="https://unpkg.com/@esotericsoftware/spine-player@4.2/dist/spine-player.css" />
+</head>
+<body>
+  <h1>&#x2694; Mahoraga — Spine Preview</h1>
+  <div id="controls">
+    <button onclick="setAnim('idle')" class="active" id="btn-idle">Idle</button>
+    <button onclick="setAnim('run')" id="btn-run">Run</button>
+    <button onclick="setAnim('attack')" id="btn-attack">Attack</button>
+    <button onclick="setAnim('skill')" id="btn-skill">Skill</button>
+    <button onclick="setAnim('die')" id="btn-die">Die</button>
+    <button onclick="setAnim('win')" id="btn-win">Win</button>
+  </div>
+  <div id="spine-player"></div>
+
+  <script src="https://unpkg.com/@esotericsoftware/spine-player@4.2/dist/iife/spine-player.js"></script>
+  <script>
+    let playerRef = null;
+    let currentAnim = 'idle';
+
+    new spine.SpinePlayer("spine-player", {
+      skelUrl: "/assets/mahoraga/Mahoraga.json",
+      atlasUrl: "/assets/mahoraga/Mahoraga.atlas",
+      animation: "idle",
+      skin: "default",
+      backgroundColor: "#0a0a1200",
+      alpha: true,
+      showControls: false,
+      defaultMix: 0.3,
+      success: function(player) {
+        playerRef = player;
+      },
+      error: function(player, msg) {
+        console.error("Spine error:", msg);
+        document.getElementById("spine-player").innerHTML =
+          '<p style="color:#f05050;padding:40px;text-align:center;">Lỗi load Spine: ' + msg + '</p>';
+      }
+    });
+
+    function setAnim(name) {
+      currentAnim = name;
+      // Update button states
+      document.querySelectorAll('#controls button').forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-' + name).classList.add('active');
+
+      if (!playerRef) return;
+      playerRef.animationState.setAnimation(0, name, name === 'idle' || name === 'run');
+      if (name !== 'idle' && name !== 'run') {
+        playerRef.animationState.addAnimation(0, 'idle', true, 0);
+      }
+    }
+  </script>
+</body>
+</html>
