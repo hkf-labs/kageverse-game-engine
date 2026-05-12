@@ -11,7 +11,7 @@ import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
-import { MODAL_COLORS } from './theme';
+import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 
 interface InventoryItem {
     page: number;
@@ -114,21 +114,41 @@ const SUBTYPE_TO_SLOT: Record<string, string> = {
     cloak: 'cloak',
 };
 
+type ActionSlot = 'left' | 'center' | 'right';
+
+interface ActionDef {
+    /** Key ổn định (use / equip / drop / view) — log + i18n key suffix. */
+    key: string;
+    /** Vị trí cố định trên bar — left/center/right. Xem luôn ở center,
+     * Use/Equip ở left, Drop ở right. */
+    slot: ActionSlot;
+    label: string;
+    /** Inline CSS riêng cho color scheme (border/background/text). */
+    palette: string;
+    onClick: () => void;
+}
+
 export class InventoryModal extends BaseModal {
     private gridEl?: HTMLDivElement;
     private tabsEl?: HTMLDivElement;
-    private counterEl?: HTMLDivElement;
-    private detailEl?: HTMLDivElement;
     private currenciesEl?: HTMLDivElement;
-    private useBtn?: HTMLButtonElement;
-    private equipBtn?: HTMLButtonElement;
-    private dropBtn?: HTMLButtonElement;
+    /** Action bar overlay — nằm trong shell.overlay nhưng absolute-positioned
+     * ở đáy màn hình (ngoài panel) để không chen vào nội dung modal. */
+    private actionBarEl?: HTMLDivElement;
+    /** Mảng button hiện tại — recreate mỗi lần renderActionBar() chạy. */
+    private actionButtons: HTMLButtonElement[] = [];
+    /** Sub-modal "Xem chi tiết" — overlay riêng z-index=tooltip, panel nhỏ
+     * trung tâm hiển thị info item đang chọn. Toggle qua nút Xem ↔ Đóng. */
+    private detailOverlayEl?: HTMLDivElement;
+    private detailPanelEl?: HTMLDivElement;
+    private detailOpen = false;
     private currentPage = 1;
     private selectedSlot: number | null = null;
     /** Vùng focus điều hướng bằng phím — 'tabs' = thanh Page, 'grid' = các ô
-     * item, 'actions' = nút Use/Equip/Drop. Mặc định grid khi mở modal. */
+     * item, 'actions' = action bar đáy màn hình. Mặc định grid khi mở modal. */
     private focusZone: 'tabs' | 'grid' | 'actions' = 'grid';
-    /** Index nút action đang focus trong zone='actions' (0=use, 1=equip, 2=drop). */
+    /** Index nút action đang focus trong zone='actions'. Reset về 0 khi action
+     * list rebuild (selected item đổi → có thể đổi count nút). */
     private focusedAction = 0;
     private items: InventoryItem[] = [];
     private maxSlots = 40;
@@ -175,13 +195,6 @@ export class InventoryModal extends BaseModal {
     }
 
     protected populateShell(shell: ModalShell): void {
-        // Counter inline trong header (giữa title và close button).
-        const counter = document.createElement('div');
-        counter.style.cssText = `padding:10px 12px;font-size:12px;color:${MODAL_COLORS.text};flex-shrink:0;`;
-        // Insert trước close button (last child của headerEl).
-        shell.headerEl.insertBefore(counter, shell.headerEl.lastChild);
-        this.counterEl = counter;
-
         // Tabs (page 1..PAGES_COUNT)
         const tabs = document.createElement('div');
         tabs.style.cssText = 'display:flex;gap:4px;padding:8px 14px 0 14px;background:rgba(0,0,0,0.3);flex-shrink:0;';
@@ -197,49 +210,36 @@ export class InventoryModal extends BaseModal {
         shell.body.appendChild(gridWrap);
         this.gridEl = grid;
 
-        // Detail section
-        const detail = document.createElement('div');
-        detail.style.cssText = `padding:12px 16px;border-top:2px solid ${MODAL_COLORS.divider};background:rgba(45,26,10,0.6);min-height:64px;font-size:13px;line-height:1.5;flex-shrink:0;`;
-        shell.body.appendChild(detail);
-        this.detailEl = detail;
-
-        // Currencies bar
+        // Currencies bar — section cuối của panel. Detail section (info item)
+        // đã move ra sub-modal riêng (xem detailOverlayEl); footer action button
+        // đã move xuống đáy màn hình (xem actionBarEl).
         const currencies = document.createElement('div');
         currencies.style.cssText = `display:flex;justify-content:space-around;align-items:center;padding:8px 14px;border-top:2px solid ${MODAL_COLORS.divider};background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;`;
         shell.body.appendChild(currencies);
         this.currenciesEl = currencies;
 
-        // Footer action buttons
-        const footer = document.createElement('div');
-        footer.style.cssText = `display:flex;gap:8px;padding:10px 14px;border-top:2px solid ${MODAL_COLORS.divider};background:${MODAL_COLORS.footerBg};flex-shrink:0;`;
-
-        this.useBtn = document.createElement('button');
-        this.useBtn.disabled = true;
-        this.useBtn.textContent = t('inventory.btn_use');
-        this.useBtn.style.cssText = 'flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;';
-        this.useBtn.addEventListener('click', () => void this.handleUse());
-
-        this.equipBtn = document.createElement('button');
-        this.equipBtn.disabled = true;
-        this.equipBtn.textContent = t('inventory.btn_equip');
-        this.equipBtn.style.cssText = 'flex:1;height:36px;border-radius:6px;border:2px solid #7a6a2a;background:#3a3014;color:#ffd070;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;';
-        this.equipBtn.addEventListener('click', () => void this.handleEquipToggle());
-
-        this.dropBtn = document.createElement('button');
-        this.dropBtn.disabled = true;
-        this.dropBtn.textContent = t('inventory.btn_drop');
-        this.dropBtn.style.cssText = 'flex:1;height:36px;border-radius:6px;border:2px solid #7a3a3a;background:#4a1a1a;color:#f0a0a0;font-size:13px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;opacity:0.5;';
-        this.dropBtn.addEventListener('click', () => void this.handleDrop());
-
-        footer.append(this.useBtn, this.equipBtn, this.dropBtn);
-        shell.body.appendChild(footer);
+        // Action bar — sibling của panel trong overlay, absolute ở đáy màn hình.
+        // pointerEvents:none cho container để click backdrop vẫn close modal;
+        // button con tự set pointerEvents:auto. Share CSS zoom với panel để
+        // bar shrink đồng bộ trên màn nhỏ.
+        const bar = document.createElement('div');
+        Object.assign(bar.style, {
+            position: 'absolute',
+            left: '0',
+            right: '0',
+            bottom: '16px',
+            height: '44px',
+            pointerEvents: 'none',
+        });
+        shell.overlay.appendChild(bar);
+        shell.applyZoomTo(bar);
+        this.actionBarEl = bar;
 
         // Initial render với state hiện tại (visible=false, không sao — render
         // an toàn vì chỉ paint DOM, chưa đụng API).
         this.renderTabs();
         this.renderGrid();
         this.renderDetail();
-        this.renderCounter();
         this.renderCurrencies();
 
         // Re-render mọi text khi locale đổi runtime (vd post-login BE response).
@@ -248,7 +248,6 @@ export class InventoryModal extends BaseModal {
             this.renderTabs();
             this.renderGrid();
             this.renderDetail();
-            this.renderCounter();
             this.renderCurrencies();
         });
     }
@@ -257,12 +256,11 @@ export class InventoryModal extends BaseModal {
         super.teardownShell();
         this.gridEl = undefined;
         this.tabsEl = undefined;
-        this.counterEl = undefined;
-        this.detailEl = undefined;
         this.currenciesEl = undefined;
-        this.useBtn = undefined;
-        this.equipBtn = undefined;
-        this.dropBtn = undefined;
+        this.actionBarEl = undefined;
+        this.actionButtons = [];
+        // Sub-modal detail cũng đóng theo modal chính.
+        this.closeDetailModal();
     }
 
     toggle(): void {
@@ -317,19 +315,22 @@ export class InventoryModal extends BaseModal {
     confirm(): void {
         if (!this.visible) return;
         if (this.focusZone !== 'actions') return;
-        const btns = [this.useBtn, this.equipBtn, this.dropBtn];
-        const btn = btns[this.focusedAction];
+        const btn = this.actionButtons[this.focusedAction];
         if (btn && !btn.disabled) btn.click();
     }
 
     private navTabs(direction: 'left' | 'right' | 'up' | 'down'): void {
         switch (direction) {
-            case 'left':
-                if (this.currentPage > 1) this.setPage(this.currentPage - 1);
+            case 'left': {
+                const target = this.findNextUnlockedPage(this.currentPage, -1);
+                if (target !== null) this.setPage(target);
                 return;
-            case 'right':
-                if (this.currentPage < PAGES_COUNT) this.setPage(this.currentPage + 1);
+            }
+            case 'right': {
+                const target = this.findNextUnlockedPage(this.currentPage, 1);
+                if (target !== null) this.setPage(target);
                 return;
+            }
             case 'down':
                 this.focusZone = 'grid';
                 this.renderTabs(); // glow off
@@ -351,7 +352,7 @@ export class InventoryModal extends BaseModal {
                 }
                 return;
             case 'right':
-                if (this.focusedAction < 2) {
+                if (this.focusedAction < this.actionButtons.length - 1) {
                     this.focusedAction += 1;
                     this.renderActionFocus();
                 }
@@ -384,9 +385,14 @@ export class InventoryModal extends BaseModal {
             return;
         }
         if (direction === 'down' && row === rows - 1) {
-            this.focusZone = 'actions';
-            this.renderActionFocus();
-            this.renderGrid(); // bright → dim
+            // Chỉ sang actions khi có nút khả dụng — tránh focusZone='actions'
+            // mà không có button nào để confirm (selected item không có action).
+            if (this.actionButtons.length > 0) {
+                this.focusZone = 'actions';
+                this.focusedAction = 0;
+                this.renderActionFocus();
+                this.renderGrid(); // bright → dim
+            }
             return;
         }
         if (direction === 'left' && col === 0) {
@@ -413,9 +419,12 @@ export class InventoryModal extends BaseModal {
         this.renderDetail();
     }
 
-    /** Chuyển sang page khác giữ nguyên row, đặt col cụ thể (cho boundary wrap). */
+    /** Chuyển sang page khác giữ nguyên row, đặt col cụ thể (cho boundary wrap).
+     * Bỏ qua page locked — nếu page kế bị khoá, no-op (không skip xa hơn để
+     * tránh user "tunnel" qua nhiều trang khoá bằng 1 phím). */
     private gotoPageKeepRow(page: number, row: number, col: number): void {
         if (page < 1 || page > PAGES_COUNT || page === this.currentPage) return;
+        if (!this.isPageUnlocked(page)) return;
         this.setPage(page);
         this.selectedSlot = Math.min(row * COLS + col, this.maxSlots - 1);
         this.renderGrid();
@@ -423,23 +432,260 @@ export class InventoryModal extends BaseModal {
     }
 
     /** Vẽ outline glow cho nút action đang focus (zone='actions'). Khi rời
-     * zone, clear toàn bộ outline. setButtonsEnabled không động vào
-     * outline/boxShadow nên 2 stylesheet độc lập. */
+     * zone hoặc không có nút nào, clear outline. */
     private renderActionFocus(): void {
-        const btns = [this.useBtn, this.equipBtn, this.dropBtn];
         const focused = this.focusZone === 'actions';
-        btns.forEach((btn, idx) => {
-            if (!btn) return;
+        this.actionButtons.forEach((btn, idx) => {
             if (focused && this.focusedAction === idx) {
                 btn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
                 btn.style.outlineOffset = '2px';
-                btn.style.boxShadow = '0 0 10px rgba(255,234,122,0.7)';
+                btn.style.boxShadow = '0 0 12px rgba(255,234,122,0.7), 0 4px 12px rgba(0,0,0,0.5)';
             } else {
                 btn.style.outline = '';
                 btn.style.outlineOffset = '';
-                btn.style.boxShadow = '';
+                btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
             }
         });
+    }
+
+    /**
+     * Rebuild action bar theo selected item. 3 slot cố định trái/giữa/phải:
+     *   - Use / Equip (Trang bị, Tháo) → slot left
+     *   - View (Xem / Đóng) → slot center, luôn hiển thị khi có item chọn
+     *   - Drop → slot right
+     * Slot empty thì bỏ qua (vd material chỉ có View center + Drop right).
+     * Array order luôn left → center → right để keyboard nav ←/→ chạy tự nhiên.
+     */
+    private renderActionBar(): void {
+        if (!this.actionBarEl) return;
+        this.actionBarEl.innerHTML = '';
+        this.actionButtons = [];
+
+        const item = this.findSelectedItem();
+        const blockReason =
+            this.loading
+            || this.errorMessage !== null
+            || this.currentPage !== DATA_PAGE
+            || !item;
+        if (blockReason) {
+            // Không còn button khả dụng → focus zone='actions' (nếu đang ở đó)
+            // không còn nghĩa lý → trượt về grid để Enter có target.
+            if (this.focusZone === 'actions') this.focusZone = 'grid';
+            return;
+        }
+
+        const actions = this.collectActions(item);
+        if (actions.length === 0) {
+            if (this.focusZone === 'actions') this.focusZone = 'grid';
+            return;
+        }
+
+        // Clamp focusedAction về biên mới (số action có thể giảm khi đổi item).
+        if (this.focusedAction >= actions.length) this.focusedAction = 0;
+
+        const SLOT_POS: Record<ActionSlot, Partial<Pick<CSSStyleDeclaration, 'left' | 'right' | 'transform'>>> = {
+            left: { left: '24px' },
+            center: { left: '50%', transform: 'translateX(-50%)' },
+            right: { right: '24px' },
+        };
+
+        const disabled = this.actionInFlight;
+        actions.forEach((a) => {
+            const btn = document.createElement('button');
+            btn.textContent = a.label;
+            // View button không bị disabled bởi actionInFlight — chỉ Use/Equip/
+            // Drop block UI khi pending. Xem là read-only, an toàn lúc nào cũng
+            // bấm được.
+            const isMutating = a.key !== 'view';
+            const btnDisabled = disabled && isMutating;
+            btn.disabled = btnDisabled;
+            const pos = SLOT_POS[a.slot];
+            Object.assign(btn.style, {
+                position: 'absolute',
+                bottom: '0',
+                left: pos.left ?? '',
+                right: pos.right ?? '',
+                transform: pos.transform ?? '',
+                minWidth: '92px',
+                height: '36px',
+                padding: '0 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: btnDisabled ? 'not-allowed' : 'pointer',
+                fontFamily: 'system-ui, sans-serif',
+                pointerEvents: 'auto',
+                opacity: btnDisabled ? '0.5' : '1',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.5)',
+                whiteSpace: 'nowrap',
+            });
+            btn.style.cssText += a.palette;
+            btn.addEventListener('click', a.onClick);
+            this.actionBarEl!.appendChild(btn);
+            this.actionButtons.push(btn);
+        });
+
+        this.renderActionFocus();
+    }
+
+    /** Tập hợp action khả dụng cho item — array order = left → center → right. */
+    private collectActions(item: InventoryItem): ActionDef[] {
+        const list: ActionDef[] = [];
+
+        // Slot left — Use hoặc Equip (không co-occur). Bound consumable vẫn được
+        // Use? BE quyết định; FE assume consumable bound vẫn dùng được.
+        if (item.type === 'consumable') {
+            list.push({
+                key: 'use',
+                slot: 'left',
+                label: t('inventory.btn_use'),
+                palette: 'border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;',
+                onClick: () => void this.handleUse(),
+            });
+        } else {
+            const isEquippable = item.type === 'equipment'
+                && item.subType !== null
+                && SUBTYPE_TO_SLOT[item.subType] !== undefined;
+            if (isEquippable) {
+                list.push({
+                    key: 'equip',
+                    slot: 'left',
+                    label: item.isEquipped ? t('inventory.btn_unequip') : t('inventory.btn_equip'),
+                    palette: 'border:2px solid #7a6a2a;background:#3a3014;color:#ffd070;',
+                    onClick: () => void this.handleEquipToggle(),
+                });
+            }
+        }
+
+        // Slot center — View (Xem) luôn hiện khi có item. Toggle thành Đóng
+        // khi sub-modal detail đang mở.
+        list.push({
+            key: 'view',
+            slot: 'center',
+            label: this.detailOpen ? t('inventory.btn_close_detail') : t('inventory.btn_view'),
+            palette: 'border:2px solid #3a5a7a;background:#1a2a3a;color:#a0c8e0;',
+            onClick: () => this.toggleDetailModal(),
+        });
+
+        // Slot right — Drop. Yêu cầu: không khoá + không đang equip (BE reject
+        // equipped items).
+        if (!item.isBound && !item.isEquipped) {
+            list.push({
+                key: 'drop',
+                slot: 'right',
+                label: t('inventory.btn_drop'),
+                palette: 'border:2px solid #7a3a3a;background:#4a1a1a;color:#f0a0a0;',
+                onClick: () => void this.handleDrop(),
+            });
+        }
+
+        return list;
+    }
+
+    /** Toggle sub-modal Xem chi tiết. Nút Xem ↔ Đóng tự rerender qua
+     * renderActionBar (label phụ thuộc detailOpen). */
+    private toggleDetailModal(): void {
+        if (this.detailOpen) {
+            this.closeDetailModal();
+        } else {
+            this.openDetailModal();
+        }
+    }
+
+    private openDetailModal(): void {
+        if (this.detailOpen) return;
+        const item = this.findSelectedItem();
+        if (!item) return;
+        this.ensureDetailModalDOM();
+        this.detailOpen = true;
+        this.renderDetailModalContent();
+        this.renderActionBar();
+    }
+
+    private closeDetailModal(): void {
+        if (this.detailOverlayEl) {
+            this.detailOverlayEl.remove();
+            this.detailOverlayEl = undefined;
+            this.detailPanelEl = undefined;
+        }
+        if (!this.detailOpen) return;
+        this.detailOpen = false;
+        // Chỉ rerender bar khi shell còn (đóng cleanup từ teardownShell sẽ
+        // chạy sau khi shell.body bị unmount → tránh re-render vô ích).
+        if (this.actionBarEl) this.renderActionBar();
+    }
+
+    private ensureDetailModalDOM(): void {
+        if (this.detailOverlayEl) return;
+        const parent = this.scene.game.canvas.parentElement;
+        if (!parent) return;
+
+        const overlay = document.createElement('div');
+        overlay.classList.add('kageverse-overlay-inventory-detail');
+        Object.assign(overlay.style, {
+            position: 'absolute',
+            inset: '0',
+            background: 'transparent',
+            zIndex: String(MODAL_Z_INDEX.tooltip),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            fontFamily: 'system-ui, sans-serif',
+        });
+
+        const panel = document.createElement('div');
+        Object.assign(panel.style, {
+            width: '300px',
+            maxHeight: '60vh',
+            background: `linear-gradient(180deg, ${MODAL_COLORS.panelBgTop} 0%, ${MODAL_COLORS.panelBgBottom} 100%)`,
+            border: `${MODAL_SIZES.borderWidth} solid ${MODAL_COLORS.border}`,
+            borderRadius: MODAL_SIZES.borderRadius,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            color: MODAL_COLORS.text,
+            padding: '14px 16px',
+            overflow: 'auto',
+            pointerEvents: 'auto',
+            fontSize: '13px',
+            lineHeight: '1.5',
+        });
+        overlay.appendChild(panel);
+        parent.appendChild(overlay);
+
+        this.detailOverlayEl = overlay;
+        this.detailPanelEl = panel;
+
+        // Share zoom với panel inventory → sub-modal cũng shrink theo viewport.
+        this.shell?.applyZoomTo(panel);
+    }
+
+    private renderDetailModalContent(): void {
+        if (!this.detailPanelEl) return;
+        const item = this.findSelectedItem();
+        if (!item) {
+            // Item bị clear khi user click ô trống / đổi page — đóng sub-modal.
+            this.closeDetailModal();
+            return;
+        }
+        // Layout dọc — mỗi field 1 dòng, text dài tự wrap (word-break để
+        // tên item / description không vỡ panel khi quá dài).
+        const wrap = 'word-break:break-word;white-space:normal;';
+        const upgradeRow = item.upgradeLevel > 0
+            ? `<div style="color:${MODAL_COLORS.title};font-size:13px;font-weight:bold;${wrap}">+${item.upgradeLevel}</div>`
+            : '';
+        const lockRow = item.isBound
+            ? `<div style="color:${MODAL_COLORS.statusError};font-size:12px;${wrap}">${escapeHtml(t('inventory.bound_badge'))}</div>`
+            : '';
+        this.detailPanelEl.innerHTML = [
+            `<div style="display:flex;flex-direction:column;gap:6px;">`,
+            `  <div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};${wrap}">${escapeHtml(item.name)}</div>`,
+            upgradeRow,
+            `  <div style="font-size:12px;color:${TYPE_BORDER[item.type]};${wrap}">[${escapeHtml(t(TYPE_KEY[item.type]))}]</div>`,
+            lockRow,
+            `  <div style="margin-top:4px;color:${MODAL_COLORS.text};${wrap}">${escapeHtml(item.description)}</div>`,
+            `  <div style="margin-top:4px;color:#aaa;font-size:11px;${wrap}">${escapeHtml(t('inventory.amount_label', { amount: item.amount, max: item.maxStack }))}</div>`,
+            `</div>`,
+        ].join('');
     }
 
     private async loadInventory(): Promise<void> {
@@ -449,14 +695,12 @@ export class InventoryModal extends BaseModal {
             this.items = [];
             this.renderGrid();
             this.renderDetail();
-            this.renderCounter();
             return;
         }
 
         this.loading = true;
         this.errorMessage = null;
         this.renderDetail();
-        this.renderCounter();
 
         try {
             const res = await inventoryAPI.list(character.id);
@@ -471,7 +715,6 @@ export class InventoryModal extends BaseModal {
             this.loading = false;
             this.renderGrid();
             this.renderDetail();
-            this.renderCounter();
         }
     }
 
@@ -542,82 +785,14 @@ export class InventoryModal extends BaseModal {
         this.renderDetail();
     }
 
+    /**
+     * Re-sync UI dựa trên state hiện tại: action bar + sub-modal Xem (nếu mở).
+     * Tên cũ là renderDetail (render inline detail panel); panel đã move sang
+     * sub-modal nên giờ chỉ điều phối 2 surface bên ngoài body modal.
+     */
     private renderDetail(): void {
-        if (!this.detailEl) return;
-        if (this.loading) {
-            this.detailEl.innerHTML = `<div style="color:#aaa;font-style:italic;">${escapeHtml(t('inventory.detail_loading'))}</div>`;
-            this.setButtonsEnabled(false, false);
-            return;
-        }
-        if (this.errorMessage) {
-            this.detailEl.innerHTML = `<div style="color:${MODAL_COLORS.statusError};">⚠ ${escapeHtml(this.errorMessage)}</div>`;
-            this.setButtonsEnabled(false, false);
-            return;
-        }
-        if (this.currentPage !== DATA_PAGE) {
-            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('inventory.detail_locked_page'))}</div>`;
-            this.setButtonsEnabled(false, false);
-            return;
-        }
-
-        const item = this.findSelectedItem();
-        if (!item) {
-            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('inventory.detail_pick'))}</div>`;
-            this.setButtonsEnabled(false, false);
-            return;
-        }
-        const lockBadge = item.isBound ? `<span style="margin-left:6px;color:${MODAL_COLORS.statusError};font-size:11px;">${escapeHtml(t('inventory.bound_badge'))}</span>` : '';
-        const upgradeBadge = item.upgradeLevel > 0 ? `<span style="margin-left:6px;color:${MODAL_COLORS.title};">+${item.upgradeLevel}</span>` : '';
-        this.detailEl.innerHTML = [
-            `<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">`,
-            `  <span style="font-size:14px;font-weight:bold;color:${MODAL_COLORS.title};">${escapeHtml(item.name)}</span>`,
-            upgradeBadge,
-            `  <span style="font-size:11px;color:${TYPE_BORDER[item.type]};">[${escapeHtml(t(TYPE_KEY[item.type]))}]</span>`,
-            lockBadge,
-            `</div>`,
-            `<div style="margin-top:4px;color:${MODAL_COLORS.text};">${escapeHtml(item.description)}</div>`,
-            `<div style="margin-top:4px;color:#aaa;font-size:11px;">${escapeHtml(t('inventory.amount_label', { amount: item.amount, max: item.maxStack }))}</div>`,
-        ].join('');
-
-        const canUse = !this.actionInFlight && item.type === 'consumable';
-        // Drop chỉ được phép khi: chưa khoá + không đang equip (BE sẽ reject equipped items).
-        const canDrop = !this.actionInFlight && !item.isBound && !item.isEquipped;
-        const isEquippable = item.type === 'equipment'
-            && item.subType !== null
-            && SUBTYPE_TO_SLOT[item.subType] !== undefined;
-        const canEquip = !this.actionInFlight && isEquippable;
-        const equipLabel = item.isEquipped ? t('inventory.btn_unequip') : t('inventory.btn_equip');
-        this.setButtonsEnabled(canUse, canDrop, canEquip, equipLabel);
-    }
-
-    private renderCounter(): void {
-        if (!this.counterEl) return;
-        if (this.currentPage !== DATA_PAGE) {
-            this.counterEl.textContent = t('inventory.counter_locked', { n: this.currentPage });
-            return;
-        }
-        const usedThisPage = this.items.filter((it) => it.page === this.currentPage).length;
-        this.counterEl.textContent = t('inventory.counter_used', { n: this.currentPage, used: usedThisPage, max: this.maxSlots });
-    }
-
-    private setButtonsEnabled(use: boolean, drop: boolean, equip: boolean = false, equipLabel?: string): void {
-        const equipText = equipLabel ?? t('inventory.btn_equip');
-        if (this.useBtn) {
-            this.useBtn.disabled = !use;
-            this.useBtn.style.opacity = use ? '1' : '0.5';
-            this.useBtn.style.cursor = use ? 'pointer' : 'not-allowed';
-        }
-        if (this.equipBtn) {
-            this.equipBtn.disabled = !equip;
-            this.equipBtn.style.opacity = equip ? '1' : '0.5';
-            this.equipBtn.style.cursor = equip ? 'pointer' : 'not-allowed';
-            this.equipBtn.textContent = equipText;
-        }
-        if (this.dropBtn) {
-            this.dropBtn.disabled = !drop;
-            this.dropBtn.style.opacity = drop ? '1' : '0.5';
-            this.dropBtn.style.cursor = drop ? 'pointer' : 'not-allowed';
-        }
+        this.renderActionBar();
+        if (this.detailOpen) this.renderDetailModalContent();
     }
 
     private findSelectedItem(): InventoryItem | undefined {
@@ -632,24 +807,33 @@ export class InventoryModal extends BaseModal {
         for (let p = 1; p <= PAGES_COUNT; p++) {
             const tab = document.createElement('div');
             const active = p === this.currentPage;
+            const unlocked = this.isPageUnlocked(p);
+            const label = t('inventory.tab_page', { n: p });
             Object.assign(tab.style, {
                 padding: '6px 14px',
                 fontSize: '12px',
                 fontWeight: 'bold',
-                cursor: 'pointer',
-                color: active ? MODAL_COLORS.title : MODAL_COLORS.text,
-                background: active ? '#6b3a14' : 'rgba(45,26,10,0.5)',
-                border: `2px solid ${active ? MODAL_COLORS.borderAccent : MODAL_COLORS.divider}`,
+                cursor: unlocked ? 'pointer' : 'not-allowed',
+                color: unlocked
+                    ? (active ? MODAL_COLORS.title : MODAL_COLORS.text)
+                    : '#6a5a48',
+                background: unlocked
+                    ? (active ? '#6b3a14' : 'rgba(45,26,10,0.5)')
+                    : 'rgba(20,12,4,0.6)',
+                border: `2px solid ${active && unlocked ? MODAL_COLORS.borderAccent : MODAL_COLORS.divider}`,
                 borderBottom: 'none',
                 borderTopLeftRadius: '6px',
                 borderTopRightRadius: '6px',
                 userSelect: 'none',
+                opacity: unlocked ? '1' : '0.55',
                 // Glow khi tabs đang là focus zone — phân biệt với "active tab
                 // chỉ nhờ mở sẵn page này".
-                boxShadow: active && tabsFocused ? '0 -2px 10px rgba(255,234,122,0.7)' : 'none',
+                boxShadow: active && tabsFocused && unlocked ? '0 -2px 10px rgba(255,234,122,0.7)' : 'none',
             });
-            tab.textContent = t('inventory.tab_page', { n: p });
-            tab.addEventListener('click', () => this.setPage(p));
+            tab.textContent = unlocked ? label : `🔒 ${label}`;
+            if (unlocked) {
+                tab.addEventListener('click', () => this.setPage(p));
+            }
             this.tabsEl.appendChild(tab);
         }
     }
@@ -679,12 +863,30 @@ export class InventoryModal extends BaseModal {
 
     private setPage(page: number): void {
         if (page < 1 || page > PAGES_COUNT || page === this.currentPage) return;
+        // Trang locked không cho mở — guard cả click + keyboard nav (defense in
+        // depth). Caller (renderTabs / navTabs / gotoPageKeepRow) cũng đã filter
+        // trước, nhưng setPage là single source of truth.
+        if (!this.isPageUnlocked(page)) return;
         this.currentPage = page;
         this.selectedSlot = null;
         this.renderTabs();
         this.renderGrid();
         this.renderDetail();
-        this.renderCounter();
+    }
+
+    /** Trang 1 (DATA_PAGE) là duy nhất hợp lệ với BE hiện tại; trang 2-4 là
+     * placeholder cho túi mở rộng tương lai → chưa mở khoá, không click được. */
+    private isPageUnlocked(page: number): boolean {
+        return page === DATA_PAGE;
+    }
+
+    /** Tìm trang mở khoá kế tiếp theo step (+1 / -1). Null = không còn page
+     * unlocked nào theo hướng đó (vd đã ở trang 1 mà ấn ←). */
+    private findNextUnlockedPage(from: number, step: 1 | -1): number | null {
+        for (let p = from + step; p >= 1 && p <= PAGES_COUNT; p += step) {
+            if (this.isPageUnlocked(p)) return p;
+        }
+        return null;
     }
 
     private async handleUse(): Promise<void> {
@@ -694,7 +896,7 @@ export class InventoryModal extends BaseModal {
         if (!character) return;
 
         this.actionInFlight = true;
-        this.setButtonsEnabled(false, false);
+        this.renderActionBar();
         try {
             const res = await inventoryAPI.use(character.id, item.userItemId, 1);
             if (res.character_stats && this.onStatsChanged) {
@@ -732,7 +934,7 @@ export class InventoryModal extends BaseModal {
         if (!character) return;
 
         this.actionInFlight = true;
-        this.setButtonsEnabled(false, false, false);
+        this.renderActionBar();
         try {
             if (item.isEquipped && item.equippedSlot) {
                 await inventoryAPI.unequip(character.id, item.equippedSlot);
@@ -770,7 +972,7 @@ export class InventoryModal extends BaseModal {
         if (!character) return;
 
         this.actionInFlight = true;
-        this.setButtonsEnabled(false, false);
+        this.renderActionBar();
         try {
             await inventoryAPI.drop(character.id, item.userItemId);
             this.selectedSlot = null;

@@ -73,6 +73,13 @@ export interface ModalShell {
      * Subclass dùng để re-render text mỗi khi user đổi ngôn ngữ runtime.
      */
     registerLocaleSync(handler: () => void): void;
+    /**
+     * Áp CSS `zoom` viewport-fit (cùng factor với panel) lên 1 element ngoài
+     * panel — vd action bar absolute-positioned ở đáy overlay. Apply ngay khi
+     * gọi + tự update mỗi lần window resize. Cleanup tự động khi teardown.
+     * Dùng để các UI sibling của panel vẫn shrink đồng bộ trên màn nhỏ.
+     */
+    applyZoomTo(el: HTMLElement): void;
     /** Remove DOM + unsubscribe locale listeners. Idempotent. */
     teardown(): void;
 }
@@ -239,9 +246,13 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
         const zh = (vh - VIEWPORT_MARGIN * 2) / DESIGN_HEIGHT_PX;
         return Math.max(0.4, Math.min(1, zw, zh));
     };
+    // Element list cùng share zoom factor — panel mặc định, subclass có thể
+    // append thêm qua applyZoomTo() (vd action bar ngoài panel).
+    const zoomTargets: HTMLElement[] = [panel];
     const applyZoom = () => {
         // CSS `zoom` không có trong CSSStyleDeclaration type — dùng setProperty.
-        panel.style.setProperty('zoom', String(computeZoom()));
+        const z = String(computeZoom());
+        for (const el of zoomTargets) el.style.setProperty('zoom', z);
     };
     applyZoom();
     window.addEventListener('resize', applyZoom);
@@ -270,6 +281,10 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
         },
         registerLocaleSync(handler: () => void) {
             localeUnsubs.push(onLocaleChange(handler));
+        },
+        applyZoomTo(el: HTMLElement) {
+            zoomTargets.push(el);
+            el.style.setProperty('zoom', String(computeZoom()));
         },
         teardown() {
             window.removeEventListener('resize', applyZoom);

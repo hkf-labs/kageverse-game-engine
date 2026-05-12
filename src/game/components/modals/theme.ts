@@ -76,6 +76,9 @@ export const MODAL_SIZES = {
 export const MODAL_Z_INDEX = {
     chat: 100,
     modal: 110,
+    /** Sub-modal nhẹ overlay lên modal chính (vd InventoryModal item detail).
+     * Không có backdrop dim — modal chính vẫn hiển thị bình thường. */
+    tooltip: 150,
     blockingDialog: 200,
     cinematic: 250,
     confirm: 300,
