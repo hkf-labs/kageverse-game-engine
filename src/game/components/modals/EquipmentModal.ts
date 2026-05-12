@@ -104,6 +104,9 @@ export class EquipmentModal extends BaseModal {
     private detailOverlayEl?: HTMLDivElement;
     private detailPanelEl?: HTMLDivElement;
     private detailOpen = false;
+    /** Alert modal "Túi đã đầy" — blocking overlay z-index=blockingDialog hiển
+     * thị khi unequip mà không còn slot trống. */
+    private inventoryFullAlertEl?: HTMLDivElement;
     private onStatsChanged?: (stats: CharacterStatsSnapshot) => void;
     private onEquipmentChanged?: () => void;
 
@@ -391,6 +394,7 @@ export class EquipmentModal extends BaseModal {
         this.selectedSlotKey = null;
         this.focusZone = 'grid';
         this.closeDetailModal();
+        this.closeInventoryFullAlert();
     }
 
     private renderSlots(): void {
@@ -724,16 +728,108 @@ export class EquipmentModal extends BaseModal {
         ].join('');
     }
 
+    /**
+     * Modal nhỏ "Túi đã đầy" — hiện khi user bấm Tháo mà không còn slot trống.
+     * Blocking overlay (backdrop dim, click outside / OK / Enter để dismiss),
+     * z-index=blockingDialog để đè lên EquipmentModal + sub-modal Xem.
+     */
+    private showInventoryFullAlert(): void {
+        if (this.inventoryFullAlertEl) return;
+        const parent = this.scene.game.canvas.parentElement;
+        if (!parent) return;
+
+        const overlay = document.createElement('div');
+        overlay.classList.add('kageverse-overlay-inv-full');
+        Object.assign(overlay.style, {
+            position: 'absolute',
+            inset: '0',
+            background: MODAL_COLORS.backdrop,
+            zIndex: String(MODAL_Z_INDEX.blockingDialog),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'auto',
+            fontFamily: 'system-ui, sans-serif',
+        });
+
+        const panel = document.createElement('div');
+        Object.assign(panel.style, {
+            width: '280px',
+            background: `linear-gradient(180deg, ${MODAL_COLORS.panelBgTop} 0%, ${MODAL_COLORS.panelBgBottom} 100%)`,
+            border: `${MODAL_SIZES.borderWidth} solid ${MODAL_COLORS.border}`,
+            borderRadius: MODAL_SIZES.borderRadius,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            color: MODAL_COLORS.text,
+            padding: '18px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px',
+        });
+
+        const title = document.createElement('div');
+        title.textContent = t('equipment.inv_full_title');
+        title.style.cssText = `font-size:15px;font-weight:bold;color:${MODAL_COLORS.statusError};letter-spacing:1px;text-align:center;`;
+        panel.appendChild(title);
+
+        const msg = document.createElement('div');
+        msg.textContent = t('equipment.inv_full_message');
+        msg.style.cssText = 'font-size:12px;text-align:center;line-height:1.5;word-break:break-word;white-space:normal;';
+        panel.appendChild(msg);
+
+        const okBtn = document.createElement('button');
+        okBtn.textContent = t('equipment.inv_full_ok');
+        okBtn.style.cssText = 'min-width:92px;height:34px;padding:0 14px;margin-top:4px;border-radius:8px;border:2px solid #d4af37;background:#3a2a10;color:#ffd070;font-size:12px;font-weight:bold;cursor:pointer;font-family:system-ui,sans-serif;';
+        okBtn.addEventListener('click', () => this.closeInventoryFullAlert());
+        panel.appendChild(okBtn);
+
+        overlay.appendChild(panel);
+        // Click backdrop cũng dismiss.
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) this.closeInventoryFullAlert();
+        });
+        parent.appendChild(overlay);
+        this.inventoryFullAlertEl = overlay;
+
+        // Share zoom với panel chính để alert co theo viewport.
+        this.shell?.applyZoomTo(panel);
+        okBtn.focus();
+    }
+
+    private closeInventoryFullAlert(): void {
+        if (!this.inventoryFullAlertEl) return;
+        this.inventoryFullAlertEl.remove();
+        this.inventoryFullAlertEl = undefined;
+    }
+
     private async handleUnequip(def: SlotDef): Promise<void> {
         if (this.actionInFlight || !def.beSlotId) return;
+        // Alert "Túi đầy" đang mở → user phải dismiss trước. Tránh user spam
+        // Enter trên action bar Tháo gọi inventoryAPI.list lặp lại.
+        if (this.inventoryFullAlertEl) return;
         const character = getCurrentCharacter();
         if (!character) return;
 
         const slotLabel = t(def.labelKey);
         this.actionInFlight = true;
         this.renderActionBar();
-        this.shell?.setStatus(t('equipment.unequipping'), 'muted');
         try {
+            // Pre-check: túi đồ phải còn slot trống cho item sau khi unequip.
+            // Đếm item NON-equipped trong inventory; nếu đạt max → abort + show
+            // modal "Túi đã đầy". Nếu fetch fail, fall-through để BE quyết định.
+            try {
+                const inv = await inventoryAPI.list(character.id);
+                const nonEquipped = inv.items.filter((it) => !it.is_equipped).length;
+                if (nonEquipped >= inv.max_slots) {
+                    this.shell?.setStatus('', 'muted');
+                    this.showInventoryFullAlert();
+                    return;
+                }
+            } catch (err) {
+                if (err instanceof Error) console.warn('equipment: inventory check failed', err.message);
+            }
+
+            this.shell?.setStatus(t('equipment.unequipping'), 'muted');
             await inventoryAPI.unequip(character.id, def.beSlotId);
             this.shell?.setStatus(t('equipment.unequipped', { slot: slotLabel }), 'ok');
             // Item rời slot → đóng sub-modal Xem + clear selection.

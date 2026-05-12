@@ -84,6 +84,10 @@ const DEFAULT_BG: Record<InventoryItemType, string> = {
 
 function mapBeItem(dto: InventoryItemDTO): InventoryItem | null {
     if (dto.slot_index === null || dto.slot_index === undefined) return null;
+    // Ẩn item đang mặc khỏi grid Túi đồ — user quản lý qua EquipmentModal.
+    // Mục tiêu: túi đồ "rộng hơn" về mặt thị giác; user không thấy item đang
+    // được dùng chen vào danh sách item rời.
+    if (dto.is_equipped) return null;
     return {
         page: DATA_PAGE,
         slot: dto.slot_index,

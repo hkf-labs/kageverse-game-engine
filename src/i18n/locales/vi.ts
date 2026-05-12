@@ -764,6 +764,9 @@ export const vi: TranslationTable = {
     'equipment.unequipping': 'Đang tháo...',
     'equipment.unequipped': 'Đã tháo {slot}.',
     'equipment.error_unequip': 'Tháo trang bị thất bại',
+    'equipment.inv_full_title': 'TÚI ĐÃ ĐẦY',
+    'equipment.inv_full_message': 'Túi đồ không còn ô trống cho vật phẩm vừa tháo. Hãy dọn bớt vật phẩm trong túi trước.',
+    'equipment.inv_full_ok': 'Đã hiểu',
 
     // Inventory modal
     'inventory.title': 'TÚI ĐỒ',

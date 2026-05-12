@@ -753,6 +753,9 @@ export const en: TranslationTable = {
     'equipment.unequipping': 'Unequipping...',
     'equipment.unequipped': 'Unequipped {slot}.',
     'equipment.error_unequip': 'Failed to unequip',
+    'equipment.inv_full_title': 'INVENTORY FULL',
+    'equipment.inv_full_message': 'No empty slot for the unequipped item. Clear some inventory space first.',
+    'equipment.inv_full_ok': 'Got it',
 
     // Inventory modal
     'inventory.title': 'INVENTORY',
