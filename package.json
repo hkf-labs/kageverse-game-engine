@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@esotericsoftware/spine-canvas": "4.2",
+    "@esotericsoftware/spine-canvaskit": "^4.2.0",
     "phaser": "^4.0.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"

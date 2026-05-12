@@ -13,6 +13,9 @@ jspm_packages/
 .npm
 .yarn-integrity
 
+# Lockfile — repo dùng yarn, không commit npm lockfile
+package-lock.json
+
 # Build outputs (Vite/Rollup/Webpack)
 dist/
 dist-ssr/
