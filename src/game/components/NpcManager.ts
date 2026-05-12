@@ -501,6 +501,12 @@ export class NpcManager implements GameComponent {
                     ? this.dialogueKeyByTemplate.get(npc.templateId) ?? null
                     : null;
                 this.chatBubble?.show(npc.sprite, dialogueText(dialogueKey, npc.name));
+                // Tick talk_npc objective — chỉ gọi BE nếu còn quest active có
+                // objective talk_npc matching NPC này (tiết kiệm request: quest
+                // hoàn thành rồi → bấm "talk" lại không cần round-trip). Sau khi
+                // BE bump xong → refresh questLog để QuestTracker reflect ngay
+                // (realtime progress).
+                this.tryTrackTalk(npc);
                 break;
             }
             case 'buy_shop':
@@ -563,6 +569,30 @@ export class NpcManager implements GameComponent {
             default:
                 this.onStatusMessage?.(t('npc.run.action_unsupported', { name: action }), '#aaaaaa');
         }
+    }
+
+    /** Skip nếu (a) không có character, (b) NPC không có templateId, hoặc (c)
+     * không có quest active nào có objective talk_npc chưa hoàn thành matching
+     * NPC này. Nếu match → POST /talk + refresh questLog (kéo tracker realtime).
+     * Errors swallow (best-effort) — chỉ status message để debug. */
+    private tryTrackTalk(npc: NpcEntry): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) return;
+
+        const npcId = npc.templateId;
+        const hasPendingTalk = this.questLog?.getQuests().some((q) =>
+            q.status === 'active'
+            && q.objectives.some((o) => o.type === 'talk_npc' && o.target_id === npcId && o.done < o.count),
+        ) ?? false;
+        if (!hasPendingTalk) return;
+
+        void npcAPI.talk(this.mapId, npcId, character.id)
+            .then(() => {
+                void this.questLog?.refresh();
+            })
+            .catch((err) => {
+                console.warn('[npc] talk track failed', err);
+            });
     }
 
     private runQuestAccept(npc: NpcEntry, questID: string): void {

@@ -264,6 +264,7 @@ function isKnownServerEventType(t: string): t is ServerEventType {
         case 'chat_history':
         case 'pong':
         case 'error':
+        case 'quest_progress':
             return true;
     }
     return false;

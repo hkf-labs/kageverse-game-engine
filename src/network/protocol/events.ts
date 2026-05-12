@@ -169,6 +169,27 @@ export type ChatHistoryPayload = {
     messages: ChatMessagePayload[];
 };
 
+// Quest progress — BE bắn về owner khi quest mutate (Track* / Accept / TurnIn).
+// FE chỉ cần listen 1 event này → refresh QuestLogPanel / QuestTracker, không
+// cần handler riêng theo từng action source.
+export type QuestProgressReason =
+    | 'kill_monster'
+    | 'talk_npc'
+    | 'use_item'
+    | 'equip_item'
+    | 'visit_zone'
+    | 'item_upgraded'
+    | 'accept'
+    | 'turn_in';
+
+export type QuestProgressPayload = {
+    reason: QuestProgressReason;
+    /** Quest IDs bị ảnh hưởng — set cho accept/turn_in (1 quest), nil/empty cho
+     * Track* (BE chưa thread affected list). FE không bắt buộc dùng — chỉ trigger
+     * refresh. */
+    quest_ids?: string[];
+};
+
 // Errors / system
 
 export type ErrorPayload = {
@@ -198,7 +219,8 @@ export type ServerEvent =
     | { t: 'chat_message'; p: ChatMessagePayload }
     | { t: 'chat_history'; p: ChatHistoryPayload }
     | { t: 'pong'; p: Record<string, never> }
-    | { t: 'error'; p: ErrorPayload };
+    | { t: 'error'; p: ErrorPayload }
+    | { t: 'quest_progress'; p: QuestProgressPayload };
 
 export type ServerEventType = ServerEvent['t'];
 

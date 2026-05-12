@@ -580,6 +580,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
             }),
         );
 
+        // quest_progress — BE bắn khi quest mutate (Track* / Accept / TurnIn).
+        // FE chỉ cần refresh quest log; chain onQuestsUpdated lo tracker + NPC
+        // badge. Single listener thay cho refresh() rải rác trong handler hành
+        // động (xem CLAUDE.md "decoupling").
+        this.rtUnsubs.push(
+            wsClient.events.on('quest_progress', () => {
+                void this.questLog?.refresh();
+            }),
+        );
+
         // sendJoinMap lùi tới khi loadInitialCharacterState restore xong
         // position. Listeners đã sẵn sàng → nếu BE đẩy event sớm vẫn nhận.
     }

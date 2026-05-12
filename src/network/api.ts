@@ -572,6 +572,19 @@ export const npcAPI = {
         }
         return resData as NpcInteractResponse;
     },
+
+    /** Gọi khi player bấm action "talk" — BE tick talk_npc objective. Trả 204
+     * No Content khi OK. FE nên chỉ gọi khi còn quest active có objective
+     * talk_npc matching NPC (tránh request thừa). */
+    async talk(mapId: string, npcTemplateId: string, characterId: string): Promise<void> {
+        const qs = `?character_id=${encodeURIComponent(characterId)}`;
+        const path = `/maps/${encodeURIComponent(mapId)}/npcs/${encodeURIComponent(npcTemplateId)}/talk${qs}`;
+        const { response, traceId } = await authFetch(path, { method: 'POST' });
+        if (!response.ok) {
+            const resData = await parseJsonSafe(response);
+            throw new Error(`${formatApiError(resData, t('api.error.talk_npc'))} (trace_id=${traceId || 'n/a'})`);
+        }
+    },
 };
 
 // ----- Quest -----

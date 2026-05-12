@@ -530,6 +530,7 @@ export const en: TranslationTable = {
     'api.error.unequip': 'Failed to unequip',
     'api.error.load_equipped': 'Failed to load equipped items',
     'api.error.load_npc': 'Failed to load NPC',
+    'api.error.talk_npc': 'Failed to talk to NPC',
     'api.error.load_quests': 'Failed to load quests',
     'api.error.accept_quest': 'Failed to accept quest',
     'api.error.load_quest_log': 'Failed to load quest log',
