@@ -3,6 +3,8 @@
 //
 // Tham chiếu: docs/api/realtime.md ở repo BE.
 
+import type { QuestDTO } from '../api';
+
 export type RealtimeDirection = 'left' | 'right';
 
 export type CharStatsReason =
@@ -169,9 +171,10 @@ export type ChatHistoryPayload = {
     messages: ChatMessagePayload[];
 };
 
-// Quest progress — BE bắn về owner khi quest mutate (Track* / Accept / TurnIn).
-// FE chỉ cần listen 1 event này → refresh QuestLogPanel / QuestTracker, không
-// cần handler riêng theo từng action source.
+// Quest progress — BE push khi quest state thay đổi (Track* / Accept / TurnIn).
+// Payload mang full QuestDTO (post-update) để FE patch local cache mà không
+// gọi /quests/board lại. FE chỉ fetch board ở 3 thời điểm: initial mount,
+// mở QuestLogPanel, click tracker. Reuse REST QuestDTO — wire shape giống hệt.
 export type QuestProgressReason =
     | 'kill_monster'
     | 'talk_npc'
@@ -184,10 +187,7 @@ export type QuestProgressReason =
 
 export type QuestProgressPayload = {
     reason: QuestProgressReason;
-    /** Quest IDs bị ảnh hưởng — set cho accept/turn_in (1 quest), nil/empty cho
-     * Track* (BE chưa thread affected list). FE không bắt buộc dùng — chỉ trigger
-     * refresh. */
-    quest_ids?: string[];
+    quests: QuestDTO[];
 };
 
 // Errors / system

@@ -188,9 +188,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.questTracker.create();
 
         // Hoshi cường hoá modal — wired vào NPC action 'upgrade_equipment'.
-        // onUpgraded refresh quest log để Q13 item_upgraded objective tăng tiến độ.
+        // Quest progress (Q13 item_upgraded) tự cập nhật qua WS quest_progress.
         this.hoshiUpgradeModal = new HoshiUpgradeModal(this, {
-            onUpgraded: () => void this.questLog?.refresh(),
+            onUpgraded: () => {},
         });
         this.hoshiUpgradeModal.create();
 
@@ -351,14 +351,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
             },
             onEquipmentChanged: () => {
                 if (this.equipment?.isOpen()) void this.equipment.refresh();
-                // equip_item objective (vd Q3 mq_first_swing) — refresh quest
-                // tracker + NPC badge. questLog.refresh() chain qua
-                // onQuestsUpdated → tracker.setQuests + npcs.refreshBadges.
-                void this.questLog?.refresh();
+                // Q3 equip_item progress tự cập nhật qua WS quest_progress.
             },
             onItemUsed: () => {
-                // use_item objective (vd Q4 mq_slime_purge use 1 potion).
-                void this.questLog?.refresh();
+                // Q4 use_item progress tự cập nhật qua WS quest_progress.
             },
             onSkillLearned: (skillIDs) => {
                 // Bí Kíp Kỹ Năng (Q11) consume → BE đã grant skill. FE auto-
@@ -382,8 +378,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 });
             },
             onEquipmentChanged: () => {
-                // Unequip ở EquipmentModal cũng có thể đổi state Q3 progress.
-                void this.questLog?.refresh();
+                // Unequip cũng có thể đổi state Q3 — tracker tự cập nhật qua WS.
             },
         });
         this.equipment.create();
@@ -580,13 +575,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
             }),
         );
 
-        // quest_progress — BE bắn khi quest mutate (Track* / Accept / TurnIn).
-        // FE chỉ cần refresh quest log; chain onQuestsUpdated lo tracker + NPC
-        // badge. Single listener thay cho refresh() rải rác trong handler hành
-        // động (xem CLAUDE.md "decoupling").
+        // quest_progress — BE bắn full snapshot quest sau Track* / Accept /
+        // TurnIn. FE patch local cache in-place (không gọi /board); tracker +
+        // NPC badge cập nhật qua onQuestsUpdated chain. /board chỉ fetch ở:
+        // (a) initial mount, (b) QuestLogPanel.open(), (c) click tracker.
         this.rtUnsubs.push(
-            wsClient.events.on('quest_progress', () => {
-                void this.questLog?.refresh();
+            wsClient.events.on('quest_progress', (p) => {
+                this.questLog?.applyProgress(p.quests);
             }),
         );
 
@@ -1127,16 +1122,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (res.character_exp_to_next_level > 0) {
             this.hud.setExpPercent((res.character_exp / res.character_exp_to_next_level) * 100);
         }
-        // Quest progress: BE đã track kill, FE chỉ refresh cache khi có quái chết.
-        const anyDead = res.hits.some((h) => h.dead);
-        if (anyDead) {
-            void this.questLog?.refresh();
-            // Update target frame + boss HP bar fade-out cho con đã chết.
-            for (const h of res.hits) {
-                if (h.dead) {
-                    this.targetFrame?.onMonsterDead(h.instance_id);
-                    this.bossHPBar?.onBossDead(h.instance_id); // no-op nếu không phải boss đang engage.
-                }
+        // Quest progress (kill_monster) tự cập nhật qua WS quest_progress —
+        // không cần refresh /board ở đây. Chỉ xử lý UI fade-out cho con chết.
+        for (const h of res.hits) {
+            if (h.dead) {
+                this.targetFrame?.onMonsterDead(h.instance_id);
+                this.bossHPBar?.onBossDead(h.instance_id); // no-op nếu không phải boss đang engage.
             }
         }
         // Sync target frame + boss HP bar cho con đang nhắm còn sống.

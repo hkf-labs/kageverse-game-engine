@@ -573,8 +573,8 @@ export class NpcManager implements GameComponent {
 
     /** Skip nếu (a) không có character, (b) NPC không có templateId, hoặc (c)
      * không có quest active nào có objective talk_npc chưa hoàn thành matching
-     * NPC này. Nếu match → POST /talk + refresh questLog (kéo tracker realtime).
-     * Errors swallow (best-effort) — chỉ status message để debug. */
+     * NPC này. Nếu match → POST /talk; BE bump xong sẽ tự bắn WS quest_progress
+     * cho FE patch cache (không gọi refresh ở đây). */
     private tryTrackTalk(npc: NpcEntry): void {
         const character = getCurrentCharacter();
         if (!character || !npc.templateId) return;
@@ -586,13 +586,9 @@ export class NpcManager implements GameComponent {
         ) ?? false;
         if (!hasPendingTalk) return;
 
-        void npcAPI.talk(this.mapId, npcId, character.id)
-            .then(() => {
-                void this.questLog?.refresh();
-            })
-            .catch((err) => {
-                console.warn('[npc] talk track failed', err);
-            });
+        void npcAPI.talk(this.mapId, npcId, character.id).catch((err) => {
+            console.warn('[npc] talk track failed', err);
+        });
     }
 
     private runQuestAccept(npc: NpcEntry, questID: string): void {
@@ -624,11 +620,9 @@ export class NpcManager implements GameComponent {
         void questAPI.accept(character.id, questID, npc.templateId)
             .then((res) => {
                 this.onStatusMessage?.(t('npc.quest.accept_success', { name: questDisplayName(res.quest.name_key) }), '#bdf0a0');
-                void this.questLog?.refresh();
+                // Quest cache tự cập nhật qua WS quest_progress (reason=accept).
                 // Side effect set_class (Bái Sư) → refresh character cache để
                 // FE biết class mới (apparel/jewelry shop dùng class này).
-                // Best-effort: lỗi → giữ cache cũ, user có thể refresh bằng
-                // logout/login.
                 void this.refreshCharacterAfterAccept(character.id);
             })
             .catch((err) => {
@@ -679,7 +673,7 @@ export class NpcManager implements GameComponent {
                 if (endClass) {
                     this.onEndMvp?.(endClass);
                 }
-                void this.questLog?.refresh();
+                // Quest cache tự cập nhật qua WS quest_progress (reason=turn_in).
             })
             .catch((err) => {
                 const msg = err instanceof Error ? err.message : t('npc.quest.turn_in_failed');

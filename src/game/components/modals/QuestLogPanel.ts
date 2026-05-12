@@ -126,6 +126,72 @@ export class QuestLogPanel extends BaseModal {
     /** Cached quests phẳng (active+completed mọi category) — tracker dùng. */
     getQuests(): QuestDTO[] { return this.flatQuests; }
 
+    /** Patch local cache từ WS quest_progress event — không gọi /board. Áp dụng:
+     *
+     * - status=claimed → remove khỏi flatQuests + board (đã turn-in xong).
+     * - existing quest_id → replace (cập nhật objectives.done + status).
+     * - new quest_id → append (accept emits new quest).
+     *
+     * Sau khi patch: re-render nếu panel đang mở + emit onQuestsUpdated để
+     * tracker / NPC badge cập nhật. Idempotent: gọi nhiều lần cùng payload ra
+     * cùng state.
+     */
+    applyProgress(quests: QuestDTO[]): void {
+        if (!quests || quests.length === 0) return;
+        let touched = false;
+        for (const incoming of quests) {
+            if (incoming.status === 'claimed') {
+                touched = this.removeQuest(incoming.quest_id) || touched;
+                continue;
+            }
+            touched = this.upsertQuest(incoming) || touched;
+        }
+        if (!touched) return;
+        if (this.visible) {
+            this.renderTabs();
+            this.renderBody();
+        }
+        this.onQuestsUpdated?.(this.flatQuests);
+    }
+
+    private removeQuest(questID: string): boolean {
+        let removed = false;
+        const idx = this.flatQuests.findIndex((q) => q.quest_id === questID);
+        if (idx >= 0) {
+            this.flatQuests.splice(idx, 1);
+            removed = true;
+        }
+        for (const cat of Object.values(this.board)) {
+            const qIdx = cat.quests.findIndex((q) => q.quest_id === questID);
+            if (qIdx >= 0) {
+                cat.quests.splice(qIdx, 1);
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    private upsertQuest(quest: QuestDTO): boolean {
+        const flatIdx = this.flatQuests.findIndex((q) => q.quest_id === quest.quest_id);
+        if (flatIdx >= 0) {
+            this.flatQuests[flatIdx] = quest;
+        } else {
+            this.flatQuests.push(quest);
+        }
+        const cat = this.board[quest.category];
+        if (cat) {
+            const qIdx = cat.quests.findIndex((q) => q.quest_id === quest.quest_id);
+            if (qIdx >= 0) {
+                cat.quests[qIdx] = quest;
+            } else {
+                cat.quests.push(quest);
+            }
+        }
+        // Category chưa load (board chưa fetch lần nào) → bỏ qua. Initial mount
+        // sẽ load đủ; tracker đã dùng flatQuests rồi.
+        return true;
+    }
+
     protected teardownShell(): void {
         super.teardownShell();
         this.bodyEl = undefined;
