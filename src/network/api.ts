@@ -248,7 +248,7 @@ export type CharacterDTO = {
      * Danh sách map_id character đã unlock thật (theo quest progress).
      * Default chỉ ['village_001']. Q1 on_accept thêm 3 farm path đầu
      * ('village_to_fire_001' + 'village_to_wind_001' + 'village_to_ice_001');
-     * Q9 thêm 'bamboo_forest_yatomi'. FE dùng để lock portal đến map chưa unlock.
+     * Q9 thêm 'fire_to_village004_001'. FE dùng để lock portal đến map chưa unlock.
      */
     unlocked_maps: string[];
     last_seen_at: string;

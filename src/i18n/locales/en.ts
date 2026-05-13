@@ -478,8 +478,8 @@ export const en: TranslationTable = {
     'map.name.village_to_wind_002': 'Path to Wind School (2)',
     'map.name.village_to_ice_001': 'Path to Ice School (1)',
     'map.name.village_to_ice_002': 'Path to Ice School (2)',
-    'map.name.bamboo_forest_yatomi': 'Yatomi Bamboo Forest',
-    'map.name.rocky_hill_iwagumo': 'Iwagumo Rocky Hill',
+    'map.name.fire_to_village004_001': 'Yatomi Bamboo Forest',
+    'map.name.fire_to_village004_002': 'Iwagumo Rocky Hill',
 
     // Portal labels
     'portal.label.return': 'Go Back',

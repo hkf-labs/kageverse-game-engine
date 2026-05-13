@@ -4,26 +4,26 @@ import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
 /**
- * Rừng Tre Yatomi — hunting map lv 8-13. Quái: Sói Đêm, Cú Bóng, Khỉ Núi,
- * Tinh Tre Yatomi, Goblin Chiến Binh, Sói Hoang. Stat lookup: BE
- * `monster_spawns` cho `bamboo_forest_yatomi`.
+ * Rừng Tre Yatomi (fire_to_village004_001) — combat map lv 8-13.
+ * Quái: Sói Đêm, Cú Bóng, Khỉ Núi, Tinh Tre Yatomi, Goblin Chiến Binh, Sói Hoang.
+ * Stat lookup: BE `monster_spawns` với map_id = fire_to_village004_001.
  *
- * NOTE: bg.png + colliders.json sẽ thêm sau (placeholder path).
- * Map nên rộng (~6000-8000 px ngang) để chứa 6 spawn point + portal 2 đầu.
+ * Entry: từ fire_school_001 (x=180) hoặc ice_school_001 (x=180).
+ * Exit: về fire_school (locked), về ice_school (locked), tiến fire_to_village004_002 (locked).
  */
-export class BambooForestScene extends BaseMapScene {
+export class FireToVillage004001Scene extends BaseMapScene {
     constructor() {
-        super('BambooForestScene');
+        super('FireToVillage004001Scene');
     }
 
     protected getMapConfig(): MapConfig {
         return {
-            mapId: 'bamboo_forest_yatomi',
-            displayName: mapDisplayName('bamboo_forest_yatomi'),
-            bgKey: 'map-bg-bamboo-forest-yatomi',
-            bgAsset: 'assets/maps/bamboo_forest_yatomi/bg.png',
-            colliderKey: 'bamboo_forest_yatomi_colliders',
-            colliderAsset: 'assets/maps/bamboo_forest_yatomi/colliders.json',
+            mapId: 'fire_to_village004_001',
+            displayName: mapDisplayName('fire_to_village004_001'),
+            bgKey: 'map-bg-fire-to-village004-001',
+            bgAsset: 'assets/maps/fire_to_village004_001/bg.png',
+            colliderKey: 'fire_to_village004_001_colliders',
+            colliderAsset: 'assets/maps/fire_to_village004_001/colliders.json',
             tiledOriginalHeight: 1440,
             surfaceTextures: {
                 wood: { key: 'tile_vachgo_64', asset: 'assets/tilesets/vachgo_64.png' },
@@ -31,15 +31,13 @@ export class BambooForestScene extends BaseMapScene {
         };
     }
 
-    protected getMapDisplayName(): string { return mapDisplayName('bamboo_forest_yatomi').toUpperCase(); }
+    protected getMapDisplayName(): string { return mapDisplayName('fire_to_village004_001').toUpperCase(); }
 
     protected getNpcConfigs(): NpcConfig[] {
         return [];
     }
 
     protected getPortalConfigs(): PortalConfig[] {
-        // combat_field_001 đã removed — bamboo back-route defer (vào bamboo từ
-        // school back-portal hiện tại, ra rocky_hill phía trước).
         return [
             {
                 x: 1400,
@@ -58,7 +56,7 @@ export class BambooForestScene extends BaseMapScene {
             {
                 x: 3700,
                 label: t('portal.label.rocky_hill'),
-                targetSceneKey: 'RockyHillScene',
+                targetSceneKey: 'FireToVillage004002Scene',
                 locked: true,
                 lockedMessage: t('portal.locked.rocky_hill'),
             },
