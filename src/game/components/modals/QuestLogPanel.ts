@@ -26,6 +26,9 @@ const OBJECTIVE_KEY: Record<QuestObjectiveDTO['type'], string> = {
     collect_item: 'quest.log.objective_collect_item',
     use_item: 'quest.log.objective_use_item',
     buy_item: 'quest.log.objective_buy_item',
+    equip_item: 'quest.log.objective_equip_item',
+    visit_zone: 'quest.log.objective_visit_zone',
+    item_upgraded: 'quest.log.objective_item_upgraded',
 };
 
 // Quest name resolve qua i18n. BE trả `quest.<id>.name` → key đã có namespace
