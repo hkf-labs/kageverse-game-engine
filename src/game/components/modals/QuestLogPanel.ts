@@ -45,6 +45,7 @@ export function targetDisplayName(targetID: string): string {
         `monster.name.${targetID}`,
         `npc.name.${targetID}`,
         `item.name.${targetID}`,
+        `map.name.${targetID}`,
     ];
     for (const k of candidates) {
         const v = tOpt(k);
