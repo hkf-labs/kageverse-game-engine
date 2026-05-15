@@ -101,6 +101,37 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected onMapReady(): void {}
 
     preload(): void {
+        const { width, height } = this.scale;
+        const cx = width / 2;
+        const cy = height / 2;
+        const trackW = Math.min(320, width - 48);
+
+        const loadBg = this.add.rectangle(cx, cy, width, height, 0x0f172a)
+            .setScrollFactor(0).setDepth(9998);
+        const loadLabel = this.add.text(cx, cy - 32, t('loading.map'), {
+            fontSize: '14px', color: '#38bdf8',
+            fontFamily: 'system-ui, sans-serif', fontStyle: 'bold',
+        }).setScrollFactor(0).setOrigin(0.5).setDepth(9999);
+        const loadTrack = this.add.rectangle(cx, cy, trackW, 6, 0x1e293b)
+            .setScrollFactor(0).setDepth(9999);
+        const loadFill = this.add.rectangle(cx - trackW / 2, cy, 0, 6, 0x38bdf8)
+            .setScrollFactor(0).setOrigin(0, 0.5).setDepth(10000);
+        const loadPct = this.add.text(cx, cy + 24, '0%', {
+            fontSize: '12px', color: '#64748b', fontFamily: 'system-ui, sans-serif',
+        }).setScrollFactor(0).setOrigin(0.5).setDepth(9999);
+
+        this.load.on('progress', (value: number) => {
+            loadFill.width = trackW * value;
+            loadPct.setText(`${Math.round(value * 100)}%`);
+        });
+        this.load.on('complete', () => {
+            loadBg.destroy();
+            loadLabel.destroy();
+            loadTrack.destroy();
+            loadFill.destroy();
+            loadPct.destroy();
+        });
+
         const cfg = this.getMapConfig();
         for (const [key, asset] of Object.entries(DEFAULT_CHARACTER_APPEARANCE_ASSETS)) {
             this.load.image(key, asset);

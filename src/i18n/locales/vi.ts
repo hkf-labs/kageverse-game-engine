@@ -10,6 +10,11 @@ export const vi: TranslationTable = {
     'common.loading': 'Đang tải...',
     'common.error': 'Đã xảy ra lỗi',
 
+    // Loading screen
+    'loading.engine': 'Đang khởi tạo engine...',
+    'loading.map': 'Đang tải bản đồ...',
+    'loading.engine_error': 'Không khởi tạo được game engine. Mở Console để xem lỗi.',
+
     // Auth — login screen
     'auth.login.title': 'CỔNG HỌC VIỆN',
     'auth.login.identifier_placeholder': 'Username hoặc Email',

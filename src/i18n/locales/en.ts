@@ -10,6 +10,11 @@ export const en: TranslationTable = {
     'common.loading': 'Loading...',
     'common.error': 'An error occurred',
 
+    // Loading screen
+    'loading.engine': 'Initializing engine...',
+    'loading.map': 'Loading map...',
+    'loading.engine_error': 'Failed to initialize game engine. Open Console for details.',
+
     // Auth — login screen
     'auth.login.title': 'ACADEMY GATES',
     'auth.login.identifier_placeholder': 'Username or Email',
