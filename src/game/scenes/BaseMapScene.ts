@@ -741,6 +741,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     private startPositionAutosave(): void {
+        // Save ngay khi vào map — trigger TrackVisitZone trên server để quest
+        // visit_zone (Q7) cập nhật realtime thay vì chờ đến F5 / rời map.
+        this.savePositionFireAndForget(false);
+
         // Periodic save every 30s — phòng trường hợp beforeunload fail (mobile / crash).
         this.positionSaveTimer = window.setInterval(() => {
             this.savePositionFireAndForget(false);
