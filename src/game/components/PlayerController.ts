@@ -32,14 +32,29 @@ export const DEFAULT_CHARACTER_APPEARANCE_ASSETS: Record<string, string> = {
     'body-bottom-default': 'assets/game/characters/body-bottom-default.png',
 };
 
-// Spine asset path for male base character (animations: idle, run, attack, skill, die, win)
 const MALE_BASE_SPINE_PATH = '/assets/characters/male_base/';
-
-// Spine scale relative to hitbox — calibrate so skeleton feet align with hitbox bottom.
 const SPINE_SCALE = 0.1;
-
-// Hitbox half-height: skeleton root (feet) = player.y + this offset in world space.
+// Where the skeleton root (feet) sits relative to the hitbox center.
 const SPINE_FOOT_OFFSET_Y = 22;
+
+// Off-screen canvas used by SkeletonRenderer. Large enough to contain full
+// skeleton at SPINE_SCALE=0.1 including any VFX bones.
+const CANVAS_W = 400;
+const CANVAS_H = 500;
+// skeleton.y inside the canvas — feet anchor near bottom with margin for effects.
+const SKELETON_CANVAS_Y = CANVAS_H - 40;
+// Approximate pixel height of the skeleton within the canvas (head-to-feet).
+// Tune this until the name sits correctly above the head.
+const CHAR_HEIGHT_IN_CANVAS = SKELETON_CANVAS_Y - 293;
+
+// Scale the Phaser Image so the visible character matches world-unit size.
+// At SPINE_SCALE=0.1 the skeleton is ~367px tall in canvas space.
+// Target ~80 world units visible height → 80/367 ≈ 0.22.  Tune if needed.
+const IMAGE_SCALE = 0.5;
+
+// Unique texture key — must be removed on destroy() so re-entering the scene
+// doesn't hit a duplicate-key error.
+const SPINE_TEX_KEY = 'player-spine-tex';
 
 export const HEAD_OFFSET_Y = -39;
 export const TOP_OFFSET_Y = 11;
@@ -48,20 +63,21 @@ export const HEAD_OFFSET_X = 5;
 export const TOP_OFFSET_X = 3;
 export const BOTTOM_OFFSET_X = 0;
 export const BODY_SCALE = 0.4;
-export const NAME_OFFSET_Y = (HEAD_OFFSET_Y - 38) * BODY_SCALE - 13;
+export const NAME_OFFSET_Y = 0;
 
 type AnimName = 'idle' | 'run' | 'attack' | 'skill' | 'die' | 'win';
 
 export class PlayerController implements GameComponent {
     private player?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private playerNameText?: Phaser.GameObjects.Text;
+    private spineImage?: Phaser.GameObjects.Image;
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private virtualInputs = { left: false, right: false, up: false };
     private scene: Phaser.Scene;
     private background: MapBackground;
 
     // Spine state
-    private spineCanvas?: HTMLCanvasElement;
+    private spineTex?: Phaser.Textures.CanvasTexture;
     private spineCtx?: CanvasRenderingContext2D;
     private spineRenderer?: SkeletonRenderer;
     private assetManager?: AssetManager;
@@ -69,7 +85,6 @@ export class PlayerController implements GameComponent {
     private animState?: AnimationState;
     private spineLoaded = false;
     private currentAnim: AnimName = 'idle';
-    private spineVisible = true;
     private lastTime = 0;
 
     constructor(scene: Phaser.Scene, background: MapBackground) {
@@ -118,7 +133,7 @@ export class PlayerController implements GameComponent {
 
         this.cursors = this.scene.input.keyboard?.createCursorKeys();
 
-        this._initSpineCanvas();
+        this._initSpineTexture();
         this._loadSpine();
 
         void this.syncCharacterInfo();
@@ -128,7 +143,9 @@ export class PlayerController implements GameComponent {
         if (!this.player || !this.cursors) return;
 
         if (this.playerNameText) {
-            this.playerNameText.setPosition(this.player.x, this.player.y + NAME_OFFSET_Y);
+            const charHeightWorld = CHAR_HEIGHT_IN_CANVAS * IMAGE_SCALE;
+            const feetWorldY = this.player.y + SPINE_FOOT_OFFSET_Y;
+            this.playerNameText.setPosition(this.player.x, feetWorldY - charHeightWorld - 20);
         }
 
         this._updateAnimState();
@@ -139,25 +156,26 @@ export class PlayerController implements GameComponent {
     }
 
     destroy(): void {
-        this.spineCanvas?.remove();
-        this.spineCanvas = undefined;
         this.spineLoaded = false;
+        this.spineImage?.destroy();
+        this.spineImage = undefined;
+        // Remove the CanvasTexture so re-entering the scene doesn't hit a duplicate key.
+        if (this.scene.textures.exists(SPINE_TEX_KEY)) {
+            this.scene.textures.remove(SPINE_TEX_KEY);
+        }
+        this.spineTex = undefined;
     }
 
     setFacing(left: boolean): void {
         if (this.skeleton) {
             this.skeleton.scaleX = left ? -Math.abs(this.skeleton.scaleX) : Math.abs(this.skeleton.scaleX);
-            // Keep scaleY negative to maintain upright orientation.
             this.skeleton.scaleY = -Math.abs(this.skeleton.scaleY);
         }
     }
 
     setVisible(visible: boolean): void {
-        this.spineVisible = visible;
         this.playerNameText?.setVisible(visible);
-        if (this.spineCanvas) {
-            this.spineCanvas.style.display = visible ? 'block' : 'none';
-        }
+        this.spineImage?.setVisible(visible);
         const hitboxRect = this.player as unknown as Phaser.GameObjects.Rectangle | undefined;
         hitboxRect?.setVisible(visible);
     }
@@ -202,22 +220,27 @@ export class PlayerController implements GameComponent {
     }
 
     setAppearance(_appearance: Partial<CharacterAppearance>): void {
-        // Legacy stub — appearance is now driven by Spine skin swaps (future feature).
+        // Legacy stub — appearance driven by Spine skin swaps in the future.
     }
 
-    private _initSpineCanvas(): void {
-        const gameCanvas = this.scene.sys.game.canvas;
-        const parent = gameCanvas.parentElement!;
-        parent.style.position = 'relative';
+    private _initSpineTexture(): void {
+        // Remove stale texture from a previous scene visit before creating.
+        if (this.scene.textures.exists(SPINE_TEX_KEY)) {
+            this.scene.textures.remove(SPINE_TEX_KEY);
+        }
 
-        this.spineCanvas = document.createElement('canvas');
-        this.spineCanvas.id = 'player-spine-canvas';
-        this.spineCanvas.width = gameCanvas.width;
-        this.spineCanvas.height = gameCanvas.height;
-        this.spineCanvas.style.cssText =
-            'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6;';
-        parent.appendChild(this.spineCanvas);
-        this.spineCtx = this.spineCanvas.getContext('2d')!;
+        const tex = this.scene.textures.createCanvas(SPINE_TEX_KEY, CANVAS_W, CANVAS_H);
+        if (!tex) return;
+        this.spineTex = tex;
+        this.spineCtx = tex.getCanvas().getContext('2d')!;
+
+        // Anchor at (0.5, SKELETON_CANVAS_Y / CANVAS_H) so the feet pixel in
+        // the canvas aligns with the world position we set each frame.
+        const originY = SKELETON_CANVAS_Y / CANVAS_H;
+        this.spineImage = this.scene.add.image(0, 0, SPINE_TEX_KEY)
+            .setOrigin(0.5, originY)
+            .setScale(IMAGE_SCALE)
+            .setDepth(10);
     }
 
     private _loadSpine(): void {
@@ -252,6 +275,9 @@ export class PlayerController implements GameComponent {
         this.skeleton.setToSetupPose();
         // Canvas 2D Y-axis points down; Spine Y-axis points up — flip to correct.
         this.skeleton.scaleY = -1;
+        // Root is feet — anchor to the fixed canvas point.
+        this.skeleton.x = CANVAS_W / 2;
+        this.skeleton.y = SKELETON_CANVAS_Y;
 
         const stateData = new AnimationStateData(skelData);
         stateData.defaultMix = 0.2;
@@ -265,11 +291,11 @@ export class PlayerController implements GameComponent {
                     this.animState!.setAnimation(0, 'idle', true);
                 }
             },
-            start: () => {},
-            interrupt: () => {},
-            end: () => {},
-            dispose: () => {},
-            complete: () => {},
+            start: () => { },
+            interrupt: () => { },
+            end: () => { },
+            dispose: () => { },
+            complete: () => { },
         });
 
         this.spineLoaded = true;
@@ -281,27 +307,18 @@ export class PlayerController implements GameComponent {
 
         const vx = this.player.body?.velocity.x ?? 0;
         const onGround = this.isOnGround();
-        const isRunning = onGround && Math.abs(vx) > 10;
-        const targetAnim: AnimName = isRunning ? 'run' : 'idle';
+        const targetAnim: AnimName = (onGround && Math.abs(vx) > 10) ? 'run' : 'idle';
 
-        // Only transition idle↔run automatically; one-shot anims manage themselves.
-        if (
-            (targetAnim !== this.currentAnim) &&
-            (this.currentAnim === 'idle' || this.currentAnim === 'run')
-        ) {
+        // Only auto-transition between idle↔run; one-shot anims manage themselves.
+        if (targetAnim !== this.currentAnim &&
+            (this.currentAnim === 'idle' || this.currentAnim === 'run')) {
             this.currentAnim = targetAnim;
             this.animState.setAnimation(0, targetAnim, true);
         }
     }
 
     private _renderSpine(): void {
-        if (!this.skeleton || !this.animState || !this.spineCtx || !this.spineCanvas || !this.player) return;
-
-        const gc = this.scene.sys.game.canvas;
-        if (this.spineCanvas.width !== gc.width || this.spineCanvas.height !== gc.height) {
-            this.spineCanvas.width = gc.width;
-            this.spineCanvas.height = gc.height;
-        }
+        if (!this.skeleton || !this.animState || !this.spineCtx || !this.spineTex || !this.player || !this.spineImage) return;
 
         const now = performance.now() / 1000;
         const delta = Math.min(now - this.lastTime, 0.05);
@@ -312,20 +329,19 @@ export class PlayerController implements GameComponent {
         this.skeleton.update(delta);
         this.skeleton.updateWorldTransform(Physics.update);
 
-        const cam = this.scene.cameras.main;
-        const zoom = cam.zoom;
-        const screenX = (this.player.x - cam.scrollX) * zoom;
-        const screenY = (this.player.y - cam.scrollY) * zoom + SPINE_FOOT_OFFSET_Y * zoom;
-
-        this.skeleton.x = screenX;
-        this.skeleton.y = screenY;
-
+        // Draw skeleton onto the off-screen CanvasTexture.
         const ctx = this.spineCtx;
-        ctx.clearRect(0, 0, this.spineCanvas.width, this.spineCanvas.height);
+        ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+        this.spineRenderer!.draw(this.skeleton);
 
-        if (this.spineVisible) {
-            this.spineRenderer!.draw(this.skeleton);
-        }
+        // Push pixel changes to the WebGL texture.
+        this.spineTex.refresh();
+
+        // Move the Phaser Image to follow the hitbox in world space.
+        this.spineImage.setPosition(
+            this.player.x,
+            this.player.y + SPINE_FOOT_OFFSET_Y,
+        );
     }
 
     private async syncCharacterInfo(): Promise<void> {

@@ -486,6 +486,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // <div> append vào canvas parent thì phải tự xoá.
         this.events.once('shutdown', () => {
             this.teardownRealtimeListeners();
+            this.playerCtrl?.destroy();
             this.questTracker?.destroy();
             this.questLog?.destroy();
             this.equipment?.destroy();
