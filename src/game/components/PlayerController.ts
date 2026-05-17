@@ -1,4 +1,14 @@
 import * as Phaser from 'phaser';
+import {
+    AssetManager,
+    SkeletonRenderer,
+    AtlasAttachmentLoader,
+    SkeletonJson,
+    AnimationState,
+    AnimationStateData,
+    Physics,
+    Skeleton,
+} from '@esotericsoftware/spine-canvas';
 import { getCurrentCharacter, saveCurrentCharacter } from '../playerSession';
 import { charactersAPI } from '../../network/api';
 import type { GameComponent } from './types';
@@ -10,55 +20,57 @@ export interface CharacterAppearance {
     bottomTextureKey: string;
 }
 
-// Bộ mặc định lv thấp (chưa mặc trang bị). Trong tương lai khi nhân vật equip
-// áo / quần, override các key tương ứng qua setAppearance().
 export const DEFAULT_CHARACTER_APPEARANCE: CharacterAppearance = {
     headTextureKey: 'body-head-default',
     topTextureKey: 'body-top-default',
     bottomTextureKey: 'body-bottom-default',
 };
 
-// Asset paths khớp các texture key bên trên — preload qua BaseMapScene.
 export const DEFAULT_CHARACTER_APPEARANCE_ASSETS: Record<string, string> = {
     'body-head-default': 'assets/game/characters/body-head-default.png',
     'body-top-default': 'assets/game/characters/body-top-default.png',
     'body-bottom-default': 'assets/game/characters/body-bottom-default.png',
 };
 
-// Stack 3 phần dọc, chân chạm đáy hitbox 60×110. Kích thước nguồn:
-// head 84×76 → top 88×44 → bottom 60×32. Overlap 10px ở mỗi seam (head↔body
-// và body↔legs) — hair / chin gối lên collar gi, belt knot gối lên waistband.
-// Edge-to-edge stack lộ vệt nền do alpha falloff ở mép từng part.
-//
-// Export để RemotePlayerManager tái dùng cùng layout — đảm bảo player local
-// và remote render đồng nhất, không lệch khi tương lai mặc đồ khác.
+// Spine asset path for male base character (animations: idle, run, attack, skill, die, win)
+const MALE_BASE_SPINE_PATH = '/assets/characters/male_base/';
+
+// Spine scale relative to hitbox — calibrate so skeleton feet align with hitbox bottom.
+const SPINE_SCALE = 0.1;
+
+// Hitbox half-height: skeleton root (feet) = player.y + this offset in world space.
+const SPINE_FOOT_OFFSET_Y = 22;
+
 export const HEAD_OFFSET_Y = -39;
 export const TOP_OFFSET_Y = 11;
 export const BOTTOM_OFFSET_Y = 39;
-// Bù lệch ngang cho từng part — art body bị lệch trục so với head/legs nên
-// shift phải vài pixel để ngực thẳng cột với đầu + chân.
 export const HEAD_OFFSET_X = 5;
 export const TOP_OFFSET_X = 3;
 export const BOTTOM_OFFSET_X = 0;
-// Scale toàn body container — chỉnh chỗ này để phóng to / thu nhỏ nhân vật.
-// Scale tác động lên cả offset → seam vẫn khớp ở mọi giá trị. 0.4 đưa player
-// về cỡ ~50px khớp tile NSO 24×24 render scale (tile ~36px = 1.5x native).
 export const BODY_SCALE = 0.4;
-// Name text không thuộc container nên không tự scale — derive Y từ head top
-// (-39 - 38 = -77 local) để name luôn cách đỉnh đầu 13px ở mọi BODY_SCALE.
 export const NAME_OFFSET_Y = (HEAD_OFFSET_Y - 38) * BODY_SCALE - 13;
+
+type AnimName = 'idle' | 'run' | 'attack' | 'skill' | 'die' | 'win';
 
 export class PlayerController implements GameComponent {
     private player?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-    private bodyContainer?: Phaser.GameObjects.Container;
-    private headSprite?: Phaser.GameObjects.Sprite;
-    private topSprite?: Phaser.GameObjects.Sprite;
-    private bottomSprite?: Phaser.GameObjects.Sprite;
     private playerNameText?: Phaser.GameObjects.Text;
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private virtualInputs = { left: false, right: false, up: false };
     private scene: Phaser.Scene;
     private background: MapBackground;
+
+    // Spine state
+    private spineCanvas?: HTMLCanvasElement;
+    private spineCtx?: CanvasRenderingContext2D;
+    private spineRenderer?: SkeletonRenderer;
+    private assetManager?: AssetManager;
+    private skeleton?: Skeleton;
+    private animState?: AnimationState;
+    private spineLoaded = false;
+    private currentAnim: AnimName = 'idle';
+    private spineVisible = true;
+    private lastTime = 0;
 
     constructor(scene: Phaser.Scene, background: MapBackground) {
         this.scene = scene;
@@ -66,49 +78,35 @@ export class PlayerController implements GameComponent {
     }
 
     create(): void {
-        // Spawn cao gần đỉnh viewport rồi để gravity rơi xuống surface đầu tiên
-        // — tránh kẹt khi spawn x rơi vô cột terrain solid (NSO map có hills/
-        // tower chiếm rows trung. Map cũ flat ground thì rơi 0px = OK).
         const spawn = 50;
-        // Hitbox khớp visual sau BODY_SCALE=0.4: 60*0.4=24, 110*0.4=44 — về NSO
-        // ratio (~24×40). Speed/jump trong BaseMapScene chưa scale theo, nếu
-        // nhân vật cảm giác di chuyển quá nhanh có thể giảm ở đó.
         const hitWidth = 24;
         const hitHeight = 44;
-        // Spawn 10% từ mép trái world. Dùng worldWidth thay vì bgWidth — bgWidth
-        // = 0 khi MapConfig có parallaxBg (bgKey chỉ là placeholder).
-        const hitbox = this.scene.add.rectangle(this.background.getWorldWidth() * 0.1, spawn, hitWidth, hitHeight, 0x000000, 0);
+        const hitbox = this.scene.add.rectangle(
+            this.background.getWorldWidth() * 0.1, spawn,
+            hitWidth, hitHeight,
+            0x000000, 0,
+        );
 
         this.scene.physics.add.existing(hitbox, false);
         this.player = hitbox as unknown as Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
-        if (this.player && this.player.body) {
+        if (this.player?.body) {
             this.player.body.setCollideWorldBounds(true);
             this.player.body.setBounce(0);
             this.player.body.debugShowBody = true;
             this.player.body.debugBodyColor = 0xffff00;
         }
 
-        const appearance = DEFAULT_CHARACTER_APPEARANCE;
-        this.headSprite = this.scene.add.sprite(HEAD_OFFSET_X, HEAD_OFFSET_Y, appearance.headTextureKey);
-        this.topSprite = this.scene.add.sprite(TOP_OFFSET_X, TOP_OFFSET_Y, appearance.topTextureKey);
-        this.bottomSprite = this.scene.add.sprite(BOTTOM_OFFSET_X, BOTTOM_OFFSET_Y, appearance.bottomTextureKey);
-        this.applyPixelArtFilter();
-
-        this.bodyContainer = this.scene.add.container(this.player!.x, this.player!.y, [
-            this.bottomSprite, this.topSprite, this.headSprite,
-        ]);
-        this.bodyContainer.setDepth(10);
-        this.bodyContainer.setScale(BODY_SCALE);
-
         const displayName = getCurrentCharacter()?.displayName || 'Ninja';
-        this.playerNameText = this.scene.add.text(this.player!.x, this.player!.y + NAME_OFFSET_Y, displayName, {
-            fontSize: '14px',
-            color: '#fff',
-            fontFamily: 'system-ui, sans-serif',
-            stroke: '#000',
-            strokeThickness: 4,
-        }).setOrigin(0.5).setDepth(11);
+        this.playerNameText = this.scene.add.text(
+            this.player!.x, this.player!.y + NAME_OFFSET_Y,
+            displayName,
+            {
+                fontSize: '14px', color: '#fff',
+                fontFamily: 'system-ui, sans-serif',
+                stroke: '#000', strokeThickness: 4,
+            },
+        ).setOrigin(0.5).setDepth(11);
 
         this.scene.physics.add.collider(this.player!, this.background.getPlatforms());
 
@@ -120,49 +118,65 @@ export class PlayerController implements GameComponent {
 
         this.cursors = this.scene.input.keyboard?.createCursorKeys();
 
+        this._initSpineCanvas();
+        this._loadSpine();
+
         void this.syncCharacterInfo();
     }
 
     update(): void {
         if (!this.player || !this.cursors) return;
 
-        if (this.bodyContainer) {
-            this.bodyContainer.setPosition(this.player.x, this.player.y);
-        }
         if (this.playerNameText) {
             this.playerNameText.setPosition(this.player.x, this.player.y + NAME_OFFSET_Y);
         }
+
+        this._updateAnimState();
+
+        if (this.spineLoaded) {
+            this._renderSpine();
+        }
     }
 
-    setAppearance(appearance: Partial<CharacterAppearance>): void {
-        if (appearance.headTextureKey) this.headSprite?.setTexture(appearance.headTextureKey);
-        if (appearance.topTextureKey) this.topSprite?.setTexture(appearance.topTextureKey);
-        if (appearance.bottomTextureKey) this.bottomSprite?.setTexture(appearance.bottomTextureKey);
-        this.applyPixelArtFilter();
+    destroy(): void {
+        this.spineCanvas?.remove();
+        this.spineCanvas = undefined;
+        this.spineLoaded = false;
     }
 
     setFacing(left: boolean): void {
-        this.headSprite?.setFlipX(left);
-        this.topSprite?.setFlipX(left);
-        this.bottomSprite?.setFlipX(left);
+        if (this.skeleton) {
+            this.skeleton.scaleX = left ? -Math.abs(this.skeleton.scaleX) : Math.abs(this.skeleton.scaleX);
+            // Keep scaleY negative to maintain upright orientation.
+            this.skeleton.scaleY = -Math.abs(this.skeleton.scaleY);
+        }
     }
 
-    /** Toggle visibility — scene gọi khi mở/đóng menu để giảm rối map. Hitbox
-     * (player rectangle) cũng ẩn nhưng physics body vẫn đứng yên (input đã
-     * block ở scene update khi menu open, không di chuyển). Camera follow
-     * không phụ thuộc visibility nên không lệch khi ẩn. */
     setVisible(visible: boolean): void {
-        this.bodyContainer?.setVisible(visible);
+        this.spineVisible = visible;
         this.playerNameText?.setVisible(visible);
-        // Hitbox alpha 0 nên không thấy được vẫn hide để debug body color không lộ.
+        if (this.spineCanvas) {
+            this.spineCanvas.style.display = visible ? 'block' : 'none';
+        }
         const hitboxRect = this.player as unknown as Phaser.GameObjects.Rectangle | undefined;
         hitboxRect?.setVisible(visible);
+    }
+
+    /** Trigger a one-shot animation (attack, skill, die, win). Returns to idle after. */
+    playAnim(name: AnimName): void {
+        if (!this.animState || !this.spineLoaded) return;
+        const looping = name === 'idle' || name === 'run';
+        this.currentAnim = name;
+        this.animState.setAnimation(0, name, looping);
+        if (!looping) {
+            this.animState.addAnimation(0, 'idle', true, 0);
+        }
     }
 
     getPlayer(): Phaser.Types.Physics.Arcade.SpriteWithDynamicBody | undefined { return this.player; }
     getCursors(): Phaser.Types.Input.Keyboard.CursorKeys | undefined { return this.cursors; }
     getVirtualInputs(): { left: boolean; right: boolean; up: boolean } { return this.virtualInputs; }
-    getSprite(): Phaser.GameObjects.Container | undefined { return this.bodyContainer; }
+    getSprite(): Phaser.GameObjects.Container | undefined { return undefined; }
 
     moveLeft(speed: number): void {
         this.player?.body?.setVelocityX(-speed);
@@ -187,11 +201,131 @@ export class PlayerController implements GameComponent {
         return this.player.body.blocked.down || this.player.body.touching.down;
     }
 
-    private applyPixelArtFilter(): void {
-        // NEAREST giữ pixel art sắc nét — Phaser default linear filter sẽ làm mờ.
-        [this.headSprite, this.topSprite, this.bottomSprite].forEach((s) => {
-            s?.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    setAppearance(_appearance: Partial<CharacterAppearance>): void {
+        // Legacy stub — appearance is now driven by Spine skin swaps (future feature).
+    }
+
+    private _initSpineCanvas(): void {
+        const gameCanvas = this.scene.sys.game.canvas;
+        const parent = gameCanvas.parentElement!;
+        parent.style.position = 'relative';
+
+        this.spineCanvas = document.createElement('canvas');
+        this.spineCanvas.id = 'player-spine-canvas';
+        this.spineCanvas.width = gameCanvas.width;
+        this.spineCanvas.height = gameCanvas.height;
+        this.spineCanvas.style.cssText =
+            'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6;';
+        parent.appendChild(this.spineCanvas);
+        this.spineCtx = this.spineCanvas.getContext('2d')!;
+    }
+
+    private _loadSpine(): void {
+        this.spineRenderer = new SkeletonRenderer(this.spineCtx!);
+        this.spineRenderer.triangleRendering = true;
+        this.assetManager = new AssetManager(MALE_BASE_SPINE_PATH);
+        this.assetManager.loadText('male_base.json');
+        this.assetManager.loadTextureAtlas('male_base.atlas');
+        this._pollLoad();
+    }
+
+    private _pollLoad(): void {
+        if (!this.assetManager) return;
+        if (this.assetManager.isLoadingComplete()) {
+            this._buildSkeleton();
+        } else if (this.assetManager.hasErrors()) {
+            console.error('[PlayerController] Spine load errors:', this.assetManager.getErrors());
+        } else {
+            setTimeout(() => this._pollLoad(), 50);
+        }
+    }
+
+    private _buildSkeleton(): void {
+        if (!this.assetManager || !this.spineCtx) return;
+
+        const atlas = this.assetManager.require('male_base.atlas');
+        const json = new SkeletonJson(new AtlasAttachmentLoader(atlas));
+        json.scale = SPINE_SCALE;
+
+        const skelData = json.readSkeletonData(this.assetManager.require('male_base.json'));
+        this.skeleton = new Skeleton(skelData);
+        this.skeleton.setToSetupPose();
+        // Canvas 2D Y-axis points down; Spine Y-axis points up — flip to correct.
+        this.skeleton.scaleY = -1;
+
+        const stateData = new AnimationStateData(skelData);
+        stateData.defaultMix = 0.2;
+        this.animState = new AnimationState(stateData);
+        this.animState.setAnimation(0, 'idle', true);
+
+        // Cut attack to 1 hit: transition to idle on the first "Attack" event.
+        this.animState.addListener({
+            event: (entry, event) => {
+                if (entry.animation?.name === 'attack' && event.data.name === 'Attack') {
+                    this.animState!.setAnimation(0, 'idle', true);
+                }
+            },
+            start: () => {},
+            interrupt: () => {},
+            end: () => {},
+            dispose: () => {},
+            complete: () => {},
         });
+
+        this.spineLoaded = true;
+        this.lastTime = performance.now() / 1000;
+    }
+
+    private _updateAnimState(): void {
+        if (!this.spineLoaded || !this.animState || !this.player) return;
+
+        const vx = this.player.body?.velocity.x ?? 0;
+        const onGround = this.isOnGround();
+        const isRunning = onGround && Math.abs(vx) > 10;
+        const targetAnim: AnimName = isRunning ? 'run' : 'idle';
+
+        // Only transition idle↔run automatically; one-shot anims manage themselves.
+        if (
+            (targetAnim !== this.currentAnim) &&
+            (this.currentAnim === 'idle' || this.currentAnim === 'run')
+        ) {
+            this.currentAnim = targetAnim;
+            this.animState.setAnimation(0, targetAnim, true);
+        }
+    }
+
+    private _renderSpine(): void {
+        if (!this.skeleton || !this.animState || !this.spineCtx || !this.spineCanvas || !this.player) return;
+
+        const gc = this.scene.sys.game.canvas;
+        if (this.spineCanvas.width !== gc.width || this.spineCanvas.height !== gc.height) {
+            this.spineCanvas.width = gc.width;
+            this.spineCanvas.height = gc.height;
+        }
+
+        const now = performance.now() / 1000;
+        const delta = Math.min(now - this.lastTime, 0.05);
+        this.lastTime = now;
+
+        this.animState.update(delta);
+        this.animState.apply(this.skeleton);
+        this.skeleton.update(delta);
+        this.skeleton.updateWorldTransform(Physics.update);
+
+        const cam = this.scene.cameras.main;
+        const zoom = cam.zoom;
+        const screenX = (this.player.x - cam.scrollX) * zoom;
+        const screenY = (this.player.y - cam.scrollY) * zoom + SPINE_FOOT_OFFSET_Y * zoom;
+
+        this.skeleton.x = screenX;
+        this.skeleton.y = screenY;
+
+        const ctx = this.spineCtx;
+        ctx.clearRect(0, 0, this.spineCanvas.width, this.spineCanvas.height);
+
+        if (this.spineVisible) {
+            this.spineRenderer!.draw(this.skeleton);
+        }
     }
 
     private async syncCharacterInfo(): Promise<void> {

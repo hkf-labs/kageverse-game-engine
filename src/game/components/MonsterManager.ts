@@ -236,12 +236,12 @@ export class MonsterManager implements GameComponent {
     /** Trigger swing với skill_id (default basic_swing). Tìm target ưu tiên: selected
      * → nearest in scan radius. Nếu ngoài tầm → toast, không tấn công.
      * Client-side cooldown gate: silent skip nếu chưa hết cooldown skill (mirror BE). */
-    async swing(skillId: string = DEFAULT_SKILL_ID): Promise<void> {
-        if (this.inFlightAttack) return;
+    async swing(skillId: string = DEFAULT_SKILL_ID): Promise<boolean> {
+        if (this.inFlightAttack) return false;
         const now = Date.now();
-        if (now - this.lastSwingAt < getSkillCooldownMs(skillId)) return;
+        if (now - this.lastSwingAt < getSkillCooldownMs(skillId)) return false;
         const pos = this.getPlayerPos();
-        if (!pos) return;
+        if (!pos) return false;
 
         // Ưu tiên monster đang được select (nếu còn alive). Fallback nearest.
         let target: MonsterEntry | null = null;
@@ -252,16 +252,17 @@ export class MonsterManager implements GameComponent {
         if (!target) target = this.findNearestAlive(pos.x, pos.y, ATTACK_NEAREST_SCAN_RADIUS_PX);
         if (!target) {
             this.callbacks.onError?.(t('monster.error_no_target'));
-            return;
+            return false;
         }
         // Auto-select cho UX target frame.
         this.selectMonster(target.dto.instance_id);
 
         if (!this.isInRange(pos, target)) {
             this.callbacks.onError?.(t('monster.error_out_of_range'));
-            return;
+            return false;
         }
         await this.fireAttack(target, skillId, pos);
+        return true;
     }
 
     /** Click vào quái → manual select để target frame hiện. Nếu trong tầm → fire attack. */
@@ -359,7 +360,7 @@ export class MonsterManager implements GameComponent {
     getSelectedInstanceId(): string | null { return this.selectedInstanceId; }
 
     /** Backward compatibility cho các call site cũ. */
-    async attackNearest(): Promise<void> { await this.swing(); }
+    async attackNearest(): Promise<boolean> { return this.swing(); }
 
     private async refreshFromBE(): Promise<void> {
         const character = getCurrentCharacter();

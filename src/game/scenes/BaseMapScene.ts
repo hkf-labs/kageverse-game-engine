@@ -1157,7 +1157,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
 
         // Không có portal/NPC → swing vào quái gần nhất.
-        void this.monsters.attackNearest();
+        void this.monsters.attackNearest().then((hit) => {
+            if (hit) this.playerCtrl.playAnim('attack');
+        });
     }
 
     private handleAttackResult(res: import('../../network/api').AttackResponse): void {
