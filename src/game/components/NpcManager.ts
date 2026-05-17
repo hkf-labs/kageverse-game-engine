@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { npcAPI, questAPI, type CharacterDTO, type LevelUpDTO, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
+import { npcAPI, questAPI, type CancelMainQuestResponse, type CharacterDTO, type LevelUpDTO, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
@@ -25,6 +25,7 @@ const ACTION_KEY: Record<string, string> = {
     browse_weapons: 'npc.action_browse_weapons',
     browse_apparel: 'npc.action_browse_apparel',
     browse_jewelry: 'npc.action_browse_jewelry',
+    cancel_main_quest: 'npc.action_cancel_main_quest',
 };
 
 const ACTION_ICON: Record<string, string> = {
@@ -38,6 +39,7 @@ const ACTION_ICON: Record<string, string> = {
     browse_weapons: '⚔️',
     browse_apparel: '👘',
     browse_jewelry: '💍',
+    cancel_main_quest: '🚫',
 };
 
 function actionLabel(a: NpcActionDTO): string {
@@ -52,6 +54,10 @@ const DIALOGUE_TEXT_VI: Record<string, string> = {
         'Chào nhẫn giả trẻ! Ta là Ayame. Cần dược phẩm gì cứ chọn "Mua dược phẩm" nhé.',
     'dialogue.kuma.greet':
         'Đói chưa nhẫn giả? Một bát mì Kuma là đi quái cả buổi không nghỉ!',
+    'npc.genji.no_active_quest':
+        'Con chưa nhận nhiệm vụ nào cả. Hãy ghé tìm ta khi sẵn sàng lên đường!',
+    'npc.genji.quest_cancelled':
+        'Ta đã thu hồi lệnh. Con có thể nhận lại nhiệm vụ bất cứ lúc nào.',
 };
 
 function dialogueText(key: string | null | undefined, npcName: string): string {
@@ -566,6 +572,9 @@ export class NpcManager implements GameComponent {
                 // pattern apparel: pre-Bái Sư reject sớm (jewelry class-bound).
                 this.openJewelrySlotMenu(npc);
                 break;
+            case 'cancel_main_quest':
+                this.runCancelMainQuest(npc);
+                break;
             default:
                 this.onStatusMessage?.(t('npc.run.action_unsupported', { name: action }), '#aaaaaa');
         }
@@ -589,6 +598,43 @@ export class NpcManager implements GameComponent {
         void npcAPI.talk(this.mapId, npcId, character.id).catch((err) => {
             console.warn('[npc] talk track failed', err);
         });
+    }
+
+    private runCancelMainQuest(npc: NpcEntry): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) {
+            this.onStatusMessage?.(t('npc.cancel_quest.failed'), '#ff8a8a');
+            return;
+        }
+        const doCancel = () => {
+            void npcAPI.cancelMainQuest(this.mapId, npc.templateId!, character.id)
+                .then((res: CancelMainQuestResponse) => {
+                    const text = DIALOGUE_TEXT_VI[res.dialogue_key]
+                        ?? t('npc.dialogue.fallback_greet', { npc: npc.name });
+                    this.chatBubble?.show(npc.sprite, text);
+                    if (res.cancelled) {
+                        this.onStatusMessage?.(t('npc.cancel_quest.success'), '#aaffaa');
+                        // Refresh quest log để loại bỏ quest vừa hủy.
+                        void this.questLog?.refresh?.();
+                    }
+                })
+                .catch(() => {
+                    this.onStatusMessage?.(t('npc.cancel_quest.failed'), '#ff8a8a');
+                });
+        };
+
+        if (this.confirmDialog) {
+            this.confirmDialog.open({
+                title: t('npc.cancel_quest.confirm_title'),
+                message: t('npc.cancel_quest.confirm_message'),
+                confirmLabel: t('confirm.btn_confirm'),
+                cancelLabel: t('confirm.btn_cancel'),
+                confirmColor: 'red',
+                onConfirm: doCancel,
+            });
+        } else {
+            doCancel();
+        }
     }
 
     private runQuestAccept(npc: NpcEntry, questID: string): void {

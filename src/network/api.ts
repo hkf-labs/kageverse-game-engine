@@ -561,6 +561,13 @@ export type NpcInteractResponse = {
     quest_warnings?: Record<string, string>;
 };
 
+export type CancelMainQuestResponse = {
+    cancelled: boolean;
+    dialogue_key: string;
+    quest_id?: string;
+    quest_name_key?: string;
+};
+
 export const npcAPI = {
     async getInteract(mapId: string, npcTemplateId: string, characterId?: string): Promise<NpcInteractResponse> {
         const qs = characterId ? `?character_id=${encodeURIComponent(characterId)}` : '';
@@ -584,6 +591,19 @@ export const npcAPI = {
             const resData = await parseJsonSafe(response);
             throw new Error(`${formatApiError(resData, t('api.error.talk_npc'))} (trace_id=${traceId || 'n/a'})`);
         }
+    },
+
+    /** Hủy nhiệm vụ chính tuyến đang làm. Luôn trả 200 JSON —
+     * cancelled=false = không có quest, FE hiện lời thoại NPC thay vì báo lỗi. */
+    async cancelMainQuest(mapId: string, npcTemplateId: string, characterId: string): Promise<CancelMainQuestResponse> {
+        const qs = `?character_id=${encodeURIComponent(characterId)}`;
+        const path = `/maps/${encodeURIComponent(mapId)}/npcs/${encodeURIComponent(npcTemplateId)}/cancel-main-quest${qs}`;
+        const { response, traceId } = await authFetch(path, { method: 'POST' });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, t('api.error.cancel_quest'))} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as CancelMainQuestResponse;
     },
 };
 
