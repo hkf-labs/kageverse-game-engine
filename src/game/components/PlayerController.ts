@@ -136,7 +136,27 @@ export class PlayerController implements GameComponent {
         this._initSpineTexture();
         this._loadSpine();
 
+        // Khởi tạo "frozen" — no gravity + invisible. Scene gọi activate() sau
+        // khi loadInitialCharacterState restore xong vị trí cuối. Tránh user
+        // thấy nhân vật xuất hiện ở default spawn (x*0.1, 50) rồi rơi xuống
+        // trước khi API trả last_pos_x/y (race lúc F5).
+        if (this.player?.body) {
+            this.player.body.setAllowGravity(false);
+            this.player.body.setVelocity(0, 0);
+        }
+        this.setVisible(false);
+
         void this.syncCharacterInfo();
+    }
+
+    /** Bật gravity + hiện sprite. Scene gọi sau khi API trả vị trí cuối
+     * (loadInitialCharacterState xong, dù success hay fail) — không kẹt
+     * "frozen" mãi nếu API fail. Idempotent. */
+    activate(): void {
+        if (this.player?.body) {
+            this.player.body.setAllowGravity(true);
+        }
+        this.setVisible(true);
     }
 
     update(): void {

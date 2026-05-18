@@ -796,7 +796,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     private async loadInitialCharacterState(): Promise<void> {
         const current = getCurrentCharacter();
-        if (!current) return;
+        if (!current) {
+            // Không có character → activate luôn để không kẹt frozen (UX cứu hộ).
+            this.playerCtrl.activate();
+            return;
+        }
         // Initial fetch quest list để QuestTracker populate ngay khi vào scene.
         void this.questLog.refresh();
         try {
@@ -880,6 +884,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
             }
         } catch (err) {
             if (err instanceof Error) console.warn('scene: load character state failed', err.message);
+        } finally {
+            // Bật gravity + show player sau khi đã setPosition() (hoặc bỏ qua
+            // nếu không có saved pos). finally đảm bảo chạy kể cả API fail —
+            // tránh kẹt nhân vật invisible mãi.
+            this.playerCtrl.activate();
         }
     }
 
