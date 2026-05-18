@@ -1,6 +1,6 @@
 {
  "height": 1440,
- "width": 2160,
+ "width": 6400,
  "layers": [
   {
    "type": "objectgroup",
@@ -9,7 +9,7 @@
     {
      "x": 0,
      "y": 1380,
-     "width": 2160,
+     "width": 6400,
      "height": 60,
      "type": "wood"
     },
@@ -21,16 +21,65 @@
      "type": "wood"
     },
     {
-     "x": 900,
-     "y": 1100,
-     "width": 300,
+     "x": 1100,
+     "y": 1080,
+     "width": 320,
      "height": 20,
      "type": "wood"
     },
     {
-     "x": 1500,
-     "y": 1000,
-     "width": 300,
+     "x": 1700,
+     "y": 950,
+     "width": 320,
+     "height": 20,
+     "type": "wood"
+    },
+    {
+     "x": 2300,
+     "y": 1100,
+     "width": 320,
+     "height": 20,
+     "type": "wood"
+    },
+    {
+     "x": 2900,
+     "y": 900,
+     "width": 350,
+     "height": 20,
+     "type": "wood"
+    },
+    {
+     "x": 3500,
+     "y": 1050,
+     "width": 320,
+     "height": 20,
+     "type": "wood"
+    },
+    {
+     "x": 4100,
+     "y": 920,
+     "width": 350,
+     "height": 20,
+     "type": "wood"
+    },
+    {
+     "x": 4700,
+     "y": 1080,
+     "width": 320,
+     "height": 20,
+     "type": "wood"
+    },
+    {
+     "x": 5300,
+     "y": 950,
+     "width": 320,
+     "height": 20,
+     "type": "wood"
+    },
+    {
+     "x": 5900,
+     "y": 1100,
+     "width": 320,
      "height": 20,
      "type": "wood"
     }

@@ -35,10 +35,9 @@ export class FireSchoolScene extends BaseMapScene {
     protected getNpcConfigs(): NpcConfig[] {
         return [
             { key: 'npc_tsukikage', name: t('npc.name.npc_tsukikage'), x: 1500, y: undefined, offsetY: 0, templateId: 'npc_tsukikage' },
-            { key: 'npc_ryota', name: t('npc.name.npc_ryota'), x: 2500, y: undefined, offsetY: 0, templateId: 'npc_ryota' },
-            { key: 'npc_hayato', name: t('npc.name.npc_hayato'), x: 3500, y: undefined, offsetY: 0, templateId: 'npc_hayato' },
-            { key: 'npc_hina', name: t('npc.name.npc_hina'), x: 4500, y: undefined, offsetY: 0, templateId: 'npc_hina' },
-            { key: 'npc_akira', name: t('npc.name.npc_akira'), x: 5500, y: undefined, offsetY: 0, templateId: 'npc_akira' },
+            { key: 'npc_hayato',    name: t('npc.name.npc_hayato'),    x: 2900, y: undefined, offsetY: 0, templateId: 'npc_hayato' },
+            { key: 'npc_hina',      name: t('npc.name.npc_hina'),      x: 4300, y: undefined, offsetY: 0, templateId: 'npc_hina' },
+            { key: 'npc_akira',     name: t('npc.name.npc_akira'),     x: 5700, y: undefined, offsetY: 0, templateId: 'npc_akira' },
         ];
     }
 
@@ -51,9 +50,8 @@ export class FireSchoolScene extends BaseMapScene {
 
     protected preloadMapAssets(): void {
         this.load.image('npc_tsukikage', 'assets/maps/village_001/npcs/village_elder.png');
-        this.load.image('npc_ryota', 'assets/maps/village_001/npcs/blacksmith.png');
-        this.load.image('npc_hayato', 'assets/maps/village_001/npcs/merchant.png');
-        this.load.image('npc_hina', 'assets/maps/village_001/npcs/healer.png');
-        this.load.image('npc_akira', 'assets/maps/village_001/npcs/stash_keeper.png');
+        this.load.image('npc_hayato',    'assets/maps/village_001/npcs/merchant.png');
+        this.load.image('npc_hina',      'assets/maps/village_001/npcs/healer.png');
+        this.load.image('npc_akira',     'assets/maps/village_001/npcs/stash_keeper.png');
     }
 }

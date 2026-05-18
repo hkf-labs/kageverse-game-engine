@@ -261,7 +261,7 @@ TÃ¬m + update key `map_name.sword_school_001` / `map_name.hayabusa_school_001` â
 - `docs/business/game-objects/apparel/README.md`
 - `docs/business/game-objects/weapons/{bow.md, sword.md, README.md}`
 - `docs/business/game-objects/jewelry/README.md`
-- `docs/business/story/{mvp-plan.md, bai-su-flow.md}`
+- `docs/business/story/mvp-plan.md`
 
 ### 13.5 DB reset
 ```

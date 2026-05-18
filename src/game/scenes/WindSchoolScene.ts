@@ -33,8 +33,9 @@ export class WindSchoolScene extends BaseMapScene {
     protected getNpcConfigs(): NpcConfig[] {
         return [
             { key: 'npc_honoo',  name: t('npc.name.npc_honoo'),  x: 1500, y: undefined, offsetY: 0, templateId: 'npc_honoo' },
-            { key: 'npc_raiden', name: t('npc.name.npc_raiden'), x: 2500, y: undefined, offsetY: 0, templateId: 'npc_raiden' },
-            { key: 'npc_sayuri', name: t('npc.name.npc_sayuri'), x: 3500, y: undefined, offsetY: 0, templateId: 'npc_sayuri' },
+            { key: 'npc_hayato', name: t('npc.name.npc_hayato'), x: 2900, y: undefined, offsetY: 0, templateId: 'npc_hayato' },
+            { key: 'npc_hina',   name: t('npc.name.npc_hina'),   x: 4300, y: undefined, offsetY: 0, templateId: 'npc_hina' },
+            { key: 'npc_akira',  name: t('npc.name.npc_akira'),  x: 5700, y: undefined, offsetY: 0, templateId: 'npc_akira' },
         ];
     }
 
@@ -46,7 +47,8 @@ export class WindSchoolScene extends BaseMapScene {
 
     protected preloadMapAssets(): void {
         this.load.image('npc_honoo',  'assets/maps/village_001/npcs/village_elder.png');
-        this.load.image('npc_raiden', 'assets/maps/village_001/npcs/blacksmith.png');
-        this.load.image('npc_sayuri', 'assets/maps/village_001/npcs/healer.png');
+        this.load.image('npc_hayato', 'assets/maps/village_001/npcs/merchant.png');
+        this.load.image('npc_hina',   'assets/maps/village_001/npcs/healer.png');
+        this.load.image('npc_akira',  'assets/maps/village_001/npcs/stash_keeper.png');
     }
 }
