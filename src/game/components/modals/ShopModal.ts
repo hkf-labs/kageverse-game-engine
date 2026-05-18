@@ -15,7 +15,12 @@ import type { ConfirmDialog } from './ConfirmDialog';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 
-const COLS = 4;
+// Grid 6-cột (kích thước cell match InventoryModal — 56×56, gap 6px). Width
+// panel md ~560px đủ chứa 6 × 56 + 5 × 6 = 366px + padding, dư rộng rãi.
+const COLS = 6;
+// Tổng số ô luôn render (6 cột × 6 hàng = 36). Item nhiều hơn 36 → scroll trong
+// gridWrap. NPC ít item → ô trống dim phía sau để layout cố định, giống Túi đồ.
+const TOTAL_SLOTS = 36;
 
 const TYPE_BORDER: Record<InventoryItemType, string> = {
     equipment: '#d4af37',
@@ -141,17 +146,31 @@ export class ShopModal extends BaseModal {
     }
 
     protected populateShell(shell: ModalShell): void {
-        // Grid (scrollable). Detail + amount đã move ra sub-modal / popup menu
-        // nên grid chiếm phần lớn chiều cao panel.
+        // Grid với chiều cao CỐ ĐỊNH (380px ≈ 6 hàng cell 56px + gap 6 + padding).
+        // Panel modal hết co theo số item: ít item vẫn cao bằng nhiều item → UX
+        // ổn định, không "nhảy size" giữa NPC này NPC khác. Vượt 6 hàng → scroll.
+        //
+        // Scrollbar ẩn hoàn toàn (match other modals — CharacterInfoModal/SkillModal):
+        // dùng class .cim-scroll + inline scrollbar-width:none. User scroll bằng
+        // wheel hoặc drag, nhưng không thấy thanh.
         const gridWrap = document.createElement('div');
         gridWrap.style.cssText =
             'padding:10px 14px;background:rgba(0,0,0,0.25);' +
-            'overflow-y:auto;flex:1;min-height:0;';
+            'overflow-y:auto;height:380px;flex-shrink:0;' +
+            'scrollbar-width:none;-ms-overflow-style:none;';
+        gridWrap.classList.add('cim-scroll');
+        if (!document.getElementById('cim-scroll-style')) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'cim-scroll-style';
+            styleEl.textContent = '.cim-scroll::-webkit-scrollbar{display:none;}';
+            document.head.appendChild(styleEl);
+        }
         this.gridEl = document.createElement('div');
         Object.assign(this.gridEl.style, {
             display: 'grid',
-            gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-            gap: '8px',
+            gridTemplateColumns: `repeat(${COLS}, 56px)`,
+            gap: '6px',
+            justifyContent: 'center',
         });
         gridWrap.appendChild(this.gridEl);
 
@@ -372,64 +391,52 @@ export class ShopModal extends BaseModal {
             this.gridEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#aaa;padding:14px;font-style:italic;">${escapeHtml(t('shop.loading_listings'))}</div>`;
             return;
         }
-        if (this.listings.length === 0) {
-            this.gridEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#888;padding:14px;font-style:italic;">${escapeHtml(t('shop.empty_npc'))}</div>`;
-            return;
-        }
 
+        // Render fixed grid TOTAL_SLOTS ô (giống Túi đồ). Ô có item → icon + click
+        // chọn được; ô trống → dim border/bg, không tương tác. NPC chưa bán →
+        // tất cả ô trống + hint "empty_npc" ở góc trên-trái grid.
         this.gridEl.innerHTML = '';
-        this.listings.forEach((item, idx) => {
+        const totalCells = Math.max(TOTAL_SLOTS, this.listings.length);
+        for (let i = 0; i < totalCells; i++) {
+            const item = this.listings[i];
             const cell = document.createElement('div');
-            const isSelected = this.selectedIdx === idx;
-            const borderColor = TYPE_BORDER[item.item_type];
-            const bgColor = DEFAULT_BG[item.item_type];
-            const icon = (item.sub_type && SUBTYPE_ICON[item.sub_type]) || DEFAULT_ICON[item.item_type];
-            const primaryPrice = item.prices[0];
-            const cur = primaryPrice ? CURRENCY_META[primaryPrice.currency_type] : CURRENCY_META.coin;
+            const isSelected = item && this.selectedIdx === i;
+            const borderColor = item ? TYPE_BORDER[item.item_type] : '#3a2a1a';
+            const bgColor = item ? DEFAULT_BG[item.item_type] : 'rgba(20,12,4,0.6)';
+            const icon = item
+                ? ((item.sub_type && SUBTYPE_ICON[item.sub_type]) || DEFAULT_ICON[item.item_type])
+                : '';
 
+            // Cell 56×56 — match InventoryModal grid. Item hiển thị icon; tên +
+            // giá + currency xem ở sub-modal Xem (click Xem trên action bar).
+            // Tooltip native (title) cho hover preview tên item.
             Object.assign(cell.style, {
+                width: '56px',
+                height: '56px',
                 border: `2px solid ${isSelected ? MODAL_COLORS.borderAccent : borderColor}`,
                 borderRadius: '6px',
                 background: bgColor,
-                cursor: 'pointer',
-                padding: '6px',
+                cursor: item ? 'pointer' : 'default',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '4px',
+                justifyContent: 'center',
                 userSelect: 'none',
                 boxShadow: isSelected ? '0 0 8px rgba(255,234,122,0.6)' : 'none',
                 transition: 'border-color 0.1s, box-shadow 0.1s',
             });
-
-            const priceLine = primaryPrice
-                ? `<div style="font-size:11px;display:flex;align-items:center;gap:3px;">` +
-                    `<span>${cur.icon}</span>` +
-                    `<span style="color:${cur.color};font-weight:bold;">${primaryPrice.price.toLocaleString('en-US')}</span>` +
-                  `</div>`
-                : `<div style="font-size:10px;color:#888;font-style:italic;">N/A</div>`;
-            const multiBadge = item.prices.length > 1
-                ? `<div style="font-size:9px;color:#ffd070;display:flex;gap:2px;align-items:center;">` +
-                    item.prices.slice(1).map((p) => CURRENCY_META[p.currency_type].icon).join('') +
-                  `</div>`
-                : '';
-
-            cell.innerHTML = [
-                `<div style="font-size:24px;line-height:1;">${icon}</div>`,
-                `<div style="font-size:10px;color:${MODAL_COLORS.text};text-align:center;line-height:1.2;height:24px;overflow:hidden;">${escapeHtml(t(item.name_key))}</div>`,
-                priceLine,
-                multiBadge,
-            ].join('');
-
-            cell.addEventListener('click', () => this.selectListing(idx));
-            cell.addEventListener('mouseenter', () => {
-                if (this.selectedIdx !== idx) cell.style.borderColor = '#ffd070';
-            });
-            cell.addEventListener('mouseleave', () => {
-                if (this.selectedIdx !== idx) cell.style.borderColor = borderColor;
-            });
-            this.gridEl!.appendChild(cell);
-        });
+            if (item) {
+                cell.title = t(item.name_key);
+                cell.innerHTML = `<div style="font-size:24px;line-height:1;">${icon}</div>`;
+                cell.addEventListener('click', () => this.selectListing(i));
+                cell.addEventListener('mouseenter', () => {
+                    if (this.selectedIdx !== i) cell.style.borderColor = '#ffd070';
+                });
+                cell.addEventListener('mouseleave', () => {
+                    if (this.selectedIdx !== i) cell.style.borderColor = borderColor;
+                });
+            }
+            this.gridEl.appendChild(cell);
+        }
     }
 
     private selectListing(idx: number): void {
@@ -636,7 +643,11 @@ export class ShopModal extends BaseModal {
             pointerEvents: 'auto',
             fontSize: '13px',
             lineHeight: '1.5',
+            // Ẩn scrollbar đồng nhất với main panel grid (Firefox / IE / WebKit).
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
         });
+        panel.classList.add('cim-scroll');
         overlay.appendChild(panel);
         parent.appendChild(overlay);
 
