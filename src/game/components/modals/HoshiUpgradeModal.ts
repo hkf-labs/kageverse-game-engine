@@ -451,8 +451,10 @@ export class HoshiUpgradeModal extends BaseModal {
 }
 
 function displayName(item: InventoryItemDTO): string {
-    // MVP: name_key fallback to template_id. Khi có i18n module sẽ lookup VN.
-    return item.name_key || item.item_template_id;
+    // Lookup i18n cho name_key (vd item.consumable.mp_lv70 → "Bình MP cấp 70").
+    // Khi key chưa có translation, t() trả về key gốc → fallback giữ nguyên
+    // hành vi cũ. Final fallback xuống template_id khi name_key trống.
+    return item.name_key ? t(item.name_key) : item.item_template_id;
 }
 
 function formatBonusDelta(cur: EnchantStatBonus, next: EnchantStatBonus): string {

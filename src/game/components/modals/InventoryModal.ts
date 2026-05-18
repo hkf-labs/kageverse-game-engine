@@ -692,7 +692,7 @@ export class InventoryModal extends BaseModal {
             : '';
         this.detailPanelEl.innerHTML = [
             `<div style="display:flex;flex-direction:column;gap:6px;">`,
-            `  <div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};${wrap}">${escapeHtml(item.name)}</div>`,
+            `  <div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};${wrap}">${escapeHtml(t(item.name))}</div>`,
             upgradeRow,
             `  <div style="font-size:12px;color:${TYPE_BORDER[item.type]};${wrap}">[${escapeHtml(t(TYPE_KEY[item.type]))}]</div>`,
             lockRow,

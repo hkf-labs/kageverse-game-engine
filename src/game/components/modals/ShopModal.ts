@@ -1,3 +1,4 @@
+import * as Phaser from 'phaser';
 import {
     charactersAPI,
     shopAPI,
@@ -10,8 +11,9 @@ import {
 import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
+import type { ConfirmDialog } from './ConfirmDialog';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
-import { MODAL_COLORS } from './theme';
+import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 
 const COLS = 4;
 
@@ -70,13 +72,36 @@ interface OpenParams {
     subTypeFilter?: string;
 }
 
+type ActionSlot = 'left' | 'center';
+
+interface ActionDef {
+    key: 'buy' | 'view';
+    slot: ActionSlot;
+    label: string;
+    palette: string;
+    onClick: () => void;
+}
+
 export class ShopModal extends BaseModal {
     private gridEl?: HTMLDivElement;
-    private detailEl?: HTMLDivElement;
-    private amountInput?: HTMLInputElement;
-    private buyBtn?: HTMLButtonElement;
     private balanceEl?: HTMLDivElement;
-    private amountLabelEl?: HTMLLabelElement;
+    /** Action bar overlay — sibling của panel, host nút Mua (trái) + Xem (giữa)
+     * absolute ở đáy overlay. Tham khảo InventoryModal action bar. */
+    private actionBarEl?: HTMLDivElement;
+    /** Order [buy, view] để keyboard nav ←/→ chạy tự nhiên (Mua trái → Xem giữa). */
+    private actionButtons: HTMLButtonElement[] = [];
+
+    // ── Sub-modal Xem (thông tin item) ──
+    private detailOverlayEl?: HTMLDivElement;
+    private detailPanelEl?: HTMLDivElement;
+    private detailOpen = false;
+
+    // ── Popup menu Mua — floating buttons style giống action bar, KHÔNG panel
+    // chrome. Mode 'initial' = [Mua, Mua nhiều]; 'multi' = [Input, Mua].
+    private buyMenuEl?: HTMLDivElement;
+    private buyAmountInput?: HTMLInputElement;
+    private buyOpen = false;
+    private buyMode: 'initial' | 'multi' = 'initial';
 
     private listings: ShopListingDTO[] = [];
     private classFilter: string | null = null;
@@ -89,8 +114,20 @@ export class ShopModal extends BaseModal {
     private npcTemplateId = '';
     private npcName = '';
     private wallet: WalletDTO | null = null;
-    /** 'grid' = listings; 'controls' = nút Mua + amount input. */
-    private focusZone: 'grid' | 'controls' = 'grid';
+    /** 'grid' = listings; 'actions' = action bar (Mua/Xem). */
+    private focusZone: 'grid' | 'actions' = 'grid';
+    /** Index nút action đang focus trong zone='actions' (0=Mua, 1=Xem). */
+    private focusedAction = 0;
+
+    /** Optional ConfirmDialog dep — wire từ scene để show confirm trước khi
+     * gọi shopAPI.buy. Nếu không inject (vd ShopModal tách độc lập), handleBuy
+     * sẽ mua thẳng không cần confirm. */
+    private confirmDialog?: ConfirmDialog;
+
+    constructor(scene: Phaser.Scene, deps?: { confirmDialog?: ConfirmDialog }) {
+        super(scene);
+        this.confirmDialog = deps?.confirmDialog;
+    }
 
     protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
         return {
@@ -104,10 +141,12 @@ export class ShopModal extends BaseModal {
     }
 
     protected populateShell(shell: ModalShell): void {
-        // Section 1: grid (scrollable, max-height giới hạn để detail/controls
-        // dưới đáy luôn thấy được).
+        // Grid (scrollable). Detail + amount đã move ra sub-modal / popup menu
+        // nên grid chiếm phần lớn chiều cao panel.
         const gridWrap = document.createElement('div');
-        gridWrap.style.cssText = 'padding:10px 14px;background:rgba(0,0,0,0.25);overflow-y:auto;max-height:46vh;';
+        gridWrap.style.cssText =
+            'padding:10px 14px;background:rgba(0,0,0,0.25);' +
+            'overflow-y:auto;flex:1;min-height:0;';
         this.gridEl = document.createElement('div');
         Object.assign(this.gridEl.style, {
             display: 'grid',
@@ -116,73 +155,52 @@ export class ShopModal extends BaseModal {
         });
         gridWrap.appendChild(this.gridEl);
 
-        // Section 2: detail
-        this.detailEl = document.createElement('div');
-        this.detailEl.style.cssText =
-            `padding:12px 16px;border-top:2px solid ${MODAL_COLORS.divider};` +
-            `background:rgba(45,26,10,0.6);min-height:84px;font-size:13px;` +
-            `line-height:1.5;flex-shrink:0;`;
-
-        // Section 3: balance bar
+        // Balance bar (ví) — section cuối của panel chính.
         this.balanceEl = document.createElement('div');
         this.balanceEl.style.cssText =
             `display:flex;justify-content:space-around;align-items:center;` +
             `padding:8px 14px;border-top:2px solid ${MODAL_COLORS.divider};` +
             `background:rgba(20,12,4,0.7);flex-shrink:0;font-size:13px;`;
 
-        // Section 4: buy controls
-        const buyRow = document.createElement('div');
-        buyRow.style.cssText =
-            `display:flex;gap:8px;padding:10px 14px;` +
-            `border-top:2px solid ${MODAL_COLORS.divider};` +
-            `background:${MODAL_COLORS.footerBg};align-items:center;flex-shrink:0;`;
+        shell.body.append(gridWrap, this.balanceEl);
 
-        this.amountLabelEl = document.createElement('label');
-        this.amountLabelEl.style.cssText = `font-size:12px;color:${MODAL_COLORS.text};`;
-        this.amountLabelEl.textContent = t('shop.amount_label');
+        // Action bar — sibling của panel, absolute đáy overlay. pointerEvents:
+        // none cho container để click backdrop vẫn close modal; button con tự
+        // set pointerEvents:auto. Share CSS zoom với panel để bar shrink đồng bộ
+        // trên màn nhỏ.
+        const bar = document.createElement('div');
+        Object.assign(bar.style, {
+            position: 'absolute',
+            left: '0',
+            right: '0',
+            bottom: '16px',
+            height: '44px',
+            pointerEvents: 'none',
+        });
+        shell.overlay.appendChild(bar);
+        shell.applyZoomTo(bar);
+        this.actionBarEl = bar;
 
-        this.amountInput = document.createElement('input');
-        this.amountInput.type = 'number';
-        this.amountInput.min = '1';
-        this.amountInput.max = '99';
-        this.amountInput.value = '1';
-        this.amountInput.style.cssText =
-            `width:60px;height:32px;border-radius:6px;border:2px solid ${MODAL_COLORS.divider};` +
-            `background:${MODAL_COLORS.panelBgTop};color:${MODAL_COLORS.text};` +
-            `font-size:13px;text-align:center;font-family:inherit;`;
-        this.amountInput.addEventListener('input', () => this.renderDetail());
-
-        this.buyBtn = document.createElement('button');
-        this.buyBtn.disabled = true;
-        this.buyBtn.textContent = t('shop.btn_buy');
-        this.buyBtn.style.cssText =
-            'flex:1;height:36px;border-radius:6px;border:2px solid #4a7a3a;' +
-            'background:#2a4a1a;color:#bdf0a0;font-size:13px;font-weight:bold;' +
-            'cursor:pointer;font-family:inherit;opacity:0.5;';
-        this.buyBtn.addEventListener('click', () => void this.handleBuy());
-
-        buyRow.append(this.amountLabelEl, this.amountInput, this.buyBtn);
-
-        shell.body.append(gridWrap, this.detailEl, this.balanceEl, buyRow);
+        this.renderActionBar();
 
         shell.registerLocaleSync(() => {
             this.applyTitle();
-            if (this.amountLabelEl) this.amountLabelEl.textContent = t('shop.amount_label');
-            if (this.buyBtn) this.buyBtn.textContent = t('shop.btn_buy');
             this.renderGrid();
-            this.renderDetail();
             this.renderBalance();
+            this.renderActionBar();
+            if (this.detailOpen) this.renderDetailModalContent();
+            if (this.buyOpen) this.renderBuyMenu();
         });
     }
 
     protected teardownShell(): void {
         super.teardownShell();
+        this.closeDetailModal();
+        this.closeBuyMenu();
         this.gridEl = undefined;
-        this.detailEl = undefined;
-        this.amountInput = undefined;
-        this.buyBtn = undefined;
         this.balanceEl = undefined;
-        this.amountLabelEl = undefined;
+        this.actionBarEl = undefined;
+        this.actionButtons = [];
     }
 
     open(params: OpenParams): void {
@@ -198,12 +216,12 @@ export class ShopModal extends BaseModal {
         this.listings = [];
         this.wallet = null;
         this.focusZone = 'grid';
+        this.focusedAction = 0;
         shell.setStatus('');
         this.visible = true;
         this.applyTitle();
-        this.renderDetail();
         this.renderBalance();
-        this.renderControlsFocus();
+        this.renderActionBar();
         void Promise.all([this.loadListings(), this.loadWallet()]);
     }
 
@@ -213,22 +231,28 @@ export class ShopModal extends BaseModal {
     }
 
     /**
-     * Grid 4-cột: ↑/↓/←/→ điều hướng listing. ↓ ở row cuối → zone='controls'.
-     * Controls zone: ←/→ điều chỉnh số lượng (clamp 1-99); ↑ về grid.
+     * Grid 4-cột: ↑/↓/←/→ điều hướng listing. ↓ ở row cuối → zone='actions'.
+     * Actions zone: ←/→ giữa nút Mua/Xem; ↑ về grid.
      */
     navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
         if (!this.visible) return;
-        if (this.focusZone === 'controls') {
+        if (this.focusZone === 'actions') {
             switch (direction) {
                 case 'up':
                     this.focusZone = 'grid';
-                    this.renderControlsFocus();
+                    this.renderActionFocus();
                     return;
                 case 'left':
-                    this.adjustAmount(-1);
+                    if (this.focusedAction > 0) {
+                        this.focusedAction -= 1;
+                        this.renderActionFocus();
+                    }
                     return;
                 case 'right':
-                    this.adjustAmount(1);
+                    if (this.focusedAction < this.actionButtons.length - 1) {
+                        this.focusedAction += 1;
+                        this.renderActionFocus();
+                    }
                     return;
                 case 'down':
                     return;
@@ -253,8 +277,11 @@ export class ShopModal extends BaseModal {
                 break;
             case 'down':
                 if (row === rows - 1) {
-                    this.focusZone = 'controls';
-                    this.renderControlsFocus();
+                    if (this.actionButtons.length > 0) {
+                        this.focusZone = 'actions';
+                        this.focusedAction = 0;
+                        this.renderActionFocus();
+                    }
                     return;
                 }
                 row += 1;
@@ -264,12 +291,17 @@ export class ShopModal extends BaseModal {
         if (next !== this.selectedIdx) this.setSelectedIdx(next);
     }
 
-    /** Enter trong controls zone = click Mua (nếu enabled). Grid zone = no-op
-     * (selection đã update qua arrow). */
+    /** Enter:
+     *   - actions zone: click nút focused (Mua / Xem).
+     *   - grid zone: shortcut mở popup Mua nếu có item selected. */
     confirm(): void {
         if (!this.visible) return;
-        if (this.focusZone !== 'controls') return;
-        if (this.buyBtn && !this.buyBtn.disabled) this.buyBtn.click();
+        if (this.focusZone === 'actions') {
+            const btn = this.actionButtons[this.focusedAction];
+            if (btn && !btn.disabled) btn.click();
+            return;
+        }
+        if (this.findSelected()) this.toggleBuyMenu();
     }
 
     /** Set selectedIdx trực tiếp (không toggle như selectListing) — cho arrow nav. */
@@ -277,36 +309,11 @@ export class ShopModal extends BaseModal {
         this.selectedIdx = idx;
         const first = this.listings[idx]?.prices[0];
         this.selectedCurrency = first ? first.currency_type : null;
-        if (this.amountInput) this.amountInput.value = '1';
+        // Đổi item → popup/sub-modal cũ stale, đóng để user mở lại cho item mới.
+        if (this.detailOpen) this.closeDetailModal();
+        if (this.buyOpen) this.closeBuyMenu();
         this.renderGrid();
-        this.renderDetail();
-    }
-
-    private adjustAmount(delta: number): void {
-        if (!this.amountInput) return;
-        const cur = parseInt(this.amountInput.value, 10) || 1;
-        const next = Math.max(1, Math.min(99, cur + delta));
-        if (next === cur) return;
-        this.amountInput.value = String(next);
-        this.renderDetail();
-    }
-
-    private renderControlsFocus(): void {
-        const focused = this.focusZone === 'controls';
-        if (this.buyBtn) {
-            if (focused) {
-                this.buyBtn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
-                this.buyBtn.style.outlineOffset = '2px';
-                this.buyBtn.style.boxShadow = '0 0 12px rgba(255,234,122,0.8)';
-            } else {
-                this.buyBtn.style.outline = '';
-                this.buyBtn.style.outlineOffset = '';
-                this.buyBtn.style.boxShadow = '';
-            }
-        }
-        if (this.amountInput) {
-            this.amountInput.style.borderColor = focused ? MODAL_COLORS.borderAccent : MODAL_COLORS.divider;
-        }
+        this.renderActionBar();
     }
 
     private applyTitle(): void {
@@ -327,7 +334,6 @@ export class ShopModal extends BaseModal {
             if (err instanceof Error) console.warn('shop: load wallet failed', err.message);
         }
         this.renderBalance();
-        this.renderDetail();
     }
 
     private async loadListings(): Promise<void> {
@@ -338,7 +344,7 @@ export class ShopModal extends BaseModal {
         }
         this.loading = true;
         this.renderGrid();
-        this.renderDetail();
+        this.renderActionBar();
         try {
             const res = await shopAPI.list(this.mapId, this.npcTemplateId);
             // Filter client-side: classFilter (vd Kiếm / Cung) + subTypeFilter
@@ -356,7 +362,7 @@ export class ShopModal extends BaseModal {
             this.loading = false;
             this.renderGrid();
             this.renderBalance();
-            this.renderDetail();
+            this.renderActionBar();
         }
     }
 
@@ -410,7 +416,7 @@ export class ShopModal extends BaseModal {
 
             cell.innerHTML = [
                 `<div style="font-size:24px;line-height:1;">${icon}</div>`,
-                `<div style="font-size:10px;color:${MODAL_COLORS.text};text-align:center;line-height:1.2;height:24px;overflow:hidden;">${item.name_key}</div>`,
+                `<div style="font-size:10px;color:${MODAL_COLORS.text};text-align:center;line-height:1.2;height:24px;overflow:hidden;">${escapeHtml(t(item.name_key))}</div>`,
                 priceLine,
                 multiBadge,
             ].join('');
@@ -430,104 +436,18 @@ export class ShopModal extends BaseModal {
         if (this.selectedIdx === idx) {
             this.selectedIdx = null;
             this.selectedCurrency = null;
+            if (this.detailOpen) this.closeDetailModal();
+            if (this.buyOpen) this.closeBuyMenu();
         } else {
             this.selectedIdx = idx;
             const first = this.listings[idx]?.prices[0];
             this.selectedCurrency = first ? first.currency_type : null;
+            // Đổi item → đóng popup/sub-modal cũ (info stale, buy flow reset).
+            if (this.detailOpen) this.closeDetailModal();
+            if (this.buyOpen) this.closeBuyMenu();
         }
-        if (this.amountInput) this.amountInput.value = '1';
         this.renderGrid();
-        this.renderDetail();
-    }
-
-    private renderDetail(): void {
-        if (!this.detailEl) return;
-        const item = this.findSelected();
-        if (!item) {
-            this.detailEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('shop.detail_pick'))}</div>`;
-            this.setBuyEnabled(false);
-            return;
-        }
-        const selectedPrice = this.findSelectedPrice(item);
-        const cur = selectedPrice ? CURRENCY_META[selectedPrice.currency_type] : CURRENCY_META.coin;
-        const amount = this.getAmount();
-        const total = selectedPrice ? selectedPrice.price * amount : 0;
-        const isFoodBuff = item.sub_type === 'food_buff';
-        const heal = isFoodBuff
-            ? (() => {
-                const hpRate = item.base_stats?.heal_hp_per_sec ?? 0;
-                const mpRate = item.base_stats?.heal_mp_per_sec ?? 0;
-                const dur = Math.round((item.base_stats?.duration_sec ?? 0) / 60);
-                // shop.heal_food_buff template chứa <b> markup → KHÔNG escape.
-                return t('shop.heal_food_buff', { hp: hpRate, mp: mpRate, dur })
-                    + `<br/><span style="color:#aaa;font-size:11px;">${escapeHtml(t('shop.heal_food_buff_note'))}</span>`;
-            })()
-            : item.base_stats?.heal_hp
-            ? t('shop.heal_hp', { n: item.base_stats.heal_hp })
-            : item.base_stats?.heal_mp
-            ? t('shop.heal_mp', { n: item.base_stats.heal_mp })
-            : '';
-
-        const currencyChooser = item.prices.length > 1
-            ? this.renderCurrencyChooser(item.prices)
-            : selectedPrice
-                ? `<div style="margin-top:4px;font-size:12px;color:${MODAL_COLORS.text};">`
-                    + `${escapeHtml(t('shop.unit_price'))} <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${selectedPrice.price.toLocaleString('en-US')}</span>`
-                    + `</div>`
-                : '';
-
-        const totalLine = selectedPrice
-            ? `<div style="margin-top:4px;font-size:12px;color:${MODAL_COLORS.text};">${escapeHtml(t('shop.total_price', { n: amount }))} <span style="color:${cur.color};font-weight:bold;">${cur.icon} ${total.toLocaleString('en-US')}</span></div>`
-            : '';
-
-        this.detailEl.innerHTML = [
-            `<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">`,
-            `  <span style="font-size:14px;font-weight:bold;color:${MODAL_COLORS.title};">${escapeHtml(item.name_key)}</span>`,
-            `  <span style="font-size:11px;color:${TYPE_BORDER[item.item_type]};">[${escapeHtml(t(TYPE_KEY[item.item_type]))}]</span>`,
-            `  <span style="font-size:11px;color:#aaa;">${escapeHtml(t('shop.required_level', { n: item.required_level }))}</span>`,
-            `</div>`,
-            heal ? `<div style="margin-top:4px;">${heal}</div>` : '',
-            currencyChooser,
-            totalLine,
-        ].join('');
-
-        // Wire click handler cho radio currency
-        if (item.prices.length > 1) {
-            this.detailEl.querySelectorAll<HTMLDivElement>('[data-currency]').forEach((el) => {
-                el.addEventListener('click', () => {
-                    const c = el.getAttribute('data-currency') as ShopCurrencyType | null;
-                    if (c) {
-                        this.selectedCurrency = c;
-                        this.renderDetail();
-                    }
-                });
-            });
-        }
-
-        this.setBuyEnabled(!this.actionInFlight && amount > 0 && !!selectedPrice);
-    }
-
-    private renderCurrencyChooser(prices: ShopPriceDTO[]): string {
-        const buttons = prices.map((p) => {
-            const cur = CURRENCY_META[p.currency_type];
-            const active = this.selectedCurrency === p.currency_type;
-            const border = active ? MODAL_COLORS.borderAccent : MODAL_COLORS.divider;
-            const bg = active ? '#6b3a14' : 'rgba(45,26,10,0.5)';
-            return `<div data-currency="${p.currency_type}" style="`
-                + `cursor:pointer;padding:6px 10px;border-radius:6px;`
-                + `border:2px solid ${border};background:${bg};`
-                + `display:flex;align-items:center;gap:4px;font-size:12px;`
-                + `color:${cur.color};font-weight:bold;user-select:none;`
-                + `">`
-                + `<span>${cur.icon}</span>`
-                + `<span>${p.price.toLocaleString('en-US')}</span>`
-                + `<span style="font-size:10px;color:#aaa;font-weight:normal;">${escapeHtml(t(cur.labelKey))}</span>`
-                + `</div>`;
-        }).join('');
-        return `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">`
-            + `<span style="font-size:11px;color:#aaa;">${escapeHtml(t('shop.payment_label'))}</span>`
-            + buttons
-            + `</div>`;
+        this.renderActionBar();
     }
 
     private findSelectedPrice(item: ShopListingDTO): ShopPriceDTO | null {
@@ -559,26 +479,479 @@ export class ShopModal extends BaseModal {
         ].join('');
     }
 
-    private getAmount(): number {
-        const raw = this.amountInput?.value ?? '1';
-        const n = parseInt(raw, 10);
-        if (!Number.isFinite(n) || n < 1) return 1;
-        return Math.min(n, 99);
-    }
-
     private findSelected(): ShopListingDTO | null {
         if (this.selectedIdx === null) return null;
         return this.listings[this.selectedIdx] ?? null;
     }
 
-    private setBuyEnabled(enabled: boolean): void {
-        if (!this.buyBtn) return;
-        this.buyBtn.disabled = !enabled;
-        this.buyBtn.style.opacity = enabled ? '1' : '0.5';
-        this.buyBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+    // =====================================================================
+    //  Action bar (Mua trái + Xem giữa)
+    // =====================================================================
+
+    /** Slot positioning theo InventoryModal: 'left' = left:24px, 'center' =
+     * left:50% + translateX(-50%). Mua dùng left, Xem dùng center. */
+    private static readonly SLOT_POS: Record<ActionSlot, { left?: string; transform?: string }> = {
+        left: { left: '24px' },
+        center: { left: '50%', transform: 'translateX(-50%)' },
+    };
+
+    /** Rebuild action bar theo selected item. Mua (left) toggle popup menu;
+     * Xem (center) toggle sub-modal chi tiết. Item chưa chọn → bar trống. */
+    private renderActionBar(): void {
+        if (!this.actionBarEl) return;
+        this.actionBarEl.innerHTML = '';
+        this.actionButtons = [];
+
+        const item = this.findSelected();
+        if (this.loading || !item) {
+            if (this.focusZone === 'actions') this.focusZone = 'grid';
+            return;
+        }
+
+        const actions: ActionDef[] = [
+            {
+                key: 'buy',
+                slot: 'left',
+                label: this.buyOpen ? t('shop.btn_close_detail') : t('shop.btn_buy'),
+                palette: 'border:2px solid #4a7a3a;background:#2a4a1a;color:#bdf0a0;',
+                onClick: () => this.toggleBuyMenu(),
+            },
+            {
+                key: 'view',
+                slot: 'center',
+                label: this.detailOpen ? t('shop.btn_close_detail') : t('shop.btn_view'),
+                palette: 'border:2px solid #3a5a7a;background:#1a2a3a;color:#a0c8e0;',
+                onClick: () => this.toggleDetailModal(),
+            },
+        ];
+
+        if (this.focusedAction >= actions.length) this.focusedAction = 0;
+
+        actions.forEach((a) => {
+            const pos = ShopModal.SLOT_POS[a.slot];
+            const btn = document.createElement('button');
+            btn.textContent = a.label;
+            Object.assign(btn.style, {
+                position: 'absolute',
+                bottom: '0',
+                left: pos.left ?? '',
+                transform: pos.transform ?? '',
+                minWidth: '120px',
+                height: '36px',
+                padding: '0 16px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontFamily: 'system-ui, sans-serif',
+                pointerEvents: 'auto',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.5)',
+                whiteSpace: 'nowrap',
+            });
+            btn.style.cssText += a.palette;
+            btn.addEventListener('click', a.onClick);
+            this.actionBarEl!.appendChild(btn);
+            this.actionButtons.push(btn);
+        });
+
+        this.renderActionFocus();
     }
 
-    private async handleBuy(): Promise<void> {
+    private renderActionFocus(): void {
+        const focused = this.focusZone === 'actions';
+        this.actionButtons.forEach((btn, idx) => {
+            if (focused && this.focusedAction === idx) {
+                btn.style.outline = `2px solid ${MODAL_COLORS.borderAccent}`;
+                btn.style.outlineOffset = '2px';
+                btn.style.boxShadow = '0 0 12px rgba(255,234,122,0.7), 0 4px 12px rgba(0,0,0,0.5)';
+            } else {
+                btn.style.outline = '';
+                btn.style.outlineOffset = '';
+                btn.style.boxShadow = '0 3px 10px rgba(0,0,0,0.5)';
+            }
+        });
+    }
+
+    // =====================================================================
+    //  Sub-modal: Xem chi tiết item (panel nhỏ, info-only)
+    // =====================================================================
+
+    private toggleDetailModal(): void {
+        if (this.detailOpen) this.closeDetailModal();
+        else this.openDetailModal();
+    }
+
+    private openDetailModal(): void {
+        if (this.detailOpen) return;
+        if (!this.findSelected()) return;
+        // Chỉ 1 popup/sub-modal cùng lúc — đóng buy menu nếu đang mở.
+        if (this.buyOpen) this.closeBuyMenu();
+        this.ensureDetailModalDOM();
+        this.detailOpen = true;
+        this.renderDetailModalContent();
+        this.renderActionBar();
+    }
+
+    private closeDetailModal(): void {
+        if (this.detailOverlayEl) {
+            this.detailOverlayEl.remove();
+            this.detailOverlayEl = undefined;
+            this.detailPanelEl = undefined;
+        }
+        if (!this.detailOpen) return;
+        this.detailOpen = false;
+        if (this.actionBarEl) this.renderActionBar();
+    }
+
+    private ensureDetailModalDOM(): void {
+        if (this.detailOverlayEl) return;
+        const parent = this.scene.game.canvas.parentElement;
+        if (!parent) return;
+
+        const overlay = document.createElement('div');
+        overlay.classList.add('kageverse-overlay-shop-detail');
+        Object.assign(overlay.style, {
+            position: 'absolute',
+            inset: '0',
+            background: 'transparent',
+            zIndex: String(MODAL_Z_INDEX.tooltip),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            fontFamily: 'system-ui, sans-serif',
+        });
+
+        const panel = document.createElement('div');
+        Object.assign(panel.style, {
+            width: '320px',
+            maxHeight: '70vh',
+            background: `linear-gradient(180deg, ${MODAL_COLORS.panelBgTop} 0%, ${MODAL_COLORS.panelBgBottom} 100%)`,
+            border: `${MODAL_SIZES.borderWidth} solid ${MODAL_COLORS.border}`,
+            borderRadius: MODAL_SIZES.borderRadius,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            color: MODAL_COLORS.text,
+            padding: '14px 16px',
+            overflow: 'auto',
+            pointerEvents: 'auto',
+            fontSize: '13px',
+            lineHeight: '1.5',
+        });
+        overlay.appendChild(panel);
+        parent.appendChild(overlay);
+
+        // Share zoom với panel chính → sub-modal cũng shrink theo viewport.
+        this.shell?.applyZoomTo(panel);
+
+        this.detailOverlayEl = overlay;
+        this.detailPanelEl = panel;
+    }
+
+    private renderDetailModalContent(): void {
+        if (!this.detailPanelEl) return;
+        const item = this.findSelected();
+        if (!item) {
+            this.closeDetailModal();
+            return;
+        }
+        const isFoodBuff = item.sub_type === 'food_buff';
+        const heal = isFoodBuff
+            ? (() => {
+                const hpRate = item.base_stats?.heal_hp_per_sec ?? 0;
+                const mpRate = item.base_stats?.heal_mp_per_sec ?? 0;
+                const dur = Math.round((item.base_stats?.duration_sec ?? 0) / 60);
+                // shop.heal_food_buff template chứa <b> markup → KHÔNG escape.
+                return t('shop.heal_food_buff', { hp: hpRate, mp: mpRate, dur })
+                    + `<br/><span style="color:#aaa;font-size:11px;">${escapeHtml(t('shop.heal_food_buff_note'))}</span>`;
+            })()
+            : item.base_stats?.heal_hp
+            ? t('shop.heal_hp', { n: item.base_stats.heal_hp })
+            : item.base_stats?.heal_mp
+            ? t('shop.heal_mp', { n: item.base_stats.heal_mp })
+            : '';
+
+        // Detail liệt kê tất cả giá (info-only). Chọn currency thực hiện ở
+        // popup Mua nếu cần (item có nhiều currency).
+        const priceLines = item.prices.length === 0
+            ? `<div style="font-size:11px;color:#888;font-style:italic;">N/A</div>`
+            : item.prices.map((p) => {
+                const c = CURRENCY_META[p.currency_type];
+                return `<div style="display:flex;align-items:center;gap:6px;font-size:12px;">`
+                    + `<span style="font-size:14px;">${c.icon}</span>`
+                    + `<span style="color:${c.color};font-weight:bold;">${p.price.toLocaleString('en-US')}</span>`
+                    + `<span style="color:#aaa;font-size:11px;">${escapeHtml(t(c.labelKey))}</span>`
+                    + `</div>`;
+            }).join('');
+
+        this.detailPanelEl.innerHTML = [
+            `<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">`,
+            `  <span style="font-size:14px;font-weight:bold;color:${MODAL_COLORS.title};">${escapeHtml(t(item.name_key))}</span>`,
+            `  <span style="font-size:11px;color:${TYPE_BORDER[item.item_type]};">[${escapeHtml(t(TYPE_KEY[item.item_type]))}]</span>`,
+            `</div>`,
+            `<div style="margin-top:4px;font-size:11px;color:#aaa;">${escapeHtml(t('shop.required_level', { n: item.required_level }))}</div>`,
+            heal ? `<div style="margin-top:6px;">${heal}</div>` : '',
+            `<div style="margin-top:10px;font-size:11px;color:#aaa;">${escapeHtml(t('shop.unit_price'))}</div>`,
+            `<div style="margin-top:4px;display:flex;flex-direction:column;gap:4px;">${priceLines}</div>`,
+        ].join('');
+    }
+
+    // =====================================================================
+    //  Popup menu: Mua (floating buttons style — KHÔNG panel chrome)
+    // =====================================================================
+
+    private toggleBuyMenu(): void {
+        if (this.buyOpen) this.closeBuyMenu();
+        else this.openBuyMenu();
+    }
+
+    private openBuyMenu(): void {
+        if (this.buyOpen) return;
+        if (!this.findSelected()) return;
+        if (this.detailOpen) this.closeDetailModal();
+        this.buyMode = 'initial';
+        this.ensureBuyMenuDOM();
+        this.buyOpen = true;
+        this.renderBuyMenu();
+        this.renderActionBar();
+    }
+
+    private closeBuyMenu(): void {
+        if (this.buyMenuEl) {
+            this.buyMenuEl.remove();
+            this.buyMenuEl = undefined;
+            this.buyAmountInput = undefined;
+        }
+        if (!this.buyOpen) return;
+        this.buyOpen = false;
+        this.buyMode = 'initial';
+        if (this.actionBarEl) this.renderActionBar();
+    }
+
+    /** Tạo container popup — sibling của action bar trong shell.overlay,
+     * absolute đáy overlay (bottom:70px — ngay trên action bar 16+44=60px).
+     * Không panel chrome — chỉ là 1 row floating buttons. */
+    private ensureBuyMenuDOM(): void {
+        if (this.buyMenuEl) return;
+        const shell = this.shell;
+        if (!shell) return;
+        const menu = document.createElement('div');
+        menu.classList.add('kageverse-overlay-shop-buy-menu');
+        Object.assign(menu.style, {
+            position: 'absolute',
+            left: '0',
+            right: '0',
+            bottom: '70px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px',
+            pointerEvents: 'none',
+        });
+        shell.overlay.appendChild(menu);
+        shell.applyZoomTo(menu);
+        this.buyMenuEl = menu;
+    }
+
+    private renderBuyMenu(): void {
+        if (!this.buyMenuEl) return;
+        const item = this.findSelected();
+        if (!item) {
+            this.closeBuyMenu();
+            return;
+        }
+        this.buyMenuEl.innerHTML = '';
+
+        // Popup Mua chỉ chứa buttons (Mua / Mua nhiều / Input + Mua). KHÔNG
+        // hiển thị giá / chooser / thanh toán — info số tiền sẽ trừ chỉ show
+        // ở ConfirmDialog ngay trước khi gọi API. Item nhiều currency → mặc
+        // định currency đầu tiên (set khi selectListing). User xem đủ các giá
+        // ở sub-modal Xem.
+
+        if (this.buyMode === 'initial') {
+            // 2 wooden tablet [Mua] [Mua nhiều] — style match menu chức năng game.
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:18px;pointer-events:none;';
+
+            const btnBuy = this.createWoodenButton(
+                t('shop.btn_buy'),
+                () => void this.handleBuy(1),
+            );
+            const btnMulti = this.createWoodenButton(
+                t('shop.btn_buy_multi'),
+                () => {
+                    this.buyMode = 'multi';
+                    this.renderBuyMenu();
+                },
+            );
+            row.append(btnBuy, btnMulti);
+            this.buyMenuEl.appendChild(row);
+        } else {
+            // multi mode: wooden banner panel chứa label + input (recessed),
+            // dưới là row 3 wooden tablet [Đóng] [Đồng ý] [Xoá]. KHÔNG hiển thị
+            // total tiền — info số tiền chỉ show ở ConfirmDialog trước khi trừ.
+            const banner = document.createElement('div');
+            Object.assign(banner.style, {
+                background: 'linear-gradient(180deg, #5a3a1f 0%, #3e2510 50%, #2a1808 100%)',
+                border: '4px solid #1a0e04',
+                borderRadius: '18px',
+                boxShadow: [
+                    'inset 0 2px 0 rgba(255,200,120,0.3)',
+                    'inset 0 -3px 6px rgba(0,0,0,0.6)',
+                    '0 6px 16px rgba(0,0,0,0.7)',
+                ].join(','),
+                padding: '14px 22px 16px',
+                pointerEvents: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                width: '420px',
+                maxWidth: 'min(80vw, 520px)',
+                boxSizing: 'border-box',
+            });
+
+            const label = document.createElement('div');
+            Object.assign(label.style, {
+                textAlign: 'center',
+                color: '#ffe4c4',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                letterSpacing: '0.5px',
+            });
+            label.textContent = t('shop.input_amount_label');
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.min = '1';
+            input.max = '99';
+            input.value = this.buyAmountInput?.value ?? '1';
+            Object.assign(input.style, {
+                width: '100%',
+                height: '40px',
+                background: 'linear-gradient(180deg, #1a0e04, #2a1808)',
+                border: '2px solid #1a0e04',
+                borderRadius: '10px',
+                boxShadow: [
+                    'inset 0 2px 4px rgba(0,0,0,0.8)',
+                    'inset 0 -1px 0 rgba(255,200,120,0.15)',
+                ].join(','),
+                color: '#ffe4c4',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+                outline: 'none',
+            });
+
+            banner.append(label, input);
+            this.buyMenuEl.appendChild(banner);
+            this.buyAmountInput = input;
+
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display:flex;gap:14px;pointer-events:none;';
+
+            const btnClose = this.createWoodenButton(
+                t('shop.btn_close_detail'),
+                () => this.closeBuyMenu(),
+            );
+            const btnAgree = this.createWoodenButton(
+                t('shop.btn_agree'),
+                () => void this.handleBuy(this.getBuyAmount()),
+            );
+            const btnClear = this.createWoodenButton(
+                t('shop.btn_clear'),
+                () => {
+                    if (this.buyAmountInput) {
+                        this.buyAmountInput.value = '';
+                        this.buyAmountInput.focus();
+                    }
+                },
+            );
+
+            btnRow.append(btnClose, btnAgree, btnClear);
+            this.buyMenuEl.appendChild(btnRow);
+        }
+    }
+
+    /** Wooden tablet button — gradient nâu gỗ, border đen, gold text với shadow.
+     * Hover sáng hơn, mousedown lún xuống 1px. Match style menu chức năng game
+     * (Phaser ActionMenu, color tone tương đương #3e2723 / #e29e4a). */
+    private createWoodenButton(label: string, onClick: () => void): HTMLButtonElement {
+        const REST_BG = 'linear-gradient(180deg, #5a3a1f 0%, #3e2510 50%, #2a1808 100%)';
+        const HOVER_BG = 'linear-gradient(180deg, #7d5530 0%, #5d3a18 50%, #3e2308 100%)';
+        const REST_SHADOW = [
+            'inset 0 2px 0 rgba(255,200,120,0.3)',
+            'inset 0 -3px 4px rgba(0,0,0,0.5)',
+            '0 4px 10px rgba(0,0,0,0.6)',
+        ].join(',');
+        const PRESS_SHADOW = [
+            'inset 0 2px 0 rgba(255,200,120,0.3)',
+            'inset 0 -2px 4px rgba(0,0,0,0.5)',
+            '0 2px 6px rgba(0,0,0,0.5)',
+        ].join(',');
+        const btn = document.createElement('button');
+        btn.textContent = label;
+        Object.assign(btn.style, {
+            minWidth: '96px',
+            height: '44px',
+            padding: '0 22px',
+            border: '3px solid #1a0e04',
+            borderRadius: '22px',
+            background: REST_BG,
+            boxShadow: REST_SHADOW,
+            color: '#ffd070',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            fontFamily: 'system-ui, sans-serif',
+            textShadow: '0 1px 2px rgba(0,0,0,0.9)',
+            letterSpacing: '0.5px',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            whiteSpace: 'nowrap',
+            transition: 'transform 0.06s ease, box-shadow 0.06s ease',
+        });
+        btn.addEventListener('mouseenter', () => {
+            btn.style.background = HOVER_BG;
+            btn.style.color = '#ffea7a';
+        });
+        btn.addEventListener('mouseleave', () => {
+            btn.style.background = REST_BG;
+            btn.style.color = '#ffd070';
+            btn.style.transform = '';
+            btn.style.boxShadow = REST_SHADOW;
+        });
+        btn.addEventListener('mousedown', () => {
+            btn.style.transform = 'translateY(1px)';
+            btn.style.boxShadow = PRESS_SHADOW;
+        });
+        btn.addEventListener('mouseup', () => {
+            btn.style.transform = '';
+            btn.style.boxShadow = REST_SHADOW;
+        });
+        btn.addEventListener('click', onClick);
+        return btn;
+    }
+
+    /** Đọc số lượng hiện tại từ input (clamp 1-99). */
+    private getBuyAmount(): number {
+        const raw = this.buyAmountInput?.value ?? '1';
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < 1) return 1;
+        return Math.min(n, 99);
+    }
+
+    // =====================================================================
+    //  Buy action
+    // =====================================================================
+
+    /** Bước 1: validate input + hiển thị ConfirmDialog với chi tiết số tiền
+     * sẽ bị trừ. User OK → executeBuy thực gọi API. User Huỷ → giữ buy menu
+     * mở, không trừ gì.
+     *
+     * Nếu confirmDialog dep không được inject (vd test / scene độc lập),
+     * skip confirm và mua thẳng — fallback an toàn. */
+    private async handleBuy(amount: number): Promise<void> {
         const item = this.findSelected();
         if (!item || this.actionInFlight) return;
         const price = this.findSelectedPrice(item);
@@ -586,14 +959,41 @@ export class ShopModal extends BaseModal {
             this.shell?.setStatus(t('shop.error_no_payment'), 'error');
             return;
         }
+        if (!getCurrentCharacter()) {
+            this.shell?.setStatus(t('shop.error_no_character'), 'error');
+            return;
+        }
+        const qty = Math.max(1, Math.min(99, amount));
+        if (!this.confirmDialog) {
+            await this.executeBuy(item, price, qty);
+            return;
+        }
+        const cur = CURRENCY_META[price.currency_type];
+        const total = price.price * qty;
+        this.confirmDialog.open({
+            title: t('shop.confirm_buy_title'),
+            message: t('shop.confirm_buy_message', {
+                amount: qty,
+                name: t(item.name_key),
+                icon: cur.icon,
+                total: total.toLocaleString('en-US'),
+            }),
+            confirmColor: 'green',
+            onConfirm: () => {
+                void this.executeBuy(item, price, qty);
+            },
+        });
+    }
+
+    /** Bước 2: thực gọi shopAPI.buy + cập nhật wallet + status footer. Tách
+     * khỏi handleBuy để confirmDialog onConfirm callback giữ closure gọn. */
+    private async executeBuy(item: ShopListingDTO, price: ShopPriceDTO, qty: number): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) {
             this.shell?.setStatus(t('shop.error_no_character'), 'error');
             return;
         }
-        const amount = this.getAmount();
         this.actionInFlight = true;
-        this.setBuyEnabled(false);
         this.shell?.setStatus(t('shop.processing'), 'ok');
         try {
             const res = await shopAPI.buy(character.id, {
@@ -601,7 +1001,7 @@ export class ShopModal extends BaseModal {
                 npc_template_id: this.npcTemplateId,
                 item_template_id: item.item_template_id,
                 currency_type: price.currency_type,
-                amount,
+                amount: qty,
             });
             const cur = CURRENCY_META[res.currency.type];
             // Cập nhật wallet ngay từ response (cho currency vừa tiêu) để UI phản hồi tức thì.
@@ -611,8 +1011,8 @@ export class ShopModal extends BaseModal {
             }
             this.shell?.setStatus(
                 t('shop.bought', {
-                    amount,
-                    name: item.name_key,
+                    amount: qty,
+                    name: t(item.name_key),
                     icon: cur.icon,
                     balance: res.currency.balance_after.toLocaleString('en-US'),
                 }),
@@ -620,11 +1020,12 @@ export class ShopModal extends BaseModal {
             );
             // Sync lại 3 loại tiền (đề phòng tickets / quest cùng lúc).
             void this.loadWallet();
+            // Đóng popup Mua sau khi mua thành công.
+            this.closeBuyMenu();
         } catch (err) {
             this.shell?.setStatus(err instanceof Error ? err.message : t('shop.error_buy'), 'error');
         } finally {
             this.actionInFlight = false;
-            this.renderDetail();
         }
     }
 }

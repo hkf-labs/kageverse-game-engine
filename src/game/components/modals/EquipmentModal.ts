@@ -862,7 +862,7 @@ export class EquipmentModal extends BaseModal {
 }
 
 function formatItemTooltip(slotLabel: string, item: InventoryItemDTO): string {
-    const parts = [`${slotLabel}: ${item.name_key}`];
+    const parts = [`${slotLabel}: ${t(item.name_key)}`];
     if (item.upgrade_level > 0) parts.push(`+${item.upgrade_level}`);
     if (item.is_bound) parts.push(t('equipment.tooltip_locked'));
     const stats = item.rolled_stats ?? item.base_stats;

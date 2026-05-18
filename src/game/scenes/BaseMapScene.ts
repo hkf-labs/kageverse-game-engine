@@ -182,8 +182,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.playerCtrl = new PlayerController(this, this.background);
         this.playerCtrl.create();
 
+        // ConfirmDialog — tạo trước NpcManager vì runQuestAccept với
+        // confirm_warning_key cần dialog có sẵn. Cũng phải trước ShopModal để
+        // wire confirm-trước-khi-trừ-tiền vào flow Mua.
+        this.confirmDialog = new ConfirmDialog(this);
+        this.confirmDialog.create();
+
         // Shop modal — phải tạo trước NpcManager để NPC dialog gọi được.
-        this.shop = new ShopModal(this);
+        // ConfirmDialog wired để hiển thị "Mua sẽ trừ {total} {icon}" trước
+        // khi gọi API.
+        this.shop = new ShopModal(this, { confirmDialog: this.confirmDialog });
         this.shop.create();
 
         // Bong bóng thoại NPC (typewriter)
@@ -193,11 +201,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // ActionMenu — phải tạo trước NpcManager vì NPC dialog ủy quyền cho nó.
         this.actionMenu = new ActionMenu(this);
         this.actionMenu.create();
-
-        // ConfirmDialog — tạo trước NpcManager vì runQuestAccept với
-        // confirm_warning_key cần dialog có sẵn.
-        this.confirmDialog = new ConfirmDialog(this);
-        this.confirmDialog.create();
 
         // Quest log — tạo trước NpcManager để NPC dialog có thể mở/refresh panel.
         // onQuestsUpdated push cache mới nhất vào QuestTracker mỗi khi refresh().
