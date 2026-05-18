@@ -63,11 +63,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
      * phân biệt main vs self khi xử lý F2 từ chính menu đó). null khi không
      * có menu nào đang mở. */
     private currentMenuName: 'main' | 'self' | null = null;
-    /** Trạng thái visibility world entities trước khi menu mở. Polled trong
-     * update() — chỉ toggle khi state đổi để tránh setVisible mỗi frame. */
-    private worldHiddenForMenu = false;
     /** Trạng thái visibility map UI (HUD / controls / hotbar / chat+menu icon)
-     * khi modal mở. Polled trong update() — chỉ toggle khi state đổi. */
+     * khi modal mở. Polled trong update() — chỉ toggle khi state đổi để tránh
+     * setVisible mỗi frame. */
     private mapUIHiddenForModal = false;
     /** Ref nút chat / menu góc minimap — lưu để toggle visibility khi modal mở. */
     private chatBtn?: Phaser.GameObjects.Image;
@@ -694,33 +692,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     /**
-     * Toggle visibility tất cả world entity (NPC / quái / portal / player /
-     * remote players + floating UI gắn entity) khi menu chức năng mở/đóng.
-     * Map background + HUD (topbar / minimap / buff / quest tracker / hotbar)
-     * GIỮ NGUYÊN — player vẫn thấy bối cảnh map và stat của mình. Mục tiêu:
-     * giảm rối map khi menu open theo yêu cầu UX.
-     */
-    private setWorldVisible(visible: boolean): void {
-        this.playerCtrl?.setVisible?.(visible);
-        this.npcs?.setVisible?.(visible);
-        this.monsters?.setVisible?.(visible);
-        this.remotePlayers?.setVisible?.(visible);
-        this.bossHPBar?.setVisible?.(visible);
-        this.targetFrame?.setVisible?.(visible);
-        this.npcChatBubble?.setVisible?.(visible);
-        this.playerChatBubble?.setVisible?.(visible);
-        for (const portal of this.portals) {
-            portal.setVisible?.(visible);
-        }
-    }
-
-    /**
      * Toggle visibility map UI controls (D-pad + attack + potion satellite,
-     * SkillHotbar, nút chat & nút menu chức năng) khi modal mở/đóng. Mục
+     * SkillHotbar, nút chat & nút menu chức năng) khi modal/menu mở/đóng. Mục
      * tiêu: lúc modal hiện, các nút trong map không chen vào panel làm rối
      * UI. HUD (topbar HP/MP/level/exp), Minimap, BuffIndicator, QuestTracker
-     * giữ nguyên để player vẫn theo dõi được vitals + context map khi đang
-     * tương tác modal.
+     * + world entities (NPC / quái / portal / player / chat bubbles) GIỮ
+     * NGUYÊN — player vẫn theo dõi được vitals và bối cảnh map khi đang
+     * tương tác modal hoặc menu chức năng / hội thoại NPC.
      */
     private setMapUIVisible(visible: boolean): void {
         this.controls?.setVisible?.(visible);
@@ -974,18 +952,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.currentMenuName = null;
         }
 
-        // Sync visibility world entities theo menu state — chỉ toggle khi
-        // chuyển trạng thái để tránh setVisible mỗi frame. Action menu open
-        // → ẩn NPC / quái / players / portal cho đỡ rối; close → restore.
-        const menuOpen = this.actionMenu.isOpen();
-        if (menuOpen !== this.worldHiddenForMenu) {
-            this.worldHiddenForMenu = menuOpen;
-            this.setWorldVisible(!menuOpen);
-        }
-
         // Sync visibility map UI (HUD / controls / hotbar / chat+menu btn) theo
-        // modal state — bất kỳ modal nào mở (chat / inventory / shop / action
-        // menu / ...) đều ẩn cụm UI dưới để không chen panel.
+        // modal state — bất kỳ modal/menu nào mở (chat / inventory / shop /
+        // action menu / NPC dialog / ...) đều ẩn cụm UI dưới để không chen
+        // panel. World entities (NPC / quái / portal / player) giữ nguyên —
+        // action menu & NPC menu chỉ ẩn controls/skill như modal thường.
         const modalOpen = this.isInputBlockingModalOpen();
         if (modalOpen !== this.mapUIHiddenForModal) {
             this.mapUIHiddenForModal = modalOpen;
