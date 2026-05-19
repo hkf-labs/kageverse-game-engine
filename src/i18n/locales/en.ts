@@ -170,6 +170,9 @@ export const en: TranslationTable = {
     // Combat / death status
     'combat.potion_hp_placeholder': 'Used HP potion! (placeholder)',
     'combat.potion_mp_placeholder': 'Used MP potion! (placeholder)',
+    'combat.pickup_failed': 'Pickup failed',
+    'combat.drop_owned_by_other': "Someone else's drop",
+    'combat.drop_out_of_range': 'Get closer to pick up',
     'combat.auto_attack_off': '⚔️ Auto-attack: OFF',
     'combat.auto_attack_on': '⚔️ Auto-attack: ON — move to disable',
     'combat.auto_attack_off_moving': '⚔️ Auto-attack: OFF (moving)',
@@ -542,6 +545,7 @@ export const en: TranslationTable = {
     'api.error.respawn': 'Respawn failed',
     'api.error.combat_tick': 'Combat tick failed',
     'api.error.death_state': 'Failed to change state',
+    'api.error.pickup_drop': 'Pickup failed',
     'api.error.load_shop': 'Failed to load shop',
     'api.error.buy': 'Purchase failed',
     'api.error.load_skills': 'Failed to load skills',

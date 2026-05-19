@@ -4,7 +4,7 @@ import { disconnectRealtime, wsClient } from '../../network/realtime';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, LootDropManager, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -24,6 +24,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected controls!: GameControls;
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
+    protected loot!: LootDropManager;
     protected targetFrame!: MonsterTargetFrame;
     protected bossHPBar!: BossHPBar;
     protected deathMenu!: DeathMenu;
@@ -156,6 +157,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.load.image('btn_menu', 'assets/game/buttons/menu.png');
         this.load.image('topbar', 'assets/game/ui/topbar.png');
         this.load.image('skill_slot_empty', 'assets/game/skills/skill-empty.png');
+        this.load.image('item_yen', 'assets/game/items/yen.png');
         this.preloadMapAssets();
     }
 
@@ -291,6 +293,18 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.bossHPBar = new BossHPBar(this);
         this.bossHPBar.create();
 
+        // Loot drops (Yên + items) — render trên mặt đất, detect overlap để nhặt.
+        // Khởi tạo trước MonsterManager để hook onAttackResult / onDropsSync.
+        this.loot = new LootDropManager(this, this.background, cfg.mapId, {
+            onYenPicked: (amount, balance) => this.handleYenPicked(amount, balance),
+            onError: (msg) => this.hud.setStatus(msg, '#ff8a8a'),
+        });
+        this.loot.create();
+        this.loot.setPlayerPositionGetter(() => {
+            const p = this.playerCtrl.getPlayer();
+            return p ? { x: p.x, y: p.y } : null;
+        });
+
         // Monsters — BE-driven (data từ /maps/:id/monsters per character).
         this.monsters = new MonsterManager(this, this.background, cfg.mapId, {
             onAttackResult: (res) => this.handleAttackResult(res),
@@ -305,6 +319,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             },
             onRetaliation: (r) => this.showRetaliationFloater(r.damage),
             onTickResult: (hp, dead) => this.handleTickResult(hp, dead),
+            onDropsSync: (drops) => this.loot.syncDrops(drops),
         }, { safeZone: cfg.safeZone === true });
         this.monsters.create();
         this.monsters.setPlayerPositionGetter(() => {
@@ -925,6 +940,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.controls.updateVisuals(inputBlocked ? undefined : cursors);
         this.portals.forEach((p) => p.updatePortal(player.x, player.y));
         this.monsters.update();
+        this.loot?.update();
         this.npcs.update();
         this.npcChatBubble.update();
         this.buffIndicator.update();
@@ -1144,9 +1160,31 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        // Không có portal/NPC → swing vào quái gần nhất.
+        // Drop đang chọn → ưu tiên nhặt trước attack. Async, không await ở
+        // handler — Enter chỉ trigger 1 lần (loot manager tự gate `pickingUp`).
+        if (this.loot?.getSelectedDrop()) {
+            void this.loot.pickupSelected();
+            return;
+        }
+
+        // Không có portal/NPC/drop → swing vào quái gần nhất.
         void this.monsters.attackNearest().then((hit) => {
             if (hit) this.playerCtrl.playAnim('attack');
+        });
+    }
+
+    private handleYenPicked(amount: number, balance: number): void {
+        void balance; // balance hiện chỉ dùng để invalidate InventoryModal cache khi mở lại.
+        const player = this.playerCtrl.getPlayer();
+        if (!player) return;
+        const txt = this.add.text(player.x, player.y - 90, `+${amount.toLocaleString('vi')} Yên`, {
+            fontSize: '14px', fontStyle: 'bold', color: '#ffea7a',
+            fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(60);
+        this.tweens.add({
+            targets: txt, y: txt.y - 50, alpha: 0,
+            duration: 900, ease: 'Cubic.easeOut',
+            onComplete: () => txt.destroy(),
         });
     }
 
@@ -1180,6 +1218,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 this.targetFrame?.onMonsterDead(h.instance_id);
                 this.bossHPBar?.onBossDead(h.instance_id); // no-op nếu không phải boss đang engage.
             }
+        }
+        // Forward loot drops mới (Yên / item) cho LootDropManager render.
+        if (res.drops && res.drops.length > 0) {
+            this.loot?.addDrops(res.drops);
         }
         // Sync target frame + boss HP bar cho con đang nhắm còn sống.
         for (const h of res.hits) {

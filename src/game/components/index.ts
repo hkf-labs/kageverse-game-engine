@@ -15,6 +15,7 @@ export { GameControls } from './GameControls';
 export { HoshiUpgradeModal } from './modals/HoshiUpgradeModal';
 export { HUD } from './HUD';
 export { InventoryModal } from './modals/InventoryModal';
+export { LootDropManager } from './LootDropManager';
 export { MapBackground } from './MapBackground';
 export { Minimap } from './Minimap';
 export { MonsterManager } from './MonsterManager';

@@ -169,6 +169,9 @@ export const vi: TranslationTable = {
 
     // Combat / death status
     'combat.potion_hp_placeholder': 'Đã dùng bình HP! (placeholder)',
+    'combat.pickup_failed': 'Nhặt thất bại',
+    'combat.drop_owned_by_other': 'Vật phẩm của người khác',
+    'combat.drop_out_of_range': 'Lại gần hơn để nhặt',
     'combat.potion_mp_placeholder': 'Đã dùng bình MP! (placeholder)',
     'combat.auto_attack_off': '⚔️ Tự đánh: TẮT',
     'combat.auto_attack_on': '⚔️ Tự đánh: BẬT — di chuyển để tắt',
@@ -553,6 +556,7 @@ export const vi: TranslationTable = {
     'api.error.respawn': 'Hồi sinh thất bại',
     'api.error.combat_tick': 'Tick combat thất bại',
     'api.error.death_state': 'Đổi trạng thái thất bại',
+    'api.error.pickup_drop': 'Nhặt vật phẩm thất bại',
     'api.error.load_shop': 'Không tải được shop',
     'api.error.buy': 'Mua hàng thất bại',
     'api.error.load_skills': 'Không tải được kỹ năng',

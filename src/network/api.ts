@@ -768,9 +768,30 @@ export type MonsterInstanceDTO = {
     respawn_in_sec?: number;
 };
 
+export type LootKind = 'yen' | 'item';
+
+export type LootDropDTO = {
+    drop_id: string;
+    kind: LootKind;
+    pos_x: number;
+    pos_y: number;
+    /** Character được ưu tiên nhặt. Rỗng = không khoá. */
+    owner_character_id?: string;
+    /** RFC3339 timestamp. Sau thời điểm này → public (ai cũng nhặt). Rỗng = không khoá. */
+    owner_lock_expires_at?: string;
+    /** Quest item — chỉ character đang làm quest mới nhặt được. Rỗng cho drop thường. */
+    quest_template_id?: string;
+    /** Yen kind */
+    yen_amount?: number;
+    /** Item kind (reserved) */
+    item_template_id?: string;
+    qty?: number;
+};
+
 export type ListMonstersResponse = {
     map_id: string;
     monsters: MonsterInstanceDTO[];
+    drops: LootDropDTO[];
     server_now: string;
 };
 
@@ -812,12 +833,31 @@ export type AttackResponse = {
     retaliations: RetaliationDTO[];
     xp_gained: number;
     level_up?: LevelUpDTO;
+    drops: LootDropDTO[];
     character_current_hp: number;
     character_current_mp: number;
     character_level: number;
     character_exp: number;
     character_exp_to_next_level: number;
     character_dead: boolean;
+};
+
+export type PickupDropRequest = {
+    map_id: string;
+    drop_id: string;
+    player_x: number;
+    player_y: number;
+};
+
+export type PickupDropResponse = {
+    drop_id: string;
+    kind: LootKind;
+    /** Yen kind */
+    yen_amount?: number;
+    yen_balance?: number;
+    /** Item kind (reserved) */
+    item_template_id?: string;
+    qty?: number;
 };
 
 export type RespawnResponse = {
@@ -887,6 +927,19 @@ export const combatAPI = {
             throw new Error(`${formatApiError(resData, t('api.error.combat_tick'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as CombatTickResponse;
+    },
+    async pickupDrop(characterId: string, req: PickupDropRequest): Promise<PickupDropResponse> {
+        const path = `/characters/${encodeURIComponent(characterId)}/drops/pickup`;
+        const { response, traceId } = await authFetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req),
+        });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, t('api.error.pickup_drop'))} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as PickupDropResponse;
     },
     async setDeathState(characterId: string, action: 'spectate' | 'kill'): Promise<SetDeathStateResponse> {
         const path = `/characters/${encodeURIComponent(characterId)}/death-state`;

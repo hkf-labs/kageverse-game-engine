@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { combatAPI, type AttackResponse, type MonsterInstanceDTO, type RetaliationDTO } from '../../network/api';
+import { combatAPI, type AttackResponse, type LootDropDTO, type MonsterInstanceDTO, type RetaliationDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import type { GameComponent } from './types';
@@ -41,6 +41,9 @@ export interface MonsterManagerCallbacks {
     onTargetCleared?: () => void;
     onRetaliation?: (r: RetaliationDTO) => void;
     onTickResult?: (charHP: number, charDead: boolean) => void;
+    /** Drops được sync từ ListMonsters poll — gọi mỗi lần refresh để LootDropManager
+     * sync set drops (thêm mới + xoá đã nhặt). */
+    onDropsSync?: (drops: LootDropDTO[]) => void;
 }
 
 // Player base attack range — Phase 1.5 hardcode khớp BE skillRegistry. Đơn vị
@@ -368,6 +371,7 @@ export class MonsterManager implements GameComponent {
         try {
             const res = await combatAPI.listMonsters(this.mapId, character.id);
             this.applyMonsterList(res.monsters);
+            this.callbacks.onDropsSync?.(res.drops ?? []);
         } catch (err) {
             if (err instanceof Error) console.warn('combat: list monsters failed', err.message);
         }
