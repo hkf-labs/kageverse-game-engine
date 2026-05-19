@@ -65,6 +65,12 @@ export class SkillHotbar implements GameComponent {
      * Scene wire qua skillAPI.cast → handle response. */
     private onSlotPressed?: (slotIdx: number, skillID: string) => void;
     private keyHandlers: Phaser.Input.Keyboard.Key[] = [];
+    /** Pre-Bái Sư (character.class === 'none' / undefined) chỉ có 1 skill default
+     * → không cần hotbar. Bắt đầu = true để ẩn cho đến khi refresh xác nhận class. */
+    private classLocked = true;
+    /** Visibility do scene yêu cầu qua setVisible() (modal mở/đóng). Combine
+     * với classLocked để ra trạng thái thật của container. */
+    private externallyVisible = true;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -94,6 +100,8 @@ export class SkillHotbar implements GameComponent {
         const cx = this.scene.scale.width / 2;
         const y = this.scene.scale.height - 70;
         this.container = this.scene.add.container(cx - totalWidth / 2, y).setScrollFactor(0).setDepth(95);
+        // Ẩn lúc tạo — refresh() sẽ tự show nếu character đã có class.
+        this.container.setVisible(false);
 
         this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
         this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -148,6 +156,9 @@ export class SkillHotbar implements GameComponent {
     async refresh(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) return;
+        this.classLocked = !character.class || character.class === 'none';
+        this.applyVisibility();
+        if (this.classLocked) return;
         try {
             const res = await skillAPI.list(character.id);
             this.skillsByID.clear();
@@ -166,7 +177,12 @@ export class SkillHotbar implements GameComponent {
     }
 
     setVisible(visible: boolean): void {
-        this.container?.setVisible(visible);
+        this.externallyVisible = visible;
+        this.applyVisibility();
+    }
+
+    private applyVisibility(): void {
+        this.container?.setVisible(this.externallyVisible && !this.classLocked);
     }
 
     destroy(): void {

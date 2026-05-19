@@ -266,6 +266,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     level: char.level,
                 });
                 this.hud.setClass(char.class);
+                // Bái Sư set class → hotbar đổi từ ẩn (class='none') sang hiện
+                // + load skill list mới của class. Refresh đọc lại playerSession
+                // đã được saveCurrentCharacter(fresh) cập nhật trước callback.
+                void this.skillHotbar?.refresh();
             },
         });
         this.npcs.create();
