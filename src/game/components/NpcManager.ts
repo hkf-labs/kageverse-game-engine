@@ -4,7 +4,7 @@ import { findPendingQuizStep, listQuizMenuEntries, quizQuestionText } from '../q
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
-import { canAutoSelectVertically } from '../worldTarget';
+import { canAutoSelectNpcVertically } from '../worldTarget';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
 import type { ConfirmDialog } from './modals/ConfirmDialog';
@@ -243,7 +243,7 @@ export class NpcManager implements GameComponent {
         const maxSq = this.INTERACT_RANGE * this.INTERACT_RANGE;
         let best: { npc: NpcEntry; distSq: number } | null = null;
         for (const n of this.npcList) {
-            if (!canAutoSelectVertically(playerY, n.sprite.y)) continue;
+            if (!canAutoSelectNpcVertically(playerY, n.sprite.y)) continue;
             const dx = n.sprite.x - playerX;
             const dy = n.sprite.y - playerY;
             const distSq = dx * dx + dy * dy;
