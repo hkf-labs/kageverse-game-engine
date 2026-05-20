@@ -24,6 +24,15 @@ const STYLE_BY_LEVEL: { maxLevel: number; style: MonsterStyle }[] = [
 
 const FLYING_ALTITUDE = 60;
 
+/** Bán kính bay chung — quỹ đạo tròn quanh điểm spawn (screen px). */
+const FLY_ORBIT_RADIUS_PX = 40;
+/** Bán kính đi bộ trái/phải quanh spawn (screen px). */
+const GROUND_PATROL_RADIUS_PX = 52;
+const GROUND_PATROL_SPEED_PX = 32;
+const FLY_WANDER_TURN_RATE = 1.4;
+const FLY_WANDER_PICK_MIN_MS = 1200;
+const FLY_WANDER_PICK_MAX_MS = 2800;
+
 interface MonsterEntry {
     dto: MonsterInstanceDTO;
     body: Phaser.GameObjects.Graphics;
@@ -31,9 +40,21 @@ interface MonsterEntry {
     hpBarFill: Phaser.GameObjects.Graphics;
     hitArea: Phaser.GameObjects.Rectangle;
     style: MonsterStyle;
-    baseY: number; // vị trí render Y (đã trừ altitude nếu flying)
+    /** Điểm gốc spawn — không đổi khi wander (trừ respawn). */
+    anchorRenderX: number;
+    baseY: number;
     renderX: number;
+    displayY: number;
     bobOffset: number;
+    offsetX: number;
+    offsetY: number;
+    /** flying: góc hiện tại / mục tiêu trên vòng tròn orbit. */
+    wanderAngle: number;
+    wanderTargetAngle: number;
+    nextWanderPickAt: number;
+    /** ground (và aquatic sau này): patrol ngang. */
+    patrolOffset: number;
+    patrolDir: 1 | -1;
 }
 
 export interface MonsterManagerCallbacks {
@@ -55,6 +76,8 @@ export interface MonsterManagerCallbacks {
 const PLAYER_ATTACK_RANGE_RAW_PX = 120;
 const LIST_POLL_INTERVAL_MS = 8000;        // poll list quái để sync respawn / new spawn
 const COMBAT_TICK_INTERVAL_MS = 700;       // poll retaliation từ BE
+/** Hiệu ứng “đang đánh” — chỉ khi có retaliation, ~1 tick (không theo aggro idle). */
+const MONSTER_ATTACK_FLASH_MS = 680;
 const DEFAULT_SKILL_ID = 'none.basic_swing';
 
 // Client-side cooldown gate per skill — mirror BE skillRegistry. Tránh spam
@@ -87,8 +110,8 @@ export class MonsterManager implements GameComponent {
     private autoMoveTargetScreenX: number | null = null;
     /** setVisible(false) khi mở menu — HP bar vẫn chỉ trên quái đang select. */
     private layerVisible = true;
-    /** Quái đang aggro player — sync từ BE combat-tick. */
-    private aggroOnPlayerIds = new Set<string>();
+    /** Quái vừa đánh player — bật khi có retaliation, tắt sau MONSTER_ATTACK_FLASH_MS. */
+    private attackingUntil = new Map<string, number>();
 
     constructor(
         scene: Phaser.Scene,
@@ -159,8 +182,8 @@ export class MonsterManager implements GameComponent {
                 player_x: pos.x / scaleFactor,
                 player_y: pos.y / scaleFactor,
             });
-            this.syncAggroOnPlayer(res.aggro_instance_ids ?? []);
             for (const ret of res.retaliations) {
+                this.markMonsterAttacking(ret.instance_id);
                 this.callbacks.onRetaliation?.(ret);
             }
             this.callbacks.onTickResult?.(res.character_current_hp, res.character_dead);
@@ -172,22 +195,48 @@ export class MonsterManager implements GameComponent {
         }
     }
 
-    private syncAggroOnPlayer(instanceIds: string[]): void {
-        this.aggroOnPlayerIds = new Set(instanceIds);
+    private markMonsterAttacking(instanceId: string): void {
+        this.attackingUntil.set(instanceId, Date.now() + MONSTER_ATTACK_FLASH_MS);
     }
 
-    private isAggroOnPlayer(instanceId: string): boolean {
-        return this.aggroOnPlayerIds.has(instanceId);
+    private isMonsterAttacking(instanceId: string): boolean {
+        const until = this.attackingUntil.get(instanceId);
+        if (until === undefined) return false;
+        if (Date.now() > until) {
+            this.attackingUntil.delete(instanceId);
+            return false;
+        }
+        return true;
+    }
+
+    private pruneExpiredAttackMarks(): void {
+        const now = Date.now();
+        for (const [id, until] of this.attackingUntil) {
+            if (now > until) this.attackingUntil.delete(id);
+        }
     }
 
     update(): void {
+        this.pruneExpiredAttackMarks();
         const t = this.scene.time.now / 1000;
+        const deltaMs = this.scene.game.loop.delta;
         for (const m of this.monsters) {
+            if (m.dto.state === 'alive') {
+                this.updateWander(m, deltaMs);
+            } else {
+                m.offsetX = 0;
+                m.offsetY = 0;
+                m.renderX = m.anchorRenderX;
+                m.displayY = m.baseY;
+            }
             const bob = Math.sin(t * 1.6 + m.bobOffset) * 3;
-            const attacking = m.dto.state === 'alive' && this.isAggroOnPlayer(m.dto.instance_id);
-            this.drawBody(m.body, m.renderX, m.baseY + bob, m.style, m.dto.state === 'dead', attacking);
-            // Sync hit area position theo bob.
-            m.hitArea.setPosition(m.renderX, m.baseY + bob);
+            const drawY = m.displayY + bob;
+            const attacking = m.dto.state === 'alive' && this.isMonsterAttacking(m.dto.instance_id);
+            this.drawBody(m.body, m.renderX, drawY, m.style, m.dto.state === 'dead', attacking);
+            m.hitArea.setPosition(m.renderX, drawY);
+            if (m.dto.instance_id === this.selectedInstanceId && m.dto.state === 'alive') {
+                this.redrawHpBar(m);
+            }
         }
         if (this.selectedInstanceId) {
             const sel = this.monsters.find((m) => m.dto.instance_id === this.selectedInstanceId);
@@ -196,7 +245,7 @@ export class MonsterManager implements GameComponent {
             }
         }
         const selected = this.getSelectedEntry();
-        if (selected && !isPointInMainCameraView(this.scene, selected.renderX, selected.baseY)) {
+        if (selected && !isPointInMainCameraView(this.scene, selected.renderX, selected.displayY)) {
             this.clearSelection();
         }
     }
@@ -309,7 +358,7 @@ export class MonsterManager implements GameComponent {
     ): boolean {
         const character = getCurrentCharacter();
         if (
-            isMonsterBelowPlayer(playerPos.y, target.baseY)
+            isMonsterBelowPlayer(playerPos.y, target.displayY)
             && !canAttackMonsterBelow(character?.class)
         ) {
             this.callbacks.onError?.(t('monster.error_target_below'));
@@ -329,7 +378,8 @@ export class MonsterManager implements GameComponent {
     private isInRange(playerRendered: { x: number; y: number }, target: MonsterEntry): boolean {
         const scaleFactor = this.scene.scale.height / 1440;
         const playerRawX = playerRendered.x / scaleFactor;
-        const dx = Math.abs(playerRawX - target.dto.pos_x);
+        const targetRawX = target.renderX / scaleFactor;
+        const dx = Math.abs(playerRawX - targetRawX);
         return dx <= PLAYER_ATTACK_RANGE_RAW_PX;
     }
 
@@ -365,7 +415,7 @@ export class MonsterManager implements GameComponent {
                 this.redrawHpBar(ent);
                 this.spawnDamageFloater(
                     ent.renderX,
-                    ent.baseY - ent.style.bodyHeight / 2 - 50,
+                    ent.displayY - ent.style.bodyHeight / 2 - 50,
                     hit.damage,
                     hit.is_crit,
                 );
@@ -373,6 +423,7 @@ export class MonsterManager implements GameComponent {
             }
             // Forward retaliations to scene (player floater + HUD).
             for (const ret of res.retaliations) {
+                this.markMonsterAttacking(ret.instance_id);
                 this.callbacks.onRetaliation?.(ret);
             }
             this.callbacks.onAttackResult?.(res);
@@ -457,9 +508,9 @@ export class MonsterManager implements GameComponent {
     private isInAttackRangeForSelect(playerX: number, playerY: number, m: MonsterEntry): boolean {
         if (m.dto.state !== 'alive') return false;
         if (!this.isInRange({ x: playerX, y: playerY }, m)) return false;
-        if (!canAutoSelectVertically(playerY, m.baseY)) return false;
+        if (!canAutoSelectVertically(playerY, m.displayY)) return false;
         if (
-            isMonsterBelowPlayer(playerY, m.baseY)
+            isMonsterBelowPlayer(playerY, m.displayY)
             && !canAttackMonsterBelow(getCurrentCharacter()?.class)
         ) {
             return false;
@@ -496,7 +547,11 @@ export class MonsterManager implements GameComponent {
                 this.destroyEntry(entry);
                 continue;
             }
+            const wasDead = entry.dto.state === 'dead';
             entry.dto = dto;
+            if (wasDead && dto.state === 'alive') {
+                this.resetSpawnAnchor(entry, dto);
+            }
             this.redrawHpBar(entry);
             byID.delete(dto.instance_id);
             keep.push(entry);
@@ -510,33 +565,119 @@ export class MonsterManager implements GameComponent {
     }
 
     private buildEntry(dto: MonsterInstanceDTO): MonsterEntry {
-        const scaleFactor = this.scene.scale.height / 1440;
-        const renderX = dto.pos_x * scaleFactor;
-        const surfaceY = this.background.getPlatformYAtX(renderX);
         const style = pickStyle(dto.level);
-        let baseY = surfaceY - style.bodyHeight / 2 - 4;
-        if (dto.movement_type === 'flying') {
-            baseY -= FLYING_ALTITUDE;
-        }
+        const anchor = this.computeSpawnAnchor(dto, style);
 
         const body = this.scene.add.graphics().setDepth(8);
         const hpBarBg = this.scene.add.graphics().setDepth(9);
         const hpBarFill = this.scene.add.graphics().setDepth(10);
 
-        // Invisible hit area lớn hơn body để dễ click.
-        const hitArea = this.scene.add.rectangle(renderX, baseY, style.radius * 2 + 20, style.bodyHeight + 20, 0x000000, 0)
+        const hitArea = this.scene.add.rectangle(
+            anchor.renderX, anchor.baseY,
+            style.radius * 2 + 20, style.bodyHeight + 20, 0x000000, 0,
+        )
             .setDepth(7).setInteractive({ useHandCursor: true });
         hitArea.on('pointerdown', () => {
             this.handleMonsterClick(dto.instance_id);
         });
 
+        const wanderAngle = Math.random() * Math.PI * 2;
         const entry: MonsterEntry = {
             dto, body, hpBarBg, hpBarFill, hitArea,
-            style, baseY, renderX,
+            style,
+            anchorRenderX: anchor.renderX,
+            baseY: anchor.baseY,
+            renderX: anchor.renderX,
+            displayY: anchor.baseY,
             bobOffset: Math.random() * Math.PI * 2,
+            offsetX: 0,
+            offsetY: 0,
+            wanderAngle,
+            wanderTargetAngle: wanderAngle,
+            nextWanderPickAt: this.scene.time.now + this.randomWanderPickDelay(),
+            patrolOffset: 0,
+            patrolDir: Math.random() < 0.5 ? -1 : 1,
         };
         this.updateHpBarVisibility();
         return entry;
+    }
+
+    private computeSpawnAnchor(
+        dto: MonsterInstanceDTO,
+        style: MonsterStyle,
+    ): { renderX: number; baseY: number } {
+        const scaleFactor = this.scene.scale.height / 1440;
+        const renderX = dto.pos_x * scaleFactor;
+        const surfaceY = this.background.getPlatformYAtX(renderX);
+        let baseY = surfaceY - style.bodyHeight / 2 - 4;
+        if (dto.movement_type === 'flying') {
+            baseY -= FLYING_ALTITUDE;
+        }
+        return { renderX, baseY };
+    }
+
+    private resetSpawnAnchor(entry: MonsterEntry, dto: MonsterInstanceDTO): void {
+        const anchor = this.computeSpawnAnchor(dto, entry.style);
+        entry.anchorRenderX = anchor.renderX;
+        entry.baseY = anchor.baseY;
+        entry.offsetX = 0;
+        entry.offsetY = 0;
+        entry.renderX = anchor.renderX;
+        entry.displayY = anchor.baseY;
+        entry.wanderAngle = Math.random() * Math.PI * 2;
+        entry.wanderTargetAngle = entry.wanderAngle;
+        entry.nextWanderPickAt = this.scene.time.now + this.randomWanderPickDelay();
+        entry.patrolOffset = 0;
+        entry.patrolDir = Math.random() < 0.5 ? -1 : 1;
+    }
+
+    private randomWanderPickDelay(): number {
+        return FLY_WANDER_PICK_MIN_MS
+            + Math.random() * (FLY_WANDER_PICK_MAX_MS - FLY_WANDER_PICK_MIN_MS);
+    }
+
+    /** Idle wander quanh điểm spawn — client-only, BE vẫn dùng pos spawn. */
+    private updateWander(m: MonsterEntry, deltaMs: number): void {
+        const dt = deltaMs / 1000;
+        if (m.dto.movement_type === 'flying') {
+            this.updateFlyingWander(m, dt);
+        } else {
+            this.updateGroundPatrol(m, dt);
+        }
+        m.renderX = m.anchorRenderX + m.offsetX;
+        m.displayY = m.baseY + m.offsetY;
+    }
+
+    private updateFlyingWander(m: MonsterEntry, dt: number): void {
+        const now = this.scene.time.now;
+        if (now >= m.nextWanderPickAt) {
+            m.wanderTargetAngle = Math.random() * Math.PI * 2;
+            m.nextWanderPickAt = now + this.randomWanderPickDelay();
+        }
+        let diff = m.wanderTargetAngle - m.wanderAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const step = FLY_WANDER_TURN_RATE * dt;
+        if (Math.abs(diff) <= step) {
+            m.wanderAngle = m.wanderTargetAngle;
+        } else {
+            m.wanderAngle += Math.sign(diff) * step;
+        }
+        m.offsetX = Math.cos(m.wanderAngle) * FLY_ORBIT_RADIUS_PX;
+        m.offsetY = Math.sin(m.wanderAngle) * FLY_ORBIT_RADIUS_PX;
+    }
+
+    private updateGroundPatrol(m: MonsterEntry, dt: number): void {
+        m.patrolOffset += m.patrolDir * GROUND_PATROL_SPEED_PX * dt;
+        if (m.patrolOffset >= GROUND_PATROL_RADIUS_PX) {
+            m.patrolOffset = GROUND_PATROL_RADIUS_PX;
+            m.patrolDir = -1;
+        } else if (m.patrolOffset <= -GROUND_PATROL_RADIUS_PX) {
+            m.patrolOffset = -GROUND_PATROL_RADIUS_PX;
+            m.patrolDir = 1;
+        }
+        m.offsetX = m.patrolOffset;
+        m.offsetY = 0;
     }
 
     private destroyEntry(entry: MonsterEntry): void {
@@ -572,7 +713,7 @@ export class MonsterManager implements GameComponent {
 
         const w = m.style.radius * 2 + 16;
         const h = 6;
-        const y = m.baseY - m.style.bodyHeight / 2 - 22;
+        const y = m.displayY - m.style.bodyHeight / 2 - 22;
         const x = m.renderX;
 
         m.hpBarBg.fillStyle(0x000000, 0.7);
@@ -700,7 +841,7 @@ export class MonsterManager implements GameComponent {
     }
 
     private cleanup(): void {
-        this.aggroOnPlayerIds.clear();
+        this.attackingUntil.clear();
         if (this.pollTimer !== undefined) {
             window.clearInterval(this.pollTimer);
             this.pollTimer = undefined;

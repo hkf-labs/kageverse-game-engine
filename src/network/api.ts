@@ -929,7 +929,7 @@ export type CombatTickRequest = {
 
 export type CombatTickResponse = {
     retaliations: RetaliationDTO[];
-    /** Quái đang aggro / tấn công nhân vật này (sync mỗi combat-tick). */
+    /** Quái còn aggro (BE); FE hiệu ứng đánh dùng retaliations, không field này. */
     aggro_instance_ids?: string[];
     character_current_hp: number;
     character_current_mp: number;
