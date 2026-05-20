@@ -2,7 +2,8 @@ import * as Phaser from 'phaser';
 import { authAPI, charactersAPI, clearTokens, getAccessToken, setTokens } from '../../network/api';
 import { bootstrapRealtimeForGameEntry } from '../realtimeBootstrap';
 import { validateLoginIdentifier, validateUsername } from '../../lib/validation';
-import { resolveSceneKeyForMap } from '../maps/registry';
+import { mapIdForSceneKeyOrDefault, resolveSceneKeyForMap } from '../maps/registry';
+import { resolveSpawnOnMap, type MapSceneInitData } from '../spawn';
 import { saveCurrentCharacter, saveUserPrefs } from '../playerSession';
 import { applyDomTranslations, onLocaleChange, t } from '../../i18n';
 
@@ -185,7 +186,6 @@ export class AuthScene extends Phaser.Scene {
         try {
             if (this.statusText?.active) this.statusText.setText(t('character.bootstrap.checking')).setColor('#aaaaaa');
             const list = await charactersAPI.list();
-            const max = list.max_characters_per_user ?? 1;
 
             if (this.statusText?.active) this.statusText.setText('');
 
@@ -194,20 +194,17 @@ export class AuthScene extends Phaser.Scene {
                 this.scene.start('CharacterCreateScene');
                 return;
             }
-            saveCurrentCharacter(list.characters[0]);
+            const character = list.characters[0];
+            saveCurrentCharacter(character);
             this.bootstrapRealtime();
 
-            const onboardingDone = localStorage.getItem(FIRST_MAP_ONBOARDING_DONE_KEY) === 'true';
-            if (!onboardingDone) {
-                this.scene.start(resolveSceneKeyForMap(list.characters[0].last_map_id));
-                return;
-            }
-
-            if (list.characters.length >= max) {
-                this.scene.start('MainScene');
-            } else {
-                this.scene.start('CharacterCreateScene');
-            }
+            const sceneKey = resolveSceneKeyForMap(character.last_map_id);
+            const mapId = mapIdForSceneKeyOrDefault(sceneKey);
+            const spawn = resolveSpawnOnMap(character, mapId);
+            const init: MapSceneInitData | undefined = spawn
+                ? { spawnX: spawn.x, spawnY: spawn.y }
+                : undefined;
+            this.scene.start(sceneKey, init);
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : '';
             if (msg.includes('auth.error.unauthorized')) {
@@ -216,7 +213,7 @@ export class AuthScene extends Phaser.Scene {
             if (this.statusText?.active) {
                 this.statusText.setText(t('auth.bootstrap.api_error')).setColor('#ffaa00');
             }
-            this.scene.start('MainScene');
+            this.scene.start('VillageScene');
         }
     }
 

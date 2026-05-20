@@ -41,3 +41,8 @@ export function mapIdForSceneKey(sceneKey: string): string | undefined {
     }
     return undefined;
 }
+
+/** map_id cho scene key; fallback village_001 khi scene không có trong registry. */
+export function mapIdForSceneKeyOrDefault(sceneKey: string): string {
+    return mapIdForSceneKey(sceneKey) ?? 'village_001';
+}

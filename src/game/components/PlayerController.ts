@@ -11,6 +11,7 @@ import {
 } from '@esotericsoftware/spine-canvas';
 import { getCurrentCharacter, saveCurrentCharacter } from '../playerSession';
 import { charactersAPI } from '../../network/api';
+import type { MapSpawnPoint } from '../spawn';
 import type { GameComponent } from './types';
 import type { MapBackground } from './MapBackground';
 
@@ -86,18 +87,22 @@ export class PlayerController implements GameComponent {
     private spineLoaded = false;
     private currentAnim: AnimName = 'idle';
     private lastTime = 0;
+    private activated = false;
 
     constructor(scene: Phaser.Scene, background: MapBackground) {
         this.scene = scene;
         this.background = background;
     }
 
-    create(): void {
-        const spawn = 50;
+    create(initialSpawn?: MapSpawnPoint): void {
+        const defaultX = this.background.getWorldWidth() * 0.1;
+        const defaultY = 50;
+        const spawnX = initialSpawn?.x ?? defaultX;
+        const spawnY = initialSpawn?.y ?? defaultY;
         const hitWidth = 24;
         const hitHeight = 44;
         const hitbox = this.scene.add.rectangle(
-            this.background.getWorldWidth() * 0.1, spawn,
+            spawnX, spawnY,
             hitWidth, hitHeight,
             0x000000, 0,
         );
@@ -108,8 +113,7 @@ export class PlayerController implements GameComponent {
         if (this.player?.body) {
             this.player.body.setCollideWorldBounds(true);
             this.player.body.setBounce(0);
-            this.player.body.debugShowBody = true;
-            this.player.body.debugBodyColor = 0xffff00;
+            this.player.body.debugShowBody = false;
         }
 
         const displayName = getCurrentCharacter()?.displayName || 'Ninja';
@@ -153,10 +157,16 @@ export class PlayerController implements GameComponent {
      * (loadInitialCharacterState xong, dù success hay fail) — không kẹt
      * "frozen" mãi nếu API fail. Idempotent. */
     activate(): void {
+        if (this.activated) return;
+        this.activated = true;
         if (this.player?.body) {
             this.player.body.setAllowGravity(true);
         }
         this.setVisible(true);
+    }
+
+    isActivated(): boolean {
+        return this.activated;
     }
 
     update(): void {
@@ -260,7 +270,8 @@ export class PlayerController implements GameComponent {
         this.spineImage = this.scene.add.image(0, 0, SPINE_TEX_KEY)
             .setOrigin(0.5, originY)
             .setScale(IMAGE_SCALE)
-            .setDepth(10);
+            .setDepth(10)
+            .setVisible(false);
     }
 
     private _loadSpine(): void {

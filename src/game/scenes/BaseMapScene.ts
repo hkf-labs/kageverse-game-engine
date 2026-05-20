@@ -8,6 +8,7 @@ import {
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
+import { resolveSpawnOnMap, spawnFromSceneInit, type MapSceneInitData, type MapSpawnPoint } from '../spawn';
 
 export abstract class BaseMapScene extends Phaser.Scene {
     protected background!: MapBackground;
@@ -87,9 +88,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private rtJoined = false;
     private readonly RT_MOVE_THROTTLE_MS = 33; // ~30 Hz cap
     private readonly RT_MOVE_DELTA_PX = 1; // Send only when meaningful move
+    /** Tọa độ từ AuthScene (sau /characters) hoặc portal — spawn ngay, không đợi fetch lần 2. */
+    private sceneInitSpawn: MapSpawnPoint | null = null;
 
     constructor(sceneKey: string) {
         super(sceneKey);
+    }
+
+    init(data?: MapSceneInitData): void {
+        this.sceneInitSpawn = spawnFromSceneInit(data);
     }
 
     protected abstract getMapConfig(): MapConfig;
@@ -183,9 +190,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.background = new MapBackground(this, cfg);
         this.background.create();
 
-        // Player
+        // Player — dùng spawn từ scene init (Auth đã gọi /characters) nếu có.
         this.playerCtrl = new PlayerController(this, this.background);
-        this.playerCtrl.create();
+        this.playerCtrl.create(this.sceneInitSpawn ?? undefined);
+        if (this.sceneInitSpawn) {
+            // F5 / login: tọa độ đã biết → hiện ngay, không chờ list() lần 2.
+            this.playerCtrl.activate();
+        }
 
         // ConfirmDialog — tạo trước NpcManager vì runQuestAccept với
         // confirm_warning_key cần dialog có sẵn. Cũng phải trước ShopModal để
@@ -286,7 +297,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Portals
         this.portals = this.getPortalConfigs().map((portalCfg) => {
             const portal = new Portal(this, portalCfg, this.background, () => {
-                this.scene.start(portalCfg.targetSceneKey);
+                const player = this.playerCtrl.getPlayer();
+                const init: MapSceneInitData | undefined = player
+                    ? { spawnX: player.x, spawnY: player.y }
+                    : undefined;
+                this.scene.start(portalCfg.targetSceneKey, init);
             });
             portal.create();
             return portal;
@@ -591,6 +606,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Snapshot position — server reject move (out_of_bounds / max_speed) → rollback.
         this.rtUnsubs.push(
             wsClient.events.on('snapshot_position', (p) => {
+                if (!this.playerCtrl?.isActivated()) return;
                 const player = this.playerCtrl?.getPlayer();
                 if (player) player.setPosition(p.x, p.y);
                 this.rtLastSentPos = { x: p.x, y: p.y, dir: this.rtLastSentPos.dir };
@@ -698,7 +714,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     // sendMoveIfNeeded gọi từ scene.update() — throttle 30 Hz + delta check.
     // Direction infer từ player velocity (chuyển facing).
     private sendMoveIfNeeded(): void {
-        if (!this.rtJoined) return;
+        if (!this.rtJoined || !this.playerCtrl?.isActivated()) return;
         const player = this.playerCtrl?.getPlayer();
         if (!player) return;
         const now = performance.now();
@@ -842,16 +858,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 this.buffIndicator.removeBuff('food_buff');
             }
 
-            // Restore tọa độ nếu nhân vật từng lưu trên đúng map này.
+            // Restore tọa độ authoritative từ BE (ưu tiên hơn scene init nếu khác).
             const cfg = this.getMapConfig();
-            if (
-                c.last_map_id === cfg.mapId
-                && c.last_pos_x !== null && c.last_pos_x !== undefined
-                && c.last_pos_y !== null && c.last_pos_y !== undefined
-            ) {
+            const saved = resolveSpawnOnMap(c, cfg.mapId);
+            if (saved) {
                 const player = this.playerCtrl.getPlayer();
                 if (player) {
-                    player.setPosition(c.last_pos_x, c.last_pos_y);
+                    player.setPosition(saved.x, saved.y);
                 }
             }
 
@@ -944,6 +957,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
         const player = this.playerCtrl.getPlayer();
         const cursors = this.playerCtrl.getCursors();
         if (!player || !cursors) return;
+
+        // Chưa activate (đang chờ /characters) — không physics / input.
+        if (!this.playerCtrl.isActivated()) {
+            this.playerCtrl.update();
+            return;
+        }
 
         this.background.update();
         // D-pad highlight chỉ phản chiếu input thực điều khiển nhân vật. Khi
