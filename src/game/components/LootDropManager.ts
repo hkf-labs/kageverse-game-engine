@@ -19,28 +19,19 @@ import type { GameComponent } from './types';
 import type { MapBackground } from './MapBackground';
 
 const SPRITE_SCALE = 0.45;
-const GLOW_RADIUS_PX = 14;
-const SELECT_GLOW_RADIUS_PX = 20;
 const HIT_AREA_W = 44;
 const HIT_AREA_H = 44;
-
-const GLOW_YEN = 0xffd070;
-const GLOW_UPGRADE_STONE = 0x58b8ff;
-const GLOW_QUEST_MATERIAL = 0xa8e06a;
-const GLOW_SELECT_YEN = 0xffea7a;
-const GLOW_SELECT_STONE = 0x9ae8ff;
-const GLOW_SELECT_QUEST_MATERIAL = 0xc8f090;
+/** Đầu nhọn mũi tên cách mép trên sprite (origin 0.5 — tính từ displayHeight/2). */
+const SELECTION_ARROW_GAP_PX = 2;
+const SELECTION_ARROW_HALF_W = 8;
+const SELECTION_ARROW_H = 10;
 
 interface DropEntry {
     dto: LootDropDTO;
     sprite: Phaser.GameObjects.Image;
-    glow: Phaser.GameObjects.Graphics;
     hitArea: Phaser.GameObjects.Rectangle;
     baseY: number;
     renderX: number;
-    bobOffset: number;
-    glowBase: number;
-    glowSelect: number;
     pickingUp: boolean;
 }
 
@@ -62,6 +53,7 @@ export class LootDropManager implements GameComponent {
     private drops: DropEntry[] = [];
     private getPlayerPos: () => { x: number; y: number } | null = () => null;
     private selectedDropID: string | null = null;
+    private selectionArrow?: Phaser.GameObjects.Graphics;
 
     constructor(scene: Phaser.Scene, background: MapBackground, mapId: string, callbacks?: LootDropManagerCallbacks) {
         this.scene = scene;
@@ -71,6 +63,7 @@ export class LootDropManager implements GameComponent {
     }
 
     create(): void {
+        this.selectionArrow = this.scene.add.graphics().setDepth(8).setVisible(false);
         this.scene.events.once('shutdown', () => this.cleanup());
         this.scene.events.once('destroy', () => this.cleanup());
     }
@@ -108,19 +101,12 @@ export class LootDropManager implements GameComponent {
     }
 
     update(): void {
-        const tSec = this.scene.time.now / 1000;
         for (let i = this.drops.length - 1; i >= 0; i--) {
             const d = this.drops[i];
             if (isLootDropExpired(d.dto)) {
                 if (this.selectedDropID === d.dto.drop_id) this.clearSelection();
                 this.fadeOut(d);
-                continue;
             }
-            const bob = Math.sin(tSec * 2.4 + d.bobOffset) * 4;
-            d.sprite.setY(d.baseY + bob);
-            d.glow.setY(d.baseY + bob);
-            d.hitArea.setY(d.baseY + bob);
-            this.updateSelectionGlow(d, tSec);
         }
     }
 
@@ -137,6 +123,7 @@ export class LootDropManager implements GameComponent {
     clearSelection(): void {
         if (!this.selectedDropID) return;
         this.selectedDropID = null;
+        this.hideSelectionArrow();
         this.callbacks.onSelectionChanged?.(null);
     }
 
@@ -152,32 +139,11 @@ export class LootDropManager implements GameComponent {
         return list.filter((d) => !isLootDropExpired(d));
     }
 
-    private glowColorsFor(dto: LootDropDTO): { base: number; select: number } {
-        if (dto.kind === 'item' && dto.item_template_id === UPGRADE_STONE_TEMPLATE_ID) {
-            return { base: GLOW_UPGRADE_STONE, select: GLOW_SELECT_STONE };
-        }
-        if (
-            dto.kind === 'item'
-            && (dto.item_template_id === MATERIAL_BEETLE_CARAPACE_ID
-                || dto.item_template_id === MATERIAL_TURTLE_SHELL_ID
-                || dto.item_template_id === MATERIAL_HERB_FLOWER_ID)
-        ) {
-            return { base: GLOW_QUEST_MATERIAL, select: GLOW_SELECT_QUEST_MATERIAL };
-        }
-        return { base: GLOW_YEN, select: GLOW_SELECT_YEN };
-    }
-
     private buildEntry(dto: LootDropDTO): DropEntry {
         const scaleFactor = this.scene.scale.height / 1440;
         const renderX = dto.pos_x * scaleFactor;
         const surfaceY = this.background.getPlatformYAtX(renderX);
         const baseY = surfaceY - 14;
-        const { base: glowBase, select: glowSelect } = this.glowColorsFor(dto);
-
-        const glow = this.scene.add.graphics().setDepth(6);
-        glow.fillStyle(glowBase, 0.35);
-        glow.fillCircle(0, 0, GLOW_RADIUS_PX);
-        glow.setPosition(renderX, baseY);
 
         const sprite = this.scene.add.image(renderX, baseY, this.spriteKeyFor(dto))
             .setDepth(7)
@@ -188,33 +154,52 @@ export class LootDropManager implements GameComponent {
             .setInteractive({ useHandCursor: true });
         hitArea.on('pointerdown', () => this.handleClick(dto.drop_id));
 
-        const entry: DropEntry = {
+        return {
             dto,
             sprite,
-            glow,
             hitArea,
             baseY,
             renderX,
-            bobOffset: Math.random() * Math.PI * 2,
-            glowBase,
-            glowSelect,
             pickingUp: false,
         };
-        sprite.setScale(0);
-        this.scene.tweens.add({
-            targets: sprite,
-            scale: SPRITE_SCALE,
-            duration: 220,
-            ease: 'Back.easeOut',
-        });
-        return entry;
     }
 
     private handleClick(dropID: string): void {
         const entry = this.drops.find((d) => d.dto.drop_id === dropID);
         if (!entry || entry.pickingUp || isLootDropExpired(entry.dto)) return;
         this.selectedDropID = dropID;
+        this.updateSelectionArrow();
         this.callbacks.onSelectionChanged?.(entry.dto);
+    }
+
+    /** Mũi tên ↓ trên đầu item — cùng style NpcManager. */
+    private updateSelectionArrow(): void {
+        const g = this.selectionArrow;
+        if (!g) return;
+        const entry = this.drops.find((d) => d.dto.drop_id === this.selectedDropID);
+        if (!entry) {
+            this.hideSelectionArrow();
+            return;
+        }
+        const x = entry.renderX;
+        const spriteTop = entry.baseY - entry.sprite.displayHeight / 2;
+        const tipY = spriteTop - SELECTION_ARROW_GAP_PX;
+        const topY = tipY - SELECTION_ARROW_H;
+        g.clear();
+        g.fillStyle(0xffea7a, 1);
+        g.lineStyle(2, 0x000000, 1);
+        g.beginPath();
+        g.moveTo(x - SELECTION_ARROW_HALF_W, topY);
+        g.lineTo(x + SELECTION_ARROW_HALF_W, topY);
+        g.lineTo(x, topY + SELECTION_ARROW_H);
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+        g.setVisible(true);
+    }
+
+    private hideSelectionArrow(): void {
+        this.selectionArrow?.clear().setVisible(false);
     }
 
     private spriteKeyFor(dto: LootDropDTO): string {
@@ -232,16 +217,6 @@ export class LootDropManager implements GameComponent {
             return LOOT_SPRITE_HERB_FLOWER;
         }
         return LOOT_SPRITE_YEN;
-    }
-
-    private updateSelectionGlow(entry: DropEntry, tSec: number): void {
-        if (entry.dto.drop_id !== this.selectedDropID) {
-            return;
-        }
-        const pulse = 0.5 + 0.4 * Math.abs(Math.sin(tSec * 4));
-        entry.glow.clear();
-        entry.glow.fillStyle(entry.glowSelect, pulse);
-        entry.glow.fillCircle(0, 0, SELECT_GLOW_RADIUS_PX);
     }
 
     private async pickup(entry: DropEntry): Promise<void> {
@@ -289,42 +264,24 @@ export class LootDropManager implements GameComponent {
         const idx = this.drops.indexOf(entry);
         if (idx >= 0) this.drops.splice(idx, 1);
         entry.hitArea.destroy();
-        this.scene.tweens.add({
-            targets: [entry.sprite, entry.glow],
-            y: entry.baseY - 60,
-            alpha: 0,
-            scale: 1.4,
-            duration: 380,
-            ease: 'Cubic.easeOut',
-            onComplete: () => {
-                entry.sprite.destroy();
-                entry.glow.destroy();
-            },
-        });
+        entry.sprite.destroy();
     }
 
     private fadeOut(entry: DropEntry): void {
         const idx = this.drops.indexOf(entry);
         if (idx >= 0) this.drops.splice(idx, 1);
         entry.hitArea.destroy();
-        this.scene.tweens.add({
-            targets: [entry.sprite, entry.glow],
-            alpha: 0,
-            duration: 220,
-            onComplete: () => {
-                entry.sprite.destroy();
-                entry.glow.destroy();
-            },
-        });
+        entry.sprite.destroy();
     }
 
     private cleanup(): void {
         for (const d of this.drops) {
             d.sprite.destroy();
-            d.glow.destroy();
             d.hitArea.destroy();
         }
         this.drops = [];
         this.selectedDropID = null;
+        this.selectionArrow?.destroy();
+        this.selectionArrow = undefined;
     }
 }
