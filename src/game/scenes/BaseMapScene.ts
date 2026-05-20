@@ -1112,11 +1112,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
             }
         }
 
-        const autoTarget = this.npcs.getAutoMoveTargetX();
+        const lootAutoTarget = this.loot?.getAutoMoveTargetX() ?? null;
+        const npcAutoTarget = this.npcs.getAutoMoveTargetX();
+        const autoTarget = lootAutoTarget ?? npcAutoTarget;
         if (autoTarget !== null) {
             if (moveLeft || moveRight || moveUp) {
+                this.loot?.clearAutoMove();
                 this.npcs.clearAutoMove();
-            } else if (this.npcs.checkAutoMoveArrival(player.x, player.y)) {
+            } else if (lootAutoTarget !== null && this.loot.checkAutoMoveArrival(player.x)) {
+                player.body?.setVelocityX(0);
+            } else if (npcAutoTarget !== null && this.npcs.checkAutoMoveArrival(player.x, player.y)) {
                 player.body?.setVelocityX(0);
             } else {
                 const dx = autoTarget - player.x;
@@ -1163,15 +1168,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        if (this.npcs.getSelectedNpc()) {
-            this.npcs.handleInteract(player.x, player.y);
+        // Drop đang chọn → nhặt hoặc chạy tới (trước NPC để click loot + Enter đúng mục tiêu).
+        if (this.loot?.getSelectedDrop()) {
+            this.npcs.clearAutoMove();
+            this.loot.handleInteract(player.x);
             return;
         }
 
-        // Drop đang chọn → ưu tiên nhặt trước attack. Async, không await ở
-        // handler — Enter chỉ trigger 1 lần (loot manager tự gate `pickingUp`).
-        if (this.loot?.getSelectedDrop()) {
-            void this.loot.pickupSelected();
+        if (this.npcs.getSelectedNpc()) {
+            this.npcs.handleInteract(player.x, player.y);
             return;
         }
 

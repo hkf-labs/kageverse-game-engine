@@ -54,6 +54,8 @@ export class LootDropManager implements GameComponent {
     private getPlayerPos: () => { x: number; y: number } | null = () => null;
     private selectedDropID: string | null = null;
     private selectionArrow?: Phaser.GameObjects.Graphics;
+    /** Screen X — player chạy tới khi Enter nhặt drop ngoài tầm (giống NpcManager). */
+    private autoMoveTargetScreenX: number | null = null;
 
     constructor(scene: Phaser.Scene, background: MapBackground, mapId: string, callbacks?: LootDropManagerCallbacks) {
         this.scene = scene;
@@ -123,16 +125,61 @@ export class LootDropManager implements GameComponent {
     clearSelection(): void {
         if (!this.selectedDropID) return;
         this.selectedDropID = null;
+        this.autoMoveTargetScreenX = null;
         this.hideSelectionArrow();
         this.callbacks.onSelectionChanged?.(null);
     }
 
-    async pickupSelected(): Promise<boolean> {
-        if (!this.selectedDropID) return false;
-        const entry = this.drops.find((d) => d.dto.drop_id === this.selectedDropID);
-        if (!entry || entry.pickingUp || isLootDropExpired(entry.dto)) return false;
-        await this.pickup(entry);
+    getAutoMoveTargetX(): number | null {
+        return this.autoMoveTargetScreenX;
+    }
+
+    clearAutoMove(): void {
+        this.autoMoveTargetScreenX = null;
+    }
+
+    /** Enter / nhặt — trong tầm thì pickup ngay, xa thì chạy tới drop. */
+    handleInteract(playerScreenX: number): void {
+        const entry = this.getSelectedEntry();
+        if (!entry) return;
+        if (this.isInPickupRange(entry, playerScreenX)) {
+            this.autoMoveTargetScreenX = null;
+            void this.pickup(entry);
+        } else {
+            this.autoMoveTargetScreenX = entry.renderX;
+        }
+    }
+
+    /** Gọi mỗi frame từ scene khi đang auto-run tới drop. */
+    checkAutoMoveArrival(playerScreenX: number): boolean {
+        if (this.autoMoveTargetScreenX === null) return false;
+        const entry = this.getSelectedEntry();
+        if (!entry) {
+            this.autoMoveTargetScreenX = null;
+            return false;
+        }
+        if (!this.isInPickupRange(entry, playerScreenX)) return false;
+        this.autoMoveTargetScreenX = null;
+        void this.pickup(entry);
         return true;
+    }
+
+    pickupSelected(): void {
+        const pos = this.getPlayerPos();
+        if (!pos) return;
+        this.handleInteract(pos.x);
+    }
+
+    private getSelectedEntry(): DropEntry | undefined {
+        if (!this.selectedDropID) return undefined;
+        const entry = this.drops.find((d) => d.dto.drop_id === this.selectedDropID);
+        if (!entry || entry.pickingUp || isLootDropExpired(entry.dto)) return undefined;
+        return entry;
+    }
+
+    private isInPickupRange(entry: DropEntry, playerScreenX: number): boolean {
+        const scaleFactor = this.scene.scale.height / 1440;
+        return isPlayerInLootPickupRange(entry.dto.pos_x, playerScreenX, scaleFactor);
     }
 
     private filterActive(list: LootDropDTO[]): LootDropDTO[] {
@@ -226,7 +273,6 @@ export class LootDropManager implements GameComponent {
         if (!pos) return;
         const scaleFactor = this.scene.scale.height / 1440;
         if (!isPlayerInLootPickupRange(entry.dto.pos_x, pos.x, scaleFactor)) {
-            this.callbacks.onError?.(t('combat.drop_out_of_range'));
             return;
         }
         entry.pickingUp = true;
@@ -281,6 +327,7 @@ export class LootDropManager implements GameComponent {
         }
         this.drops = [];
         this.selectedDropID = null;
+        this.autoMoveTargetScreenX = null;
         this.selectionArrow?.destroy();
         this.selectionArrow = undefined;
     }
