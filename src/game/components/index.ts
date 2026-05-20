@@ -23,6 +23,7 @@ export { MonsterTargetFrame } from './MonsterTargetFrame';
 export { NpcChatBubble } from './NpcChatBubble';
 export { PlayerChatBubble } from './PlayerChatBubble';
 export { NpcManager } from './NpcManager';
+export { PickupToast } from './PickupToast';
 export { PlayerController, DEFAULT_CHARACTER_APPEARANCE, DEFAULT_CHARACTER_APPEARANCE_ASSETS } from './PlayerController';
 export type { CharacterAppearance } from './PlayerController';
 export { Portal } from './Portal';

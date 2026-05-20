@@ -4,7 +4,7 @@ import { disconnectRealtime, wsClient } from '../../network/realtime';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, LootDropManager, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, LootDropManager, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PickupToast, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -25,6 +25,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected npcs!: NpcManager;
     protected monsters!: MonsterManager;
     protected loot!: LootDropManager;
+    protected pickupToast!: PickupToast;
     protected targetFrame!: MonsterTargetFrame;
     protected bossHPBar!: BossHPBar;
     protected deathMenu!: DeathMenu;
@@ -301,10 +302,14 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.bossHPBar = new BossHPBar(this);
         this.bossHPBar.create();
 
+        this.pickupToast = new PickupToast(this);
+        this.pickupToast.create();
+
         // Loot drops (Yên + items) — render trên mặt đất, detect overlap để nhặt.
         // Khởi tạo trước MonsterManager để hook onAttackResult / onDropsSync.
         this.loot = new LootDropManager(this, this.background, cfg.mapId, {
             onYenPicked: (amount, balance) => this.handleYenPicked(amount, balance),
+            onItemPicked: (templateId, qty) => this.pickupToast.notifyItem(templateId, qty),
             onError: (msg) => this.hud.setStatus(msg, '#ff8a8a'),
         });
         this.loot.create();

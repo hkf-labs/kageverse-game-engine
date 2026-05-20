@@ -38,6 +38,7 @@ interface DropEntry {
 
 export interface LootDropManagerCallbacks {
     onYenPicked?: (amount: number, balance: number) => void;
+    onItemPicked?: (itemTemplateId: string, qty: number) => void;
     onError?: (msg: string) => void;
     onSelectionChanged?: (drop: LootDropDTO | null) => void;
 }
@@ -292,6 +293,8 @@ export class LootDropManager implements GameComponent {
             this.removeEntry(entry);
             if (res.kind === 'yen' && typeof res.yen_amount === 'number') {
                 this.callbacks.onYenPicked?.(res.yen_amount, res.yen_balance ?? 0);
+            } else if (res.kind === 'item' && res.item_template_id) {
+                this.callbacks.onItemPicked?.(res.item_template_id, res.qty ?? 1);
             }
         } catch (err) {
             entry.pickingUp = false;

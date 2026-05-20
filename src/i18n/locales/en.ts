@@ -171,6 +171,7 @@ export const en: TranslationTable = {
     'combat.potion_hp_placeholder': 'Used HP potion! (placeholder)',
     'combat.potion_mp_placeholder': 'Used MP potion! (placeholder)',
     'combat.pickup_failed': 'Pickup failed',
+    'combat.pickup_received': 'You received {items}',
     'combat.drop_quest_required': 'Only characters on the related quest can pick this up',
     'combat.drop_owned_by_other': "Someone else's drop",
     'combat.drop_out_of_range': 'Item too far away',
