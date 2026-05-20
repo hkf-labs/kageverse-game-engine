@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
-import { npcAPI, questAPI, type CancelMainQuestResponse, type CharacterDTO, type LevelUpDTO, type NpcActionDTO, type NpcQuestListsDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
+import { npcAPI, questAPI, type CancelMainQuestResponse, type CharacterDTO, type LevelUpDTO, type NpcActionDTO, type NpcQuestListsDTO, type QuestObjectiveDTO, type QuestRewardsDTO, type TeleportDestinationDTO } from '../../network/api';
+import { findPendingQuizStep, listQuizMenuEntries, quizQuestionText } from '../questQuiz';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
@@ -106,6 +107,8 @@ export class NpcManager implements GameComponent {
      * NpcInteractResponse.quest_warnings. Có entry → runQuestAccept mở
      * ConfirmDialog trước khi gọi API (cảnh báo irreversible action). */
     private questWarnings: Record<string, string> = {};
+    /** Cache menu BE lần interact gần nhất — quiz submenu quay lại. */
+    private lastMenuActions: NpcActionDTO[] = [];
 
     constructor(
         scene: Phaser.Scene,
@@ -441,6 +444,7 @@ export class NpcManager implements GameComponent {
 
     private openMenuFromBE(npc: NpcEntry, actions: NpcActionDTO[]): void {
         if (!this.actionMenu) return;
+        this.lastMenuActions = actions;
         const items: ActionMenuItem[] = [];
 
         // Quest hooks lên đầu menu — phổ biến nhất khi player tới gặp NPC quest.
@@ -459,6 +463,22 @@ export class NpcManager implements GameComponent {
                 icon: '❗',
                 action: () => this.runQuestAccept(npc, questID),
             });
+        }
+
+        if (npc.templateId) {
+            const quizEntries = listQuizMenuEntries(
+                this.questLog?.getQuests() ?? [],
+                npc.templateId,
+                questDisplayName,
+            );
+            for (const entry of quizEntries) {
+                items.push({
+                    key: `quiz_${entry.questId}`,
+                    label: t('npc.quest.do_quiz', { name: entry.questName }),
+                    icon: '📝',
+                    action: () => this.runQuestQuiz(npc, entry.questId),
+                });
+            }
         }
 
         for (const a of actions) {
@@ -693,6 +713,95 @@ export class NpcManager implements GameComponent {
             }
         } catch (err) {
             console.warn('[npc] refresh character after accept failed', err);
+        }
+    }
+
+    private runQuestQuiz(npc: NpcEntry, questID: string): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) {
+            this.onStatusMessage?.(t('npc.quest.cannot_quiz'), '#ff8a8a');
+            return;
+        }
+        const quest = this.questLog?.getQuests().find((q) => q.quest_id === questID);
+        if (!quest) {
+            this.onStatusMessage?.(t('npc.quest.cannot_quiz'), '#ff8a8a');
+            return;
+        }
+        const step = findPendingQuizStep(quest, npc.templateId);
+        if (!step) {
+            this.chatBubble?.show(npc.sprite, t('npc.quiz.already_done'));
+            return;
+        }
+        this.openQuizAnswerMenu(npc, questID, step);
+    }
+
+    private openQuizAnswerMenu(npc: NpcEntry, questID: string, step: QuestObjectiveDTO): void {
+        if (!this.actionMenu || !npc.templateId) return;
+        this.chatBubble?.show(npc.sprite, quizQuestionText(step));
+        const options = step.options ?? [];
+        const items: ActionMenuItem[] = options.map((opt) => ({
+            key: `opt_${opt.id}`,
+            label: t(opt.label_key),
+            action: () => this.submitQuizAnswer(npc, questID, step, opt.id),
+        }));
+        items.push({
+            key: 'quiz_back',
+            label: t('npc.quiz.back'),
+            icon: '↩️',
+            action: () => this.reopenNpcMenu(npc),
+        });
+        this.actionMenu.open({
+            title: t('npc.quiz.choose_answer'),
+            items,
+            onClose: () => this.handleMenuClosed(),
+        });
+    }
+
+    private submitQuizAnswer(
+        npc: NpcEntry,
+        questID: string,
+        step: QuestObjectiveDTO,
+        optionID: string,
+    ): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) return;
+        void questAPI.submitQuiz(character.id, questID, {
+            npc_id: npc.templateId,
+            step_id: step.target_id,
+            option_id: optionID,
+        })
+            .then((res) => {
+                if (!res.correct) {
+                    this.chatBubble?.show(npc.sprite, t('npc.quiz.wrong'));
+                    this.onStatusMessage?.(t('npc.quiz.wrong_hint'), '#ffaa66');
+                    this.openQuizAnswerMenu(npc, questID, step);
+                    return;
+                }
+                this.chatBubble?.show(npc.sprite, t('npc.quiz.correct'));
+                if (res.quest) {
+                    this.questLog?.applyProgress([res.quest]);
+                }
+                const updated = res.quest ?? this.questLog?.getQuests().find((q) => q.quest_id === questID);
+                const next = updated && npc.templateId
+                    ? findPendingQuizStep(updated, npc.templateId)
+                    : undefined;
+                if (next) {
+                    this.openQuizAnswerMenu(npc, questID, next);
+                    return;
+                }
+                if (updated?.status === 'completed') {
+                    this.onStatusMessage?.(t('npc.quiz.all_done_turn_in'), '#bdf0a0');
+                }
+            })
+            .catch((err) => {
+                const msg = err instanceof Error ? err.message : t('npc.quiz.submit_failed');
+                this.onStatusMessage?.(msg, '#ff8a8a');
+            });
+    }
+
+    private reopenNpcMenu(npc: NpcEntry): void {
+        if (this.lastMenuActions.length > 0) {
+            this.openMenuFromBE(npc, this.lastMenuActions);
         }
     }
 

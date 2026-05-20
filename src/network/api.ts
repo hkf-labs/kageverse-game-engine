@@ -610,11 +610,19 @@ export const npcAPI = {
 
 // ----- Quest -----
 
+export type QuizOptionDTO = {
+    id: string;
+    label_key: string;
+};
+
 export type QuestObjectiveDTO = {
-    type: 'kill_monster' | 'talk_npc' | 'collect_item' | 'use_item' | 'buy_item' | 'equip_item' | 'visit_zone' | 'item_upgraded';
+    type: 'kill_monster' | 'talk_npc' | 'collect_item' | 'use_item' | 'buy_item' | 'equip_item' | 'visit_zone' | 'item_upgraded' | 'quiz_npc';
     target_id: string;
     count: number;
     done: number;
+    npc_id?: string;
+    question_key?: string;
+    options?: QuizOptionDTO[];
 };
 
 export type QuestRewardItemDTO = {
@@ -693,6 +701,17 @@ export type NpcAvailabilityResponse = {
     npcs: Record<string, NpcQuestListsDTO>;
 };
 
+export type SubmitQuizRequest = {
+    npc_id: string;
+    step_id: string;
+    option_id: string;
+};
+
+export type SubmitQuizResponse = {
+    correct: boolean;
+    quest?: QuestDTO;
+};
+
 export const questAPI = {
     async list(characterId: string, status?: QuestStatus): Promise<ListQuestsResponse> {
         const qs = status ? `?status=${encodeURIComponent(status)}` : '';
@@ -746,6 +765,26 @@ export const questAPI = {
             throw new Error(`${formatApiError(resData, t('api.error.turn_in_quest'))} (trace_id=${traceId || 'n/a'})`);
         }
         return resData as TurnInQuestResponse;
+    },
+
+    async submitQuiz(
+        characterId: string,
+        questId: string,
+        body: SubmitQuizRequest,
+    ): Promise<SubmitQuizResponse> {
+        const { response, traceId } = await authFetch(
+            `/characters/${encodeURIComponent(characterId)}/quests/${encodeURIComponent(questId)}/quiz`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            },
+        );
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, t('api.error.submit_quiz'))} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as SubmitQuizResponse;
     },
 };
 

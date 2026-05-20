@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import type { QuestDTO, QuestObjectiveDTO } from '../../network/api';
+import { isQuizObjective, quizObjectiveSummary } from '../questQuiz';
 import { questDisplayName, targetDisplayName } from './modals/QuestLogPanel';
 import { t } from '../../i18n';
 import type { GameComponent } from './types';
@@ -14,6 +15,7 @@ const OBJECTIVE_KEY: Record<QuestObjectiveDTO['type'], string> = {
     equip_item: 'quest.log.objective_equip_item',
     visit_zone: 'quest.log.objective_visit_zone',
     item_upgraded: 'quest.log.objective_item_upgraded',
+    quiz_npc: 'quest.log.objective_quiz_npc',
 };
 
 // Ưu tiên hiển thị: completed (giục turn-in) > main > side > daily > weekly.
@@ -216,13 +218,20 @@ export class QuestTracker implements GameComponent {
                 .setStyle(BODY_COMPLETED_STYLE)
                 .setText(t('quest.tracker.completed_turn_in', { npc: npcName }));
         } else {
-            const verbKey = OBJECTIVE_KEY[objective.type];
-            const verb = verbKey ? t(verbKey) : objective.type;
-            const target = targetDisplayName(objective.target_id);
             const done = Math.min(objective.done, objective.count);
+            let line: string;
+            if (isQuizObjective(objective)) {
+                const summary = quizObjectiveSummary(objective);
+                line = t('quest.tracker.quiz_step', { question: summary, done, total: objective.count });
+            } else {
+                const verbKey = OBJECTIVE_KEY[objective.type];
+                const verb = verbKey ? t(verbKey) : objective.type;
+                const target = targetDisplayName(objective.target_id);
+                line = `${verb} ${target} (${done}/${objective.count})`;
+            }
             this.bodyText
                 .setStyle(BODY_ACTIVE_STYLE)
-                .setText(`${verb} ${target} (${done}/${objective.count})`);
+                .setText(line);
         }
         this.layoutAndRepaint();
     }

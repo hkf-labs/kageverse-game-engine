@@ -4,6 +4,7 @@ import { getCurrentCharacter } from '../../playerSession';
 import { t, tOpt } from '../../../i18n';
 import { BaseModal } from './BaseModal';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { isQuizObjective, quizObjectiveSummary } from '../../questQuiz';
 import { MODAL_COLORS } from './theme';
 
 // Status / objective verb labels resolve qua i18n key. Fallback raw status
@@ -29,6 +30,7 @@ const OBJECTIVE_KEY: Record<QuestObjectiveDTO['type'], string> = {
     equip_item: 'quest.log.objective_equip_item',
     visit_zone: 'quest.log.objective_visit_zone',
     item_upgraded: 'quest.log.objective_item_upgraded',
+    quiz_npc: 'quest.log.objective_quiz_npc',
 };
 
 // Quest name resolve qua i18n. BE trả `quest.<id>.name` → key đã có namespace
@@ -415,15 +417,22 @@ export class QuestLogPanel extends BaseModal {
         body.appendChild(lvLine);
 
         for (const o of opts.objectives) {
-            const verbKey = OBJECTIVE_KEY[o.type];
-            const verb = verbKey ? t(verbKey) : o.type;
-            const target = targetDisplayName(o.target_id);
             const done = Math.min(o.done, o.count);
             const isDone = done >= o.count;
             const line = document.createElement('div');
-            line.innerHTML = `• ${verb} <span style="color:${isDone ? '#bdf0a0' : MODAL_COLORS.text};">${escapeHtml(target)}</span> `
-                + `<span style="color:${isDone ? '#bdf0a0' : '#aaa'};">${done}/${o.count}</span>`
-                + (isDone ? ' <span style="color:#bdf0a0;">✓</span>' : '');
+            if (isQuizObjective(o)) {
+                const label = escapeHtml(quizObjectiveSummary(o));
+                line.innerHTML = `• <span style="color:${isDone ? '#bdf0a0' : MODAL_COLORS.text};">${label}</span> `
+                    + `<span style="color:${isDone ? '#bdf0a0' : '#aaa'};">${done}/${o.count}</span>`
+                    + (isDone ? ' <span style="color:#bdf0a0;">✓</span>' : '');
+            } else {
+                const verbKey = OBJECTIVE_KEY[o.type];
+                const verb = verbKey ? t(verbKey) : o.type;
+                const target = targetDisplayName(o.target_id);
+                line.innerHTML = `• ${verb} <span style="color:${isDone ? '#bdf0a0' : MODAL_COLORS.text};">${escapeHtml(target)}</span> `
+                    + `<span style="color:${isDone ? '#bdf0a0' : '#aaa'};">${done}/${o.count}</span>`
+                    + (isDone ? ' <span style="color:#bdf0a0;">✓</span>' : '');
+            }
             body.appendChild(line);
         }
         row.appendChild(body);
