@@ -173,6 +173,7 @@ export const vi: TranslationTable = {
     'combat.potion_hp_placeholder': 'Đã dùng bình HP! (placeholder)',
     'combat.pickup_failed': 'Nhặt thất bại',
     'combat.pickup_received': 'Bạn đã nhận được {items}',
+    'combat.pickup_yen': '{n} Yên',
     'combat.drop_quest_required': 'Chỉ nhân vật đang làm nhiệm vụ mới nhặt được vật phẩm này',
     'combat.drop_owned_by_other': 'Vật phẩm của người khác',
     'combat.drop_out_of_range': 'Vật phẩm quá xa',

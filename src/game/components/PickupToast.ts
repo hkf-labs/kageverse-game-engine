@@ -26,9 +26,13 @@ function itemPickupLabel(templateId: string, qty: number): string {
     return qty > 1 ? `${name} ×${qty}` : name;
 }
 
+function yenPickupLabel(amount: number): string {
+    return t('combat.pickup_yen', { n: amount.toLocaleString() });
+}
+
 /**
- * Toast nhặt item: đứng im ~3s rồi trôi lên + fade. Nhiều item gần nhau → một dòng
- * "Bạn đã nhận được a, b, c".
+ * Toast nhặt loot (item / yên): đứng im ~3s rồi trôi sang trái + fade.
+ * Nhiều nhặt gần nhau → một dòng "Bạn đã nhận được a, b, c".
  */
 export class PickupToast implements GameComponent {
     private scene: Phaser.Scene;
@@ -59,8 +63,15 @@ export class PickupToast implements GameComponent {
 
     notifyItem(templateId: string, qty = 1): void {
         if (!templateId || qty <= 0) return;
-        const label = itemPickupLabel(templateId, qty);
+        this.enqueuePickup(itemPickupLabel(templateId, qty));
+    }
 
+    notifyYen(amount: number): void {
+        if (amount <= 0) return;
+        this.enqueuePickup(yenPickupLabel(amount));
+    }
+
+    private enqueuePickup(label: string): void {
         if (this.text && this.holdTimer !== undefined && !this.isExiting) {
             this.labels.push(label);
             this.renderMessage();
@@ -86,7 +97,7 @@ export class PickupToast implements GameComponent {
         this.isExiting = false;
 
         const message = t('combat.pickup_received', { items: this.labels.join(', ') });
-        const y = Math.round(this.scene.scale.height * 0.14);
+        const y = Math.round(this.scene.scale.height * 0.975);
         const x = this.scene.scale.width / 2;
 
         if (!this.text) {

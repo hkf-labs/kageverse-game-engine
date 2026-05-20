@@ -95,8 +95,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private rtJoined = false;
     private readonly RT_MOVE_THROTTLE_MS = 33; // ~30 Hz cap
     private readonly RT_MOVE_DELTA_PX = 1; // Send only when meaningful move
-    /** Khớp MonsterManager — tầm auto-select quái (raw → screen). */
-    private static readonly MONSTER_SELECT_RANGE_RAW_PX = 120;
     private activeWorldTarget: WorldTargetKind | null = null;
     /** ESC bỏ chọn — không auto-select lại cho đến khi di chuyển hoặc ra khỏi tầm. */
     private worldTargetSelectLocked = false;
@@ -1225,14 +1223,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         const scale = this.scale.height / 1440;
         const lootRange = LOOT_PICKUP_RANGE_RAW_PX * scale;
-        const monsterRange = BaseMapScene.MONSTER_SELECT_RANGE_RAW_PX * scale;
 
         const candidates: WorldTargetCandidate[] = [];
 
         const loot = this.loot?.findNearestInRange(playerX, playerY, lootRange);
         if (loot) candidates.push({ kind: 'loot', distSq: loot.distSq });
 
-        const monster = this.monsters.findNearestInRange(playerX, playerY, monsterRange);
+        const monster = this.monsters.findNearestInRange(playerX, playerY);
         if (monster) candidates.push({ kind: 'monster', distSq: monster.distSq });
 
         const npc = this.npcs.findNearestInRange(playerX, playerY);
@@ -1249,7 +1246,14 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        if (this.worldTargetSelectLocked) return;
+        // ESC khóa auto-select — vẫn cho nhặt loot khi không còn quái sống trong tầm.
+        if (this.worldTargetSelectLocked) {
+            if (!monster && loot) {
+                this.worldTargetSelectLocked = false;
+            } else {
+                return;
+            }
+        }
 
         let best = candidates[0];
         for (let i = 1; i < candidates.length; i++) {
@@ -1378,17 +1382,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     private handleYenPicked(amount: number, balance: number): void {
         void balance; // balance hiện chỉ dùng để invalidate InventoryModal cache khi mở lại.
-        const player = this.playerCtrl.getPlayer();
-        if (!player) return;
-        const txt = this.add.text(player.x, player.y - 90, `+${amount.toLocaleString('vi')} Yên`, {
-            fontSize: '14px', fontStyle: 'bold', color: '#ffea7a',
-            fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
-        }).setOrigin(0.5).setDepth(60);
-        this.tweens.add({
-            targets: txt, y: txt.y - 50, alpha: 0,
-            duration: 900, ease: 'Cubic.easeOut',
-            onComplete: () => txt.destroy(),
-        });
+        this.pickupToast.notifyYen(amount);
     }
 
     private handleAttackResult(res: import('../../network/api').AttackResponse): void {

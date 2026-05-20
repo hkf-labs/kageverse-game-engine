@@ -14,7 +14,6 @@ import {
     UPGRADE_STONE_TEMPLATE_ID,
 } from '../../network/lootDrop';
 import { isPointInMainCameraView } from '../cameraView';
-import { canAutoSelectVertically } from '../worldTarget';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import type { GameComponent } from './types';
@@ -164,7 +163,6 @@ export class LootDropManager implements GameComponent {
         let best: { dropId: string; distSq: number } | null = null;
         for (const d of this.drops) {
             if (d.pickingUp || isLootDropExpired(d.dto)) continue;
-            if (!canAutoSelectVertically(playerY, d.baseY)) continue;
             const dx = d.renderX - playerX;
             const dy = d.baseY - playerY;
             const distSq = dx * dx + dy * dy;
