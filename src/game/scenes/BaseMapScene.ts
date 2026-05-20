@@ -334,6 +334,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onItemPicked: (templateId, qty) => this.pickupToast.notifyItem(templateId, qty),
             onError: (msg) => this.hud.setStatus(msg, '#ff8a8a'),
             onFaceScreenX: (x) => this.playerCtrl.faceTowardScreenX(x),
+            onManualTargetLocked: () => {
+                this.activeWorldTarget = 'loot';
+                this.worldTargetSelectLocked = true;
+                this.monsters.clearSelection();
+                this.npcs.clearNpcSelection();
+                this.remotePlayers?.clearSelection();
+            },
         });
         this.loot.create();
         this.loot.setPlayerPositionGetter(() => {
@@ -356,7 +363,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onManualTargetLocked: () => {
                 this.activeWorldTarget = 'monster';
                 this.worldTargetSelectLocked = true;
+                this.loot?.clearSelection();
+                this.npcs.clearNpcSelection();
+                this.remotePlayers?.clearSelection();
             },
+            isOtherWorldTargetManualLocked: () => this.loot?.isManualSelection() === true,
             onRetaliation: (r) => this.showRetaliationFloater(r.damage),
             onTickResult: (hp, dead) => this.handleTickResult(hp, dead),
             onDropsSync: (drops) => this.loot.syncDrops(drops),
@@ -1187,16 +1198,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 this.playerCtrl.setFacing(dx < 0);
             }
         } else if (moveLeft) {
-            if (!this.monsters.isManualSelection()) this.worldTargetSelectLocked = false;
+            if (!this.isWorldTargetManualLocked()) this.worldTargetSelectLocked = false;
             this.playerCtrl.moveLeft(speed);
         } else if (moveRight) {
-            if (!this.monsters.isManualSelection()) this.worldTargetSelectLocked = false;
+            if (!this.isWorldTargetManualLocked()) this.worldTargetSelectLocked = false;
             this.playerCtrl.moveRight(speed);
         } else {
             this.playerCtrl.stopHorizontal();
         }
 
-        if (moveUp && !this.monsters.isManualSelection()) {
+        if (moveUp && !this.isWorldTargetManualLocked()) {
             this.worldTargetSelectLocked = false;
         }
 
@@ -1229,6 +1240,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         if (this.monsters.isManualSelection()) {
             this.activeWorldTarget = 'monster';
+            return;
+        }
+
+        if (this.loot?.isManualSelection()) {
+            this.activeWorldTarget = 'loot';
             return;
         }
 
@@ -1320,6 +1336,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
             || this.npcs.getSelectedNpc()
             || this.remotePlayers?.getSelectedCharacterId()
         );
+    }
+
+    /** Click-lock loot / quái — không bỏ khóa khi di chuyển. */
+    private isWorldTargetManualLocked(): boolean {
+        return this.monsters.isManualSelection() || this.loot?.isManualSelection() === true;
     }
 
     /** ESC — bỏ chọn mọi đối tượng world (loot / quái / NPC / player khác). */

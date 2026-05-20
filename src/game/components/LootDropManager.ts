@@ -43,6 +43,8 @@ export interface LootDropManagerCallbacks {
     onSelectionChanged?: (drop: LootDropDTO | null) => void;
     /** Ngoảnh player về drop trước khi nhặt (screen X). */
     onFaceScreenX?: (screenX: number) => void;
+    /** Click chọn drop — scene bật worldTargetSelectLocked. */
+    onManualTargetLocked?: () => void;
 }
 
 /**
@@ -57,6 +59,7 @@ export class LootDropManager implements GameComponent {
     private drops: DropEntry[] = [];
     private getPlayerPos: () => { x: number; y: number } | null = () => null;
     private selectedDropID: string | null = null;
+    private selectionMode: 'auto' | 'manual' = 'auto';
     private selectionArrow?: Phaser.GameObjects.Graphics;
     /** Screen X — player chạy tới khi Enter nhặt drop ngoài tầm (giống NpcManager). */
     private autoMoveTargetScreenX: number | null = null;
@@ -133,13 +136,20 @@ export class LootDropManager implements GameComponent {
     clearSelection(): void {
         if (!this.selectedDropID) return;
         this.selectedDropID = null;
+        this.selectionMode = 'auto';
         this.autoMoveTargetScreenX = null;
         this.hideSelectionArrow();
         this.callbacks.onSelectionChanged?.(null);
     }
 
+    /** Click chuột — khóa manual; auto-select world target không ghi đè. */
+    isManualSelection(): boolean {
+        return this.selectionMode === 'manual' && this.selectedDropID !== null;
+    }
+
     /** Auto-select — gọi từ BaseMapScene (nearest world target). */
     selectDropAuto(dropID: string | null): void {
+        if (this.selectionMode === 'manual') return;
         if (!dropID) {
             this.clearSelection();
             return;
@@ -151,6 +161,19 @@ export class LootDropManager implements GameComponent {
         }
         if (this.selectedDropID === dropID) return;
         this.selectedDropID = dropID;
+        this.updateSelectionArrow();
+        this.callbacks.onSelectionChanged?.(entry.dto);
+    }
+
+    private selectDrop(dropID: string, manual: boolean): void {
+        const entry = this.drops.find((d) => d.dto.drop_id === dropID);
+        if (!entry || entry.pickingUp || isLootDropExpired(entry.dto)) return;
+        if (this.selectedDropID === dropID) {
+            if (manual) this.selectionMode = 'manual';
+            return;
+        }
+        this.selectedDropID = dropID;
+        if (manual) this.selectionMode = 'manual';
         this.updateSelectionArrow();
         this.callbacks.onSelectionChanged?.(entry.dto);
     }
@@ -260,11 +283,8 @@ export class LootDropManager implements GameComponent {
     }
 
     private handleClick(dropID: string): void {
-        const entry = this.drops.find((d) => d.dto.drop_id === dropID);
-        if (!entry || entry.pickingUp || isLootDropExpired(entry.dto)) return;
-        this.selectedDropID = dropID;
-        this.updateSelectionArrow();
-        this.callbacks.onSelectionChanged?.(entry.dto);
+        this.selectDrop(dropID, true);
+        this.callbacks.onManualTargetLocked?.();
     }
 
     /** Mũi tên ↓ trên đầu item — cùng style NpcManager. */

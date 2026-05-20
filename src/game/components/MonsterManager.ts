@@ -71,6 +71,8 @@ export interface MonsterManagerCallbacks {
     onDropsSync?: (drops: LootDropDTO[]) => void;
     /** Ngoảnh player về quái trước khi swing (screen X). */
     onFaceScreenX?: (screenX: number) => void;
+    /** Loot/NPC click-lock — không auto-select quái khi swing. */
+    isOtherWorldTargetManualLocked?: () => boolean;
 }
 
 // Player base attack range — Phase 1.5 hardcode khớp BE skillRegistry. Đơn vị
@@ -285,8 +287,9 @@ export class MonsterManager implements GameComponent {
         if (!this.canAttackTarget(pos, target)) {
             return false;
         }
-        // Auto-select cho UX target frame.
-        this.selectMonsterAuto(target.dto.instance_id);
+        if (!this.callbacks.isOtherWorldTargetManualLocked?.()) {
+            this.selectMonsterAuto(target.dto.instance_id);
+        }
 
         if (!this.isInRange(pos, target)) {
             this.autoMoveTargetScreenX = target.renderX;
