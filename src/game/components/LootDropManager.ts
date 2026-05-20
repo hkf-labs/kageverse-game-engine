@@ -4,10 +4,12 @@ import {
     isLootDropExpired,
     isPlayerInLootPickupRange,
     LOOT_SPRITE_BEETLE_CARAPACE,
+    LOOT_SPRITE_HERB_FLOWER,
     LOOT_SPRITE_TURTLE_SHELL,
     LOOT_SPRITE_UPGRADE_STONE,
     LOOT_SPRITE_YEN,
     MATERIAL_BEETLE_CARAPACE_ID,
+    MATERIAL_HERB_FLOWER_ID,
     MATERIAL_TURTLE_SHELL_ID,
     UPGRADE_STONE_TEMPLATE_ID,
 } from '../../network/lootDrop';
@@ -157,7 +159,8 @@ export class LootDropManager implements GameComponent {
         if (
             dto.kind === 'item'
             && (dto.item_template_id === MATERIAL_BEETLE_CARAPACE_ID
-                || dto.item_template_id === MATERIAL_TURTLE_SHELL_ID)
+                || dto.item_template_id === MATERIAL_TURTLE_SHELL_ID
+                || dto.item_template_id === MATERIAL_HERB_FLOWER_ID)
         ) {
             return { base: GLOW_QUEST_MATERIAL, select: GLOW_SELECT_QUEST_MATERIAL };
         }
@@ -224,6 +227,9 @@ export class LootDropManager implements GameComponent {
         }
         if (dto.kind === 'item' && dto.item_template_id === MATERIAL_TURTLE_SHELL_ID) {
             return LOOT_SPRITE_TURTLE_SHELL;
+        }
+        if (dto.kind === 'item' && dto.item_template_id === MATERIAL_HERB_FLOWER_ID) {
+            return LOOT_SPRITE_HERB_FLOWER;
         }
         return LOOT_SPRITE_YEN;
     }

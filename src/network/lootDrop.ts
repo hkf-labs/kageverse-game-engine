@@ -11,9 +11,11 @@ export const LOOT_SPRITE_YEN = 'item_yen';
 export const LOOT_SPRITE_UPGRADE_STONE = 'item_upgrade_stone';
 export const LOOT_SPRITE_BEETLE_CARAPACE = 'item_material_beetle_carapace';
 export const LOOT_SPRITE_TURTLE_SHELL = 'item_material_turtle_shell';
+export const LOOT_SPRITE_HERB_FLOWER = 'item_material_herb_flower';
 
 export const MATERIAL_BEETLE_CARAPACE_ID = 'material_beetle_carapace';
 export const MATERIAL_TURTLE_SHELL_ID = 'material_turtle_shell';
+export const MATERIAL_HERB_FLOWER_ID = 'material_herb_flower';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null;

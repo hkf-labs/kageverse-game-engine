@@ -634,7 +634,7 @@ export const vi: TranslationTable = {
     'item.material.owl_feather':       'Lông Cú',
     'item.material.beetle_carapace':   'Mai vỏ Bọ Đá',
     'item.material.turtle_shell':      'Mai vỏ Rùa Vàng',
-    'item.material.herb_flower':       'Hoa Thảo Dược',
+    'item.material.herb_flower':       'Bông Thảo Dược',
     'item.material.anchor_shard':      'Mảnh Mỏ Neo',
     'item.quest.letter_q16_genji': 'Thư Cho Genji',
     'item.quest.letter_q16_hoshi': 'Thư Cho Hoshi',

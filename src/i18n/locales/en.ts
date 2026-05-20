@@ -418,7 +418,7 @@ export const en: TranslationTable = {
     // Q5 armor mats — dropped by Stone Beetle / Golden Turtle (see main-quests).
     'item.name.material_beetle_carapace': 'Stone Beetle Shell',
     'item.name.material_turtle_shell': 'Golden Turtle Shell',
-    'item.name.material_herb_flower': 'Herb Flower',
+    'item.name.material_herb_flower': 'Mist Sprite Herb',
     'item.name.quest_letter_q16_genji': 'Letter for Genji',
     'item.name.quest_letter_q16_hoshi': 'Letter for Hoshi',
 
@@ -625,7 +625,7 @@ export const en: TranslationTable = {
     'item.material.owl_feather':       'Owl Feather',
     'item.material.beetle_carapace':   'Stone Beetle Shell',
     'item.material.turtle_shell':      'Golden Turtle Shell',
-    'item.material.herb_flower':       'Herb Flower',
+    'item.material.herb_flower':       'Mist Sprite Herb',
     'item.material.anchor_shard':      'Anchor Shard',
     'item.quest.letter_q16_genji': 'Letter for Genji',
     'item.quest.letter_q16_hoshi': 'Letter for Hoshi',
