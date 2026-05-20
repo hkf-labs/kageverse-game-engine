@@ -13,6 +13,7 @@ import {
     MATERIAL_TURTLE_SHELL_ID,
     UPGRADE_STONE_TEMPLATE_ID,
 } from '../../network/lootDrop';
+import { isPointInMainCameraView } from '../cameraView';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import type { GameComponent } from './types';
@@ -109,6 +110,10 @@ export class LootDropManager implements GameComponent {
                 if (this.selectedDropID === d.dto.drop_id) this.clearSelection();
                 this.fadeOut(d);
             }
+        }
+        const selected = this.getSelectedEntry();
+        if (selected && !isPointInMainCameraView(this.scene, selected.renderX, selected.baseY)) {
+            this.clearSelection();
         }
     }
 

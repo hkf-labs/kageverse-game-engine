@@ -1113,13 +1113,17 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
 
         const lootAutoTarget = this.loot?.getAutoMoveTargetX() ?? null;
+        const monsterAutoTarget = this.monsters.getAutoMoveTargetX();
         const npcAutoTarget = this.npcs.getAutoMoveTargetX();
-        const autoTarget = lootAutoTarget ?? npcAutoTarget;
+        const autoTarget = lootAutoTarget ?? monsterAutoTarget ?? npcAutoTarget;
         if (autoTarget !== null) {
             if (moveLeft || moveRight || moveUp) {
                 this.loot?.clearAutoMove();
+                this.monsters.clearAutoMove();
                 this.npcs.clearAutoMove();
             } else if (lootAutoTarget !== null && this.loot.checkAutoMoveArrival(player.x)) {
+                player.body?.setVelocityX(0);
+            } else if (monsterAutoTarget !== null && this.monsters.checkAutoMoveArrival(player.x, player.y)) {
                 player.body?.setVelocityX(0);
             } else if (npcAutoTarget !== null && this.npcs.checkAutoMoveArrival(player.x, player.y)) {
                 player.body?.setVelocityX(0);
@@ -1171,16 +1175,26 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Drop đang chọn → nhặt hoặc chạy tới (trước NPC để click loot + Enter đúng mục tiêu).
         if (this.loot?.getSelectedDrop()) {
             this.npcs.clearAutoMove();
+            this.monsters.clearAutoMove();
             this.loot.handleInteract(player.x);
             return;
         }
 
+        if (this.monsters.getSelectedInstanceId()) {
+            this.loot?.clearAutoMove();
+            this.npcs.clearAutoMove();
+            this.monsters.handleInteract(player.x, player.y);
+            return;
+        }
+
         if (this.npcs.getSelectedNpc()) {
+            this.loot?.clearAutoMove();
+            this.monsters.clearAutoMove();
             this.npcs.handleInteract(player.x, player.y);
             return;
         }
 
-        // Không có portal/NPC/drop → swing vào quái gần nhất.
+        // Không có portal/loot/quái/NPC → swing nearest.
         void this.monsters.attackNearest().then((hit) => {
             if (hit) this.playerCtrl.playAnim('attack');
         });

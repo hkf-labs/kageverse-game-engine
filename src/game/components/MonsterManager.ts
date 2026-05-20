@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { combatAPI, type AttackResponse, type LootDropDTO, type MonsterInstanceDTO, type RetaliationDTO } from '../../network/api';
+import { isPointInMainCameraView } from '../cameraView';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import type { GameComponent } from './types';
@@ -81,6 +82,7 @@ export class MonsterManager implements GameComponent {
     // 'auto' = đang dùng nearest in-range. 'manual' = player chủ động chọn,
     // sticky cho tới khi target chết / out of range.
     private selectionMode: 'auto' | 'manual' = 'auto';
+    private autoMoveTargetScreenX: number | null = null;
 
     constructor(
         scene: Phaser.Scene,
@@ -176,6 +178,10 @@ export class MonsterManager implements GameComponent {
             m.hitArea.setPosition(m.renderX, m.baseY + bob);
         }
         this.updateAutoTarget();
+        const selected = this.getSelectedEntry();
+        if (selected && !isPointInMainCameraView(this.scene, selected.renderX, selected.baseY)) {
+            this.clearSelection();
+        }
     }
 
     /**
@@ -189,21 +195,13 @@ export class MonsterManager implements GameComponent {
         const scaleFactor = this.scene.scale.height / 1440;
         const playerRawX = pos.x / scaleFactor;
 
-        // Manual mode: check sticky target còn hợp lệ không.
+        // Manual: giữ target (kể cả xa tầm đánh) — bỏ select khi chết / despawn / off-screen ở update().
         if (this.selectionMode === 'manual' && this.selectedInstanceId) {
             const sel = this.monsters.find((m) => m.dto.instance_id === this.selectedInstanceId);
             if (!sel || sel.dto.state !== 'alive') {
-                // Target chết / despawn → fallback auto.
-                this.selectionMode = 'auto';
-                this.selectedInstanceId = null;
-                this.callbacks.onTargetCleared?.();
-            } else {
-                const dx = Math.abs(playerRawX - sel.dto.pos_x);
-                if (dx > PLAYER_ATTACK_RANGE_RAW_PX) {
-                    // Ra khỏi tầm → fallback auto, không bám nữa.
-                    this.selectionMode = 'auto';
-                }
+                this.clearSelection();
             }
+            return;
         }
 
         // Auto mode: pick nearest alive trong attack range.
@@ -261,25 +259,70 @@ export class MonsterManager implements GameComponent {
         this.selectMonster(target.dto.instance_id);
 
         if (!this.isInRange(pos, target)) {
-            this.callbacks.onError?.(t('monster.error_out_of_range'));
+            this.autoMoveTargetScreenX = target.renderX;
             return false;
         }
+        this.autoMoveTargetScreenX = null;
         await this.fireAttack(target, skillId, pos);
         return true;
     }
 
-    /** Click vào quái → manual select để target frame hiện. Nếu trong tầm → fire attack. */
+    getAutoMoveTargetX(): number | null {
+        return this.autoMoveTargetScreenX;
+    }
+
+    clearAutoMove(): void {
+        this.autoMoveTargetScreenX = null;
+    }
+
+    /** Enter — trong tầm đánh thì swing, xa thì chạy tới quái. */
+    handleInteract(playerScreenX: number, playerScreenY: number): void {
+        void playerScreenY;
+        const target = this.getSelectedEntry();
+        if (!target) return;
+        const pos = this.getPlayerPos();
+        if (!pos) return;
+        if (this.isInRange({ x: playerScreenX, y: pos.y }, target)) {
+            this.autoMoveTargetScreenX = null;
+            void this.swing();
+        } else {
+            this.autoMoveTargetScreenX = target.renderX;
+        }
+    }
+
+    checkAutoMoveArrival(playerScreenX: number, playerScreenY: number): boolean {
+        void playerScreenY;
+        if (this.autoMoveTargetScreenX === null) return false;
+        const target = this.getSelectedEntry();
+        if (!target) {
+            this.autoMoveTargetScreenX = null;
+            return false;
+        }
+        const pos = this.getPlayerPos();
+        if (!pos) return false;
+        if (!this.isInRange({ x: playerScreenX, y: pos.y }, target)) return false;
+        this.autoMoveTargetScreenX = null;
+        void this.swing();
+        return true;
+    }
+
+    /** Click vào quái → manual select; chỉ đánh ngay nếu đã trong tầm. */
     private handleMonsterClick(instanceId: string): void {
         const target = this.monsters.find((m) => m.dto.instance_id === instanceId);
         if (!target || target.dto.state === 'dead') return;
-        this.selectMonster(instanceId, true); // manual=true → sticky.
+        this.selectMonster(instanceId, true);
         const pos = this.getPlayerPos();
         if (!pos) return;
-        if (!this.isInRange(pos, target)) {
-            this.callbacks.onError?.(t('monster.error_out_of_range'));
-            return;
+        if (this.isInRange(pos, target)) {
+            void this.fireAttack(target, DEFAULT_SKILL_ID, pos);
         }
-        void this.fireAttack(target, DEFAULT_SKILL_ID, pos);
+    }
+
+    private getSelectedEntry(): MonsterEntry | undefined {
+        if (!this.selectedInstanceId) return undefined;
+        const ent = this.monsters.find((m) => m.dto.instance_id === this.selectedInstanceId);
+        if (!ent || ent.dto.state !== 'alive') return undefined;
+        return ent;
     }
 
     /** Range check 1D x trong raw coords — match BE check. Side-scroller, Y bỏ qua. */
@@ -357,6 +400,7 @@ export class MonsterManager implements GameComponent {
         if (!this.selectedInstanceId) return;
         this.selectedInstanceId = null;
         this.selectionMode = 'auto';
+        this.autoMoveTargetScreenX = null;
         this.callbacks.onTargetCleared?.();
     }
 
