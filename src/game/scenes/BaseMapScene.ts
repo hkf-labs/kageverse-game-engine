@@ -4,7 +4,7 @@ import { disconnectRealtime, wsClient } from '../../network/realtime';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DEFAULT_CHARACTER_APPEARANCE_ASSETS, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, LootDropManager, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PickupToast, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, LootDropManager, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PickupToast, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
@@ -141,9 +141,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
         });
 
         const cfg = this.getMapConfig();
-        for (const [key, asset] of Object.entries(DEFAULT_CHARACTER_APPEARANCE_ASSETS)) {
-            this.load.image(key, asset);
-        }
         this.load.image(cfg.bgKey, cfg.bgAsset);
         this.load.json(cfg.colliderKey, cfg.colliderAsset);
         if (cfg.surfaceTextures) {

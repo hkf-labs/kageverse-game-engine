@@ -15,24 +15,6 @@ import type { MapSpawnPoint } from '../spawn';
 import type { GameComponent } from './types';
 import type { MapBackground } from './MapBackground';
 
-export interface CharacterAppearance {
-    headTextureKey: string;
-    topTextureKey: string;
-    bottomTextureKey: string;
-}
-
-export const DEFAULT_CHARACTER_APPEARANCE: CharacterAppearance = {
-    headTextureKey: 'body-head-default',
-    topTextureKey: 'body-top-default',
-    bottomTextureKey: 'body-bottom-default',
-};
-
-export const DEFAULT_CHARACTER_APPEARANCE_ASSETS: Record<string, string> = {
-    'body-head-default': 'assets/game/characters/body-head-default.png',
-    'body-top-default': 'assets/game/characters/body-top-default.png',
-    'body-bottom-default': 'assets/game/characters/body-bottom-default.png',
-};
-
 const MALE_BASE_SPINE_PATH = '/assets/characters/male_base/';
 const SPINE_SCALE = 0.1;
 // Where the skeleton root (feet) sits relative to the hitbox center.
@@ -56,15 +38,6 @@ const IMAGE_SCALE = 0.5;
 // Unique texture key — must be removed on destroy() so re-entering the scene
 // doesn't hit a duplicate-key error.
 const SPINE_TEX_KEY = 'player-spine-tex';
-
-export const HEAD_OFFSET_Y = -39;
-export const TOP_OFFSET_Y = 11;
-export const BOTTOM_OFFSET_Y = 39;
-export const HEAD_OFFSET_X = 5;
-export const TOP_OFFSET_X = 3;
-export const BOTTOM_OFFSET_X = 0;
-export const BODY_SCALE = 0.4;
-export const NAME_OFFSET_Y = 0;
 
 type AnimName = 'idle' | 'run' | 'attack' | 'skill' | 'die' | 'win';
 
@@ -118,7 +91,7 @@ export class PlayerController implements GameComponent {
 
         const displayName = getCurrentCharacter()?.displayName || 'Ninja';
         this.playerNameText = this.scene.add.text(
-            this.player!.x, this.player!.y + NAME_OFFSET_Y,
+            this.player!.x, this.player!.y,
             displayName,
             {
                 fontSize: '14px', color: '#fff',
@@ -247,10 +220,6 @@ export class PlayerController implements GameComponent {
     isOnGround(): boolean {
         if (!this.player?.body) return false;
         return this.player.body.blocked.down || this.player.body.touching.down;
-    }
-
-    setAppearance(_appearance: Partial<CharacterAppearance>): void {
-        // Legacy stub — appearance driven by Spine skin swaps in the future.
     }
 
     private _initSpineTexture(): void {

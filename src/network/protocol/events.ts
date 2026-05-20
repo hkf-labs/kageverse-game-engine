@@ -67,10 +67,8 @@ export type PlayerSelfPayload = {
     dir: RealtimeDirection;
 };
 
-// AppearancePayload — sprite key cho từng layer body. BE để rỗng cho MVP
-// (FE fallback default sprites). Tương lai equipment system populate dựa
-// trên equipped items: helmet → head, armor → top, pants → bottom, weapon
-// → weapon. Field optional ở JSON (omitempty BE-side).
+// AppearancePayload — reserved cho equipment visual (Spine skin / sprite key).
+// MVP FE render male_base Spine; field rỗng → model mặc định.
 export type AppearancePayload = {
     head_sprite_key?: string;
     top_sprite_key?: string;
