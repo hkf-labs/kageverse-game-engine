@@ -96,7 +96,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private readonly RT_MOVE_THROTTLE_MS = 33; // ~30 Hz cap
     private readonly RT_MOVE_DELTA_PX = 1; // Send only when meaningful move
     private activeWorldTarget: WorldTargetKind | null = null;
-    /** ESC bỏ chọn — không auto-select lại cho đến khi di chuyển hoặc ra khỏi tầm. */
+    /** ESC / click-lock — chặn auto-select world target (click chỉ bỏ bằng ESC). */
     private worldTargetSelectLocked = false;
     /** Tọa độ từ AuthScene (sau /characters) hoặc portal — spawn ngay, không đợi fetch lần 2. */
     private sceneInitSpawn: MapSpawnPoint | null = null;
@@ -351,6 +351,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onTargetCleared: () => {
                 this.targetFrame?.clear();
                 this.bossHPBar?.disengage();
+            },
+            onManualTargetLocked: () => {
+                this.activeWorldTarget = 'monster';
+                this.worldTargetSelectLocked = true;
             },
             onRetaliation: (r) => this.showRetaliationFloater(r.damage),
             onTickResult: (hp, dead) => this.handleTickResult(hp, dead),
@@ -1181,16 +1185,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 this.playerCtrl.setFacing(dx < 0);
             }
         } else if (moveLeft) {
-            this.worldTargetSelectLocked = false;
+            if (!this.monsters.isManualSelection()) this.worldTargetSelectLocked = false;
             this.playerCtrl.moveLeft(speed);
         } else if (moveRight) {
-            this.worldTargetSelectLocked = false;
+            if (!this.monsters.isManualSelection()) this.worldTargetSelectLocked = false;
             this.playerCtrl.moveRight(speed);
         } else {
             this.playerCtrl.stopHorizontal();
         }
 
-        if (moveUp) {
+        if (moveUp && !this.monsters.isManualSelection()) {
             this.worldTargetSelectLocked = false;
         }
 
@@ -1221,6 +1225,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
         if (this.npcs.getInteractingNpc()) return;
 
+        if (this.monsters.isManualSelection()) {
+            this.activeWorldTarget = 'monster';
+            return;
+        }
+
         const scale = this.scale.height / 1440;
         const lootRange = LOOT_PICKUP_RANGE_RAW_PX * scale;
 
@@ -1246,9 +1255,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        // ESC khóa auto-select — vẫn cho nhặt loot khi không còn quái sống trong tầm.
+        // ESC / click-lock: không auto-select khác cho đến khi bỏ khóa (ESC) hoặc di chuyển.
         if (this.worldTargetSelectLocked) {
-            if (!monster && loot) {
+            if (!this.hasWorldTargetSelected() && !monster && loot) {
                 this.worldTargetSelectLocked = false;
             } else {
                 return;

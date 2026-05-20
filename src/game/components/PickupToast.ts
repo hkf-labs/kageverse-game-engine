@@ -9,16 +9,21 @@ const EXIT_MS = 550;
 const EXIT_SLIDE_X_PX = 280;
 /** Gom nhiều nhặt liên tiếp thành một dòng. */
 const BATCH_MS = 320;
+/** Chiều ngang tối đa vùng hiển thị (px) — tỉ lệ màn hình nhỏ hơn cap. */
+const MAX_VIEW_WIDTH_PX = 520;
+const VIEW_WIDTH_SCREEN_RATIO = 0.82;
+const VIEWPORT_H = 28;
+/** Tốc độ marquee khi danh sách item dài. */
+const SCROLL_MS_PER_PX = 32;
+const MIN_SCROLL_MS = 2200;
 
 const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
     fontFamily: 'system-ui, sans-serif',
     fontSize: '15px',
     fontStyle: 'bold',
-    color: '#ffe4c4',
+    color: '#ffea7a',
     stroke: '#000000',
     strokeThickness: 4,
-    align: 'center',
-    wordWrap: { width: 520 },
 };
 
 function itemPickupLabel(templateId: string, qty: number): string {
@@ -31,13 +36,16 @@ function yenPickupLabel(amount: number): string {
 }
 
 /**
- * Toast nhặt loot (item / yên): đứng im ~3s rồi trôi sang trái + fade.
- * Nhiều nhặt gần nhau → một dòng "Bạn đã nhận được a, b, c".
+ * Toast nhặt loot (item / yên): một dòng, nối thêm bằng dấu phẩy.
+ * Vùng hiển thị giới hạn ngang — dài hơn thì marquee để đọc phần cuối.
  */
 export class PickupToast implements GameComponent {
     private scene: Phaser.Scene;
     private labels: string[] = [];
-    private text?: Phaser.GameObjects.Text;
+    private container?: Phaser.GameObjects.Container;
+    private scrollText?: Phaser.GameObjects.Text;
+    private maskGfx?: Phaser.GameObjects.Graphics;
+    private scrollTween?: Phaser.Tweens.Tween;
     private batchTimer?: number;
     private holdTimer?: number;
     private isExiting = false;
@@ -55,8 +63,7 @@ export class PickupToast implements GameComponent {
 
     destroy(): void {
         this.clearTimers();
-        this.text?.destroy();
-        this.text = undefined;
+        this.destroyToast();
         this.labels = [];
         this.isExiting = false;
     }
@@ -72,9 +79,9 @@ export class PickupToast implements GameComponent {
     }
 
     private enqueuePickup(label: string): void {
-        if (this.text && this.holdTimer !== undefined && !this.isExiting) {
+        if (this.container && this.holdTimer !== undefined && !this.isExiting) {
             this.labels.push(label);
-            this.renderMessage();
+            this.layoutAndScroll();
             this.scheduleHold();
             return;
         }
@@ -92,64 +99,139 @@ export class PickupToast implements GameComponent {
         this.show();
     }
 
+    private buildMessage(): string {
+        return t('combat.pickup_received', { items: this.labels.join(', ') });
+    }
+
+    private getViewWidth(): number {
+        return Math.min(MAX_VIEW_WIDTH_PX, Math.round(this.scene.scale.width * VIEW_WIDTH_SCREEN_RATIO));
+    }
+
+    private ensureToast(): void {
+        if (this.container) return;
+
+        const y = Math.round(this.scene.scale.height * 0.975);
+        const x = this.scene.scale.width / 2;
+        const viewW = this.getViewWidth();
+
+        this.container = this.scene.add
+            .container(x, y)
+            .setDepth(95)
+            .setScrollFactor(0);
+
+        this.maskGfx = this.scene.add.graphics();
+        this.maskGfx.fillStyle(0xffffff, 1);
+        this.maskGfx.fillRect(-viewW / 2, -VIEWPORT_H / 2, viewW, VIEWPORT_H);
+        const mask = this.maskGfx.createGeometryMask();
+
+        this.scrollText = this.scene.add
+            .text(0, 0, '', TEXT_STYLE)
+            .setOrigin(0, 0.5)
+            .setMask(mask);
+
+        this.container.add([this.maskGfx, this.scrollText]);
+        this.maskGfx.setVisible(false);
+    }
+
+    private layoutAndScroll(): void {
+        if (!this.scrollText || !this.maskGfx) return;
+
+        const viewW = this.getViewWidth();
+        this.maskGfx.clear();
+        this.maskGfx.fillStyle(0xffffff, 1);
+        this.maskGfx.fillRect(-viewW / 2, -VIEWPORT_H / 2, viewW, VIEWPORT_H);
+
+        const message = this.buildMessage();
+        this.scrollText.setText(message);
+
+        const textW = this.scrollText.width;
+        const left = -viewW / 2;
+        this.killScrollTween();
+
+        if (textW <= viewW) {
+            this.scrollText.x = left + (viewW - textW) / 2;
+            return;
+        }
+
+        this.scrollText.x = left;
+        const overflow = textW - viewW;
+        const duration = Math.max(MIN_SCROLL_MS, overflow * SCROLL_MS_PER_PX);
+        this.scrollTween = this.scene.tweens.add({
+            targets: this.scrollText,
+            x: left - overflow,
+            duration,
+            ease: 'Linear',
+        });
+    }
+
     private show(): void {
         this.clearTimers();
         this.isExiting = false;
+        this.ensureToast();
 
-        const message = t('combat.pickup_received', { items: this.labels.join(', ') });
         const y = Math.round(this.scene.scale.height * 0.975);
         const x = this.scene.scale.width / 2;
+        this.container?.setPosition(x, y).setAlpha(1);
 
-        if (!this.text) {
-            this.text = this.scene.add
-                .text(x, y, message, TEXT_STYLE)
-                .setOrigin(0.5)
-                .setDepth(95)
-                .setScrollFactor(0);
-        } else {
-            this.text.setText(message);
-            this.text.setPosition(x, y);
-            this.text.setAlpha(1);
-        }
-
+        this.layoutAndScroll();
         this.scheduleHold();
     }
 
-    private renderMessage(): void {
-        if (!this.text) return;
-        this.text.setText(t('combat.pickup_received', { items: this.labels.join(', ') }));
+    /** Giữ toast đủ lâu để marquee chạy hết khi danh sách item rất dài. */
+    private getHoldDurationMs(): number {
+        if (!this.scrollText) return HOLD_MS;
+        const overflow = Math.max(0, this.scrollText.width - this.getViewWidth());
+        if (overflow <= 0) return HOLD_MS;
+        const scrollMs = Math.max(MIN_SCROLL_MS, overflow * SCROLL_MS_PER_PX);
+        return Math.max(HOLD_MS, scrollMs + 400);
     }
 
     private scheduleHold(): void {
         if (this.holdTimer !== undefined) {
             window.clearTimeout(this.holdTimer);
         }
-        this.holdTimer = window.setTimeout(() => this.startExit(), HOLD_MS);
+        this.holdTimer = window.setTimeout(() => this.startExit(), this.getHoldDurationMs());
     }
 
     private startExit(): void {
         this.holdTimer = undefined;
-        if (!this.text) {
+        if (!this.container) {
             this.labels = [];
             return;
         }
         this.isExiting = true;
-        const txt = this.text;
+        this.killScrollTween();
+        const box = this.container;
         this.scene.tweens.add({
-            targets: txt,
-            x: txt.x - EXIT_SLIDE_X_PX,
+            targets: box,
+            x: box.x - EXIT_SLIDE_X_PX,
             alpha: 0,
             duration: EXIT_MS,
             ease: 'Cubic.easeIn',
             onComplete: () => {
-                txt.destroy();
-                if (this.text === txt) {
-                    this.text = undefined;
-                }
+                this.destroyToast();
                 this.labels = [];
                 this.isExiting = false;
             },
         });
+    }
+
+    private killScrollTween(): void {
+        if (this.scrollTween) {
+            this.scrollTween.stop();
+            this.scrollTween = undefined;
+        }
+        if (this.scrollText) {
+            this.scene.tweens.killTweensOf(this.scrollText);
+        }
+    }
+
+    private destroyToast(): void {
+        this.killScrollTween();
+        this.container?.destroy();
+        this.container = undefined;
+        this.scrollText = undefined;
+        this.maskGfx = undefined;
     }
 
     private clearTimers(): void {
@@ -161,8 +243,9 @@ export class PickupToast implements GameComponent {
             window.clearTimeout(this.holdTimer);
             this.holdTimer = undefined;
         }
-        if (this.text) {
-            this.scene.tweens.killTweensOf(this.text);
+        if (this.container) {
+            this.scene.tweens.killTweensOf(this.container);
         }
+        this.killScrollTween();
     }
 }

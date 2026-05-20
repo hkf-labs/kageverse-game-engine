@@ -41,6 +41,8 @@ export interface MonsterManagerCallbacks {
     onError?: (msg: string) => void;
     onTargetSelected?: (m: MonsterInstanceDTO) => void;
     onTargetCleared?: () => void;
+    /** Click chuột chọn quái (khóa manual) — scene bật worldTargetSelectLocked. */
+    onManualTargetLocked?: () => void;
     onRetaliation?: (r: RetaliationDTO) => void;
     onTickResult?: (charHP: number, charDead: boolean) => void;
     /** Drops được sync từ ListMonsters poll — gọi mỗi lần refresh để LootDropManager
@@ -275,17 +277,17 @@ export class MonsterManager implements GameComponent {
         return true;
     }
 
-    /** Click vào quái → manual select; chỉ đánh ngay nếu đã trong tầm. */
+    /** Click chuột → chỉ chọn + khóa manual; đánh bằng Enter / nút tấn công. */
     private handleMonsterClick(instanceId: string): void {
         const target = this.monsters.find((m) => m.dto.instance_id === instanceId);
         if (!target || target.dto.state === 'dead') return;
         this.selectMonster(instanceId, true);
-        const pos = this.getPlayerPos();
-        if (!pos) return;
-        if (!this.canAttackTarget(pos, target)) return;
-        if (this.isInRange(pos, target)) {
-            void this.fireAttack(target, DEFAULT_SKILL_ID, pos);
-        }
+        this.callbacks.onManualTargetLocked?.();
+    }
+
+    /** Đang khóa mục tiêu bằng click — auto-select world target không ghi đè. */
+    isManualSelection(): boolean {
+        return this.selectionMode === 'manual' && this.selectedInstanceId !== null;
     }
 
     /** Cận chiến / none: không đánh quái dưới chân; Cung (bow) được phép. */
@@ -399,8 +401,9 @@ export class MonsterManager implements GameComponent {
         this.callbacks.onTargetCleared?.();
     }
 
-    /** Auto-select từ unified world target (không bật manual sticky). */
+    /** Auto-select từ unified world target (không ghi đè manual click-lock). */
     selectMonsterAuto(instanceId: string | null): void {
+        if (this.selectionMode === 'manual') return;
         if (!instanceId) {
             this.clearSelection();
             return;
