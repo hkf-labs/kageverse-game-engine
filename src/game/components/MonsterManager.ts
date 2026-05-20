@@ -27,7 +27,6 @@ const FLYING_ALTITUDE = 60;
 interface MonsterEntry {
     dto: MonsterInstanceDTO;
     body: Phaser.GameObjects.Graphics;
-    label: Phaser.GameObjects.Text;
     hpBarBg: Phaser.GameObjects.Graphics;
     hpBarFill: Phaser.GameObjects.Graphics;
     hitArea: Phaser.GameObjects.Rectangle;
@@ -85,6 +84,8 @@ export class MonsterManager implements GameComponent {
     // sticky cho tới khi target chết / out of range.
     private selectionMode: 'auto' | 'manual' = 'auto';
     private autoMoveTargetScreenX: number | null = null;
+    /** setVisible(false) khi mở menu — HP bar vẫn chỉ trên quái đang select. */
+    private layerVisible = true;
 
     constructor(
         scene: Phaser.Scene,
@@ -120,17 +121,14 @@ export class MonsterManager implements GameComponent {
     /** Pause/resume combat tick (vd khi player chết / Đóng menu). */
     setTickPaused(paused: boolean): void { this.tickPaused = paused; }
 
-    /** Toggle visibility tất cả monster sprite + HP bar + label. Scene gọi
-     * khi mở Menu chức năng để giảm rối map. Không pause combat tick (giữ
-     * BE state đồng bộ); chỉ ẩn render. */
+    /** Toggle visibility sprite quái. HP bar chỉ trên target đang select. */
     setVisible(visible: boolean): void {
+        this.layerVisible = visible;
         for (const m of this.monsters) {
             m.body.setVisible(visible);
-            m.label.setVisible(visible);
-            m.hpBarBg.setVisible(visible);
-            m.hpBarFill.setVisible(visible);
             m.hitArea.setVisible(visible);
         }
+        this.updateHpBarVisibility();
     }
 
     private hasAliveMonster(): boolean {
@@ -175,7 +173,6 @@ export class MonsterManager implements GameComponent {
         for (const m of this.monsters) {
             const bob = Math.sin(t * 1.6 + m.bobOffset) * 3;
             this.drawBody(m.body, m.renderX, m.baseY + bob, m.style, m.dto.state === 'dead');
-            m.label.setY(m.baseY - m.style.bodyHeight / 2 - 36 + bob);
             // Sync hit area position theo bob.
             m.hitArea.setPosition(m.renderX, m.baseY + bob);
         }
@@ -381,7 +378,11 @@ export class MonsterManager implements GameComponent {
         this.selectedInstanceId = instanceId;
         if (manual) this.selectionMode = 'manual';
         const ent = this.monsters.find((m) => m.dto.instance_id === instanceId);
-        if (ent) this.callbacks.onTargetSelected?.(ent.dto);
+        if (ent) {
+            this.redrawHpBar(ent);
+            this.callbacks.onTargetSelected?.(ent.dto);
+        }
+        this.updateHpBarVisibility();
     }
 
     clearSelection(): void {
@@ -389,6 +390,7 @@ export class MonsterManager implements GameComponent {
         this.selectedInstanceId = null;
         this.selectionMode = 'auto';
         this.autoMoveTargetScreenX = null;
+        this.updateHpBarVisibility();
         this.callbacks.onTargetCleared?.();
     }
 
@@ -406,7 +408,9 @@ export class MonsterManager implements GameComponent {
         if (this.selectedInstanceId === instanceId && this.selectionMode === 'auto') return;
         this.selectionMode = 'auto';
         this.selectedInstanceId = instanceId;
+        this.redrawHpBar(ent);
         this.callbacks.onTargetSelected?.(ent.dto);
+        this.updateHpBarVisibility();
     }
 
     /** Quái sống gần nhất trong tầm đánh (screen 2D). */
@@ -465,7 +469,6 @@ export class MonsterManager implements GameComponent {
             }
             entry.dto = dto;
             this.redrawHpBar(entry);
-            entry.label.setText(`${shortName(dto)} Lv.${dto.level}`);
             byID.delete(dto.instance_id);
             keep.push(entry);
         }
@@ -490,10 +493,6 @@ export class MonsterManager implements GameComponent {
         const body = this.scene.add.graphics().setDepth(8);
         const hpBarBg = this.scene.add.graphics().setDepth(9);
         const hpBarFill = this.scene.add.graphics().setDepth(10);
-        const label = this.scene.add.text(renderX, baseY - style.bodyHeight / 2 - 36, `${shortName(dto)} Lv.${dto.level}`, {
-            fontSize: '12px', color: '#ffffff', fontFamily: 'system-ui, sans-serif',
-            stroke: '#000000', strokeThickness: 3,
-        }).setOrigin(0.5).setDepth(11);
 
         // Invisible hit area lớn hơn body để dễ click.
         const hitArea = this.scene.add.rectangle(renderX, baseY, style.radius * 2 + 20, style.bodyHeight + 20, 0x000000, 0)
@@ -503,31 +502,49 @@ export class MonsterManager implements GameComponent {
         });
 
         const entry: MonsterEntry = {
-            dto, body, label, hpBarBg, hpBarFill, hitArea,
+            dto, body, hpBarBg, hpBarFill, hitArea,
             style, baseY, renderX,
             bobOffset: Math.random() * Math.PI * 2,
         };
-        this.redrawHpBar(entry);
+        this.updateHpBarVisibility();
         return entry;
     }
 
     private destroyEntry(entry: MonsterEntry): void {
         entry.body.destroy();
-        entry.label.destroy();
         entry.hpBarBg.destroy();
         entry.hpBarFill.destroy();
         entry.hitArea.destroy();
     }
 
+    /** Chỉ quái đang được select (và còn sống) hiện thanh máu trên map. */
+    private updateHpBarVisibility(): void {
+        for (const m of this.monsters) {
+            const show =
+                this.layerVisible
+                && m.dto.instance_id === this.selectedInstanceId
+                && m.dto.state === 'alive';
+            m.hpBarBg.setVisible(show);
+            m.hpBarFill.setVisible(show);
+        }
+    }
+
     private redrawHpBar(m: MonsterEntry): void {
+        m.hpBarBg.clear();
+        m.hpBarFill.clear();
+        if (
+            m.dto.state === 'dead'
+            || m.dto.instance_id !== this.selectedInstanceId
+        ) {
+            m.hpBarBg.setVisible(false);
+            m.hpBarFill.setVisible(false);
+            return;
+        }
+
         const w = m.style.radius * 2 + 16;
         const h = 6;
         const y = m.baseY - m.style.bodyHeight / 2 - 22;
         const x = m.renderX;
-
-        m.hpBarBg.clear();
-        m.hpBarFill.clear();
-        if (m.dto.state === 'dead') return;
 
         m.hpBarBg.fillStyle(0x000000, 0.7);
         m.hpBarBg.fillRoundedRect(x - w / 2, y, w, h, 3);
@@ -536,6 +553,9 @@ export class MonsterManager implements GameComponent {
             m.hpBarFill.fillStyle(0xff5454, 1);
             m.hpBarFill.fillRoundedRect(x - w / 2 + 1, y + 1, (w - 2) * ratio, h - 2, 2);
         }
+        const show = this.layerVisible;
+        m.hpBarBg.setVisible(show);
+        m.hpBarFill.setVisible(show);
     }
 
     private drawBody(g: Phaser.GameObjects.Graphics, x: number, y: number, s: MonsterStyle, dead: boolean): void {
@@ -633,31 +653,4 @@ function pickStyle(level: number): MonsterStyle {
         if (level <= tier.maxLevel) return tier.style;
     }
     return STYLE_BY_LEVEL[STYLE_BY_LEVEL.length - 1].style;
-}
-
-const NAME_BY_KEY: Record<string, string> = {
-    'monster.turtle_gold': 'Rùa Vàng',
-    'monster.slime_white': 'Slime Trắng',
-    'monster.mist_sprite': 'Tinh Sương',
-    'monster.goblin_wanderer': 'Goblin Lưu Lạc',
-    'monster.stone_beetle': 'Bọ Đá',
-    'monster.field_rat': 'Chuột Đồng',
-    'monster.night_crow': 'Quạ Đêm',
-    'monster.night_wolf': 'Sói Đêm',
-    'monster.shadow_owl': 'Cú Bóng',
-    'monster.mountain_monkey': 'Khỉ Núi',
-    'monster.bamboo_spirit_yatomi': 'Tinh Tre Yatomi',
-    'monster.goblin_warrior': 'Goblin Chiến Binh',
-    'monster.wild_wolf': 'Sói Hoang',
-    'monster.living_stone_iwagumo': 'Đá Sống Iwagumo',
-    'monster.goblin_mage': 'Goblin Pháp Sư',
-    'monster.striped_tiger': 'Hổ Vằn',
-    'monster.shadow_crow': 'Quạ Bóng',
-    'monster.mountain_bear': 'Gấu Núi',
-    'monster.flame_sprite': 'Tinh Hỏa',
-    'monster.kage_pristine': 'Kage Tinh Khôi',
-};
-
-function shortName(dto: MonsterInstanceDTO): string {
-    return NAME_BY_KEY[dto.name_key] ?? dto.template_id;
 }
