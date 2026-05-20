@@ -176,6 +176,15 @@ export class PlayerController implements GameComponent {
         }
     }
 
+    /** Ngoảnh nhân vật về phía mục tiêu trên map (trái/phải). */
+    faceTowardScreenX(targetX: number): void {
+        const player = this.player;
+        if (!player) return;
+        const dx = targetX - player.x;
+        if (Math.abs(dx) < 2) return;
+        this.setFacing(dx < 0);
+    }
+
     setVisible(visible: boolean): void {
         this.playerNameText?.setVisible(visible);
         this.spineImage?.setVisible(visible);

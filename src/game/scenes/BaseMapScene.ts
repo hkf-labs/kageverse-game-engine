@@ -333,6 +333,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onYenPicked: (amount, balance) => this.handleYenPicked(amount, balance),
             onItemPicked: (templateId, qty) => this.pickupToast.notifyItem(templateId, qty),
             onError: (msg) => this.hud.setStatus(msg, '#ff8a8a'),
+            onFaceScreenX: (x) => this.playerCtrl.faceTowardScreenX(x),
         });
         this.loot.create();
         this.loot.setPlayerPositionGetter(() => {
@@ -359,6 +360,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onRetaliation: (r) => this.showRetaliationFloater(r.damage),
             onTickResult: (hp, dead) => this.handleTickResult(hp, dead),
             onDropsSync: (drops) => this.loot.syncDrops(drops),
+            onFaceScreenX: (x) => this.playerCtrl.faceTowardScreenX(x),
         }, { safeZone: cfg.safeZone === true });
         this.monsters.create();
         this.monsters.setPlayerPositionGetter(() => {

@@ -69,6 +69,8 @@ export interface MonsterManagerCallbacks {
     /** Drops được sync từ ListMonsters poll — gọi mỗi lần refresh để LootDropManager
      * sync set drops (thêm mới + xoá đã nhặt). */
     onDropsSync?: (drops: LootDropDTO[]) => void;
+    /** Ngoảnh player về quái trước khi swing (screen X). */
+    onFaceScreenX?: (screenX: number) => void;
 }
 
 // Player base attack range — Phase 1.5 hardcode khớp BE skillRegistry. Đơn vị
@@ -291,6 +293,7 @@ export class MonsterManager implements GameComponent {
             return false;
         }
         this.autoMoveTargetScreenX = null;
+        this.callbacks.onFaceScreenX?.(target.renderX);
         await this.fireAttack(target, skillId, pos);
         return true;
     }

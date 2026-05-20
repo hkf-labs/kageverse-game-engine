@@ -41,6 +41,8 @@ export interface LootDropManagerCallbacks {
     onItemPicked?: (itemTemplateId: string, qty: number) => void;
     onError?: (msg: string) => void;
     onSelectionChanged?: (drop: LootDropDTO | null) => void;
+    /** Ngoảnh player về drop trước khi nhặt (screen X). */
+    onFaceScreenX?: (screenX: number) => void;
 }
 
 /**
@@ -188,6 +190,7 @@ export class LootDropManager implements GameComponent {
         if (!entry) return;
         if (this.isInPickupRange(entry, playerScreenX)) {
             this.autoMoveTargetScreenX = null;
+            this.callbacks.onFaceScreenX?.(entry.renderX);
             void this.pickup(entry);
         } else {
             this.autoMoveTargetScreenX = entry.renderX;
@@ -204,6 +207,7 @@ export class LootDropManager implements GameComponent {
         }
         if (!this.isInPickupRange(entry, playerScreenX)) return false;
         this.autoMoveTargetScreenX = null;
+        this.callbacks.onFaceScreenX?.(entry.renderX);
         void this.pickup(entry);
         return true;
     }
