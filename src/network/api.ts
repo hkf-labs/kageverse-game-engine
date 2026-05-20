@@ -929,6 +929,8 @@ export type CombatTickRequest = {
 
 export type CombatTickResponse = {
     retaliations: RetaliationDTO[];
+    /** Quái đang aggro / tấn công nhân vật này (sync mỗi combat-tick). */
+    aggro_instance_ids?: string[];
     character_current_hp: number;
     character_current_mp: number;
     character_dead: boolean;

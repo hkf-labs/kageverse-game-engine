@@ -87,6 +87,8 @@ export class MonsterManager implements GameComponent {
     private autoMoveTargetScreenX: number | null = null;
     /** setVisible(false) khi mở menu — HP bar vẫn chỉ trên quái đang select. */
     private layerVisible = true;
+    /** Quái đang aggro player — sync từ BE combat-tick. */
+    private aggroOnPlayerIds = new Set<string>();
 
     constructor(
         scene: Phaser.Scene,
@@ -157,6 +159,7 @@ export class MonsterManager implements GameComponent {
                 player_x: pos.x / scaleFactor,
                 player_y: pos.y / scaleFactor,
             });
+            this.syncAggroOnPlayer(res.aggro_instance_ids ?? []);
             for (const ret of res.retaliations) {
                 this.callbacks.onRetaliation?.(ret);
             }
@@ -169,11 +172,20 @@ export class MonsterManager implements GameComponent {
         }
     }
 
+    private syncAggroOnPlayer(instanceIds: string[]): void {
+        this.aggroOnPlayerIds = new Set(instanceIds);
+    }
+
+    private isAggroOnPlayer(instanceId: string): boolean {
+        return this.aggroOnPlayerIds.has(instanceId);
+    }
+
     update(): void {
         const t = this.scene.time.now / 1000;
         for (const m of this.monsters) {
             const bob = Math.sin(t * 1.6 + m.bobOffset) * 3;
-            this.drawBody(m.body, m.renderX, m.baseY + bob, m.style, m.dto.state === 'dead');
+            const attacking = m.dto.state === 'alive' && this.isAggroOnPlayer(m.dto.instance_id);
+            this.drawBody(m.body, m.renderX, m.baseY + bob, m.style, m.dto.state === 'dead', attacking);
             // Sync hit area position theo bob.
             m.hitArea.setPosition(m.renderX, m.baseY + bob);
         }
@@ -575,7 +587,14 @@ export class MonsterManager implements GameComponent {
         m.hpBarFill.setVisible(show);
     }
 
-    private drawBody(g: Phaser.GameObjects.Graphics, x: number, y: number, s: MonsterStyle, dead: boolean): void {
+    private drawBody(
+        g: Phaser.GameObjects.Graphics,
+        x: number,
+        y: number,
+        s: MonsterStyle,
+        dead: boolean,
+        aggroOnPlayer: boolean,
+    ): void {
         g.clear();
         if (dead) {
             // Faint body ghost-like khi dead.
@@ -583,23 +602,57 @@ export class MonsterManager implements GameComponent {
             g.fillEllipse(x, y, s.radius * 2, s.bodyHeight);
             return;
         }
+        const pulse = aggroOnPlayer
+            ? 0.55 + 0.45 * Math.sin(this.scene.time.now / 140)
+            : 0;
         // Shadow.
         g.fillStyle(0x000000, 0.3);
         g.fillEllipse(x, y + s.bodyHeight / 2 + 4, s.radius * 2, 10);
+        // Vòng đỏ chân — placeholder tới khi có animation tấn công.
+        if (aggroOnPlayer) {
+            g.lineStyle(4, 0xff3333, pulse);
+            g.strokeEllipse(x, y + s.bodyHeight / 2 + 4, s.radius * 2 + 16, 14);
+            g.fillStyle(0xff4444, 0.22 * pulse);
+            g.fillEllipse(x, y, s.radius * 2 + 4, s.bodyHeight + 4);
+        }
         // Body.
-        g.fillStyle(s.color, 1);
+        const bodyColor = aggroOnPlayer ? this.tintColor(s.color, 0xff5555, 0.35) : s.color;
+        g.fillStyle(bodyColor, 1);
         g.fillEllipse(x, y, s.radius * 2, s.bodyHeight);
-        g.lineStyle(2, 0x000000, 0.6);
+        g.lineStyle(aggroOnPlayer ? 3 : 2, aggroOnPlayer ? 0xff6666 : 0x000000, aggroOnPlayer ? 0.85 : 0.6);
         g.strokeEllipse(x, y, s.radius * 2, s.bodyHeight);
-        // Eyes.
+        // Eyes — đỏ khi đang đánh player.
         const eyeX = s.radius * 0.35;
         const eyeY = -s.bodyHeight * 0.15;
-        g.fillStyle(0xffffff, 1);
+        g.fillStyle(aggroOnPlayer ? 0xffaaaa : 0xffffff, 1);
         g.fillCircle(x - eyeX, y + eyeY, 4);
         g.fillCircle(x + eyeX, y + eyeY, 4);
-        g.fillStyle(s.eyeColor, 1);
+        g.fillStyle(aggroOnPlayer ? 0xaa0000 : s.eyeColor, 1);
         g.fillCircle(x - eyeX, y + eyeY, 2);
         g.fillCircle(x + eyeX, y + eyeY, 2);
+        // Dấu ! trên đầu (tạm thời).
+        if (aggroOnPlayer) {
+            const markY = y - s.bodyHeight / 2 - 14;
+            g.fillStyle(0xff4444, pulse);
+            g.fillCircle(x, markY, 7);
+            g.fillStyle(0xffffff, 1);
+            g.fillRect(x - 1.5, markY - 5, 3, 6);
+            g.fillRect(x - 1.5, markY + 3, 3, 2);
+        }
+    }
+
+    /** Pha màu body hướng tint (0–1). */
+    private tintColor(base: number, tint: number, amount: number): number {
+        const br = (base >> 16) & 0xff;
+        const bg = (base >> 8) & 0xff;
+        const bb = base & 0xff;
+        const tr = (tint >> 16) & 0xff;
+        const tg = (tint >> 8) & 0xff;
+        const tb = tint & 0xff;
+        const r = Math.round(br + (tr - br) * amount);
+        const g = Math.round(bg + (tg - bg) * amount);
+        const b = Math.round(bb + (tb - bb) * amount);
+        return (r << 16) | (g << 8) | b;
     }
 
     private spawnDamageFloater(x: number, y: number, dmg: number, crit: boolean): void {
@@ -647,6 +700,7 @@ export class MonsterManager implements GameComponent {
     }
 
     private cleanup(): void {
+        this.aggroOnPlayerIds.clear();
         if (this.pollTimer !== undefined) {
             window.clearInterval(this.pollTimer);
             this.pollTimer = undefined;

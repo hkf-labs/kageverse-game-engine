@@ -3,17 +3,18 @@ import { t, tOpt } from '../../i18n';
 import { targetDisplayName } from './modals/QuestLogPanel';
 import type { GameComponent } from './types';
 
-const HOLD_MS = 3000;
+/** Đứng im trước khi marquee (ms) — cố định, không reset khi thêm item. */
+const STATIC_HOLD_MS = 3000;
+const EXIT_DELAY_MS = 400;
 const EXIT_MS = 550;
 /** Trượt sang trái khi ẩn (px). */
 const EXIT_SLIDE_X_PX = 280;
 /** Gom nhiều nhặt liên tiếp thành một dòng. */
 const BATCH_MS = 320;
-/** Chiều ngang tối đa vùng hiển thị (px) — tỉ lệ màn hình nhỏ hơn cap. */
+/** Chiều ngang tối đa vùng hiển thị (px). */
 const MAX_VIEW_WIDTH_PX = 520;
 const VIEW_WIDTH_SCREEN_RATIO = 0.82;
 const VIEWPORT_H = 28;
-/** Tốc độ marquee khi danh sách item dài. */
 const SCROLL_MS_PER_PX = 32;
 const MIN_SCROLL_MS = 2200;
 
@@ -26,6 +27,8 @@ const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
     strokeThickness: 4,
 };
 
+type ToastPhase = 'idle' | 'static' | 'scroll';
+
 function itemPickupLabel(templateId: string, qty: number): string {
     const name = tOpt(`item.name.${templateId}`) ?? targetDisplayName(templateId);
     return qty > 1 ? `${name} ×${qty}` : name;
@@ -36,8 +39,8 @@ function yenPickupLabel(amount: number): string {
 }
 
 /**
- * Toast nhặt loot (item / yên): một dòng, nối thêm bằng dấu phẩy.
- * Vùng hiển thị giới hạn ngang — dài hơn thì marquee để đọc phần cuối.
+ * Toast nhặt loot: một dòng, nối bằng dấu phẩy, vùng ngang có mask.
+ * 3s đứng im → marquee (nếu dài) → thoát. Thêm item khi đang hiện không reset timer/tween.
  */
 export class PickupToast implements GameComponent {
     private scene: Phaser.Scene;
@@ -46,8 +49,10 @@ export class PickupToast implements GameComponent {
     private scrollText?: Phaser.GameObjects.Text;
     private maskGfx?: Phaser.GameObjects.Graphics;
     private scrollTween?: Phaser.Tweens.Tween;
+    private phase: ToastPhase = 'idle';
     private batchTimer?: number;
-    private holdTimer?: number;
+    private staticTimer?: number;
+    private exitTimer?: number;
     private isExiting = false;
 
     constructor(scene: Phaser.Scene) {
@@ -65,6 +70,7 @@ export class PickupToast implements GameComponent {
         this.clearTimers();
         this.destroyToast();
         this.labels = [];
+        this.phase = 'idle';
         this.isExiting = false;
     }
 
@@ -79,10 +85,9 @@ export class PickupToast implements GameComponent {
     }
 
     private enqueuePickup(label: string): void {
-        if (this.container && this.holdTimer !== undefined && !this.isExiting) {
+        if (this.container && !this.isExiting && this.phase !== 'idle') {
             this.labels.push(label);
-            this.layoutAndScroll();
-            this.scheduleHold();
+            this.updateMessageOnly();
             return;
         }
 
@@ -105,6 +110,10 @@ export class PickupToast implements GameComponent {
 
     private getViewWidth(): number {
         return Math.min(MAX_VIEW_WIDTH_PX, Math.round(this.scene.scale.width * VIEW_WIDTH_SCREEN_RATIO));
+    }
+
+    private getLeftEdge(): number {
+        return -this.getViewWidth() / 2;
     }
 
     private ensureToast(): void {
@@ -133,26 +142,67 @@ export class PickupToast implements GameComponent {
         this.maskGfx.setVisible(false);
     }
 
-    private layoutAndScroll(): void {
-        if (!this.scrollText || !this.maskGfx) return;
-
+    private redrawMask(): void {
+        if (!this.maskGfx) return;
         const viewW = this.getViewWidth();
         this.maskGfx.clear();
         this.maskGfx.fillStyle(0xffffff, 1);
         this.maskGfx.fillRect(-viewW / 2, -VIEWPORT_H / 2, viewW, VIEWPORT_H);
+    }
 
-        const message = this.buildMessage();
-        this.scrollText.setText(message);
+    /** Chỉ đổi nội dung — không đụng vị trí, tween, timer (đang static/scroll). */
+    private updateMessageOnly(): void {
+        if (!this.scrollText) return;
+        this.redrawMask();
+        this.scrollText.setText(this.buildMessage());
+    }
 
+    /** Bắt đầu hiển thị: căn chỗ + 3s đứng im. */
+    private layoutStaticStart(): void {
+        if (!this.scrollText) return;
+        this.redrawMask();
+        this.scrollText.setText(this.buildMessage());
+
+        const viewW = this.getViewWidth();
         const textW = this.scrollText.width;
-        const left = -viewW / 2;
-        this.killScrollTween();
+        const left = this.getLeftEdge();
 
         if (textW <= viewW) {
             this.scrollText.x = left + (viewW - textW) / 2;
+        } else {
+            this.scrollText.x = left;
+        }
+    }
+
+    private show(): void {
+        this.clearTimers();
+        this.isExiting = false;
+        this.phase = 'static';
+        this.ensureToast();
+
+        const y = Math.round(this.scene.scale.height * 0.975);
+        const x = this.scene.scale.width / 2;
+        this.container?.setPosition(x, y).setAlpha(1);
+
+        this.layoutStaticStart();
+        this.staticTimer = window.setTimeout(() => this.beginScrollOrExit(), STATIC_HOLD_MS);
+    }
+
+    private beginScrollOrExit(): void {
+        this.staticTimer = undefined;
+        if (!this.scrollText || this.isExiting) return;
+
+        const viewW = this.getViewWidth();
+        const textW = this.scrollText.width;
+        const left = this.getLeftEdge();
+
+        if (textW <= viewW) {
+            this.scrollText.x = left + (viewW - textW) / 2;
+            this.scheduleExit(EXIT_DELAY_MS);
             return;
         }
 
+        this.phase = 'scroll';
         this.scrollText.x = left;
         const overflow = textW - viewW;
         const duration = Math.max(MIN_SCROLL_MS, overflow * SCROLL_MS_PER_PX);
@@ -161,45 +211,29 @@ export class PickupToast implements GameComponent {
             x: left - overflow,
             duration,
             ease: 'Linear',
+            onComplete: () => {
+                this.scrollTween = undefined;
+                if (!this.isExiting) this.scheduleExit(EXIT_DELAY_MS);
+            },
         });
     }
 
-    private show(): void {
-        this.clearTimers();
-        this.isExiting = false;
-        this.ensureToast();
-
-        const y = Math.round(this.scene.scale.height * 0.975);
-        const x = this.scene.scale.width / 2;
-        this.container?.setPosition(x, y).setAlpha(1);
-
-        this.layoutAndScroll();
-        this.scheduleHold();
-    }
-
-    /** Giữ toast đủ lâu để marquee chạy hết khi danh sách item rất dài. */
-    private getHoldDurationMs(): number {
-        if (!this.scrollText) return HOLD_MS;
-        const overflow = Math.max(0, this.scrollText.width - this.getViewWidth());
-        if (overflow <= 0) return HOLD_MS;
-        const scrollMs = Math.max(MIN_SCROLL_MS, overflow * SCROLL_MS_PER_PX);
-        return Math.max(HOLD_MS, scrollMs + 400);
-    }
-
-    private scheduleHold(): void {
-        if (this.holdTimer !== undefined) {
-            window.clearTimeout(this.holdTimer);
+    private scheduleExit(delayMs: number): void {
+        if (this.exitTimer !== undefined) {
+            window.clearTimeout(this.exitTimer);
         }
-        this.holdTimer = window.setTimeout(() => this.startExit(), this.getHoldDurationMs());
+        this.exitTimer = window.setTimeout(() => this.startExit(), delayMs);
     }
 
     private startExit(): void {
-        this.holdTimer = undefined;
+        this.exitTimer = undefined;
         if (!this.container) {
             this.labels = [];
+            this.phase = 'idle';
             return;
         }
         this.isExiting = true;
+        this.phase = 'idle';
         this.killScrollTween();
         const box = this.container;
         this.scene.tweens.add({
@@ -239,9 +273,13 @@ export class PickupToast implements GameComponent {
             window.clearTimeout(this.batchTimer);
             this.batchTimer = undefined;
         }
-        if (this.holdTimer !== undefined) {
-            window.clearTimeout(this.holdTimer);
-            this.holdTimer = undefined;
+        if (this.staticTimer !== undefined) {
+            window.clearTimeout(this.staticTimer);
+            this.staticTimer = undefined;
+        }
+        if (this.exitTimer !== undefined) {
+            window.clearTimeout(this.exitTimer);
+            this.exitTimer = undefined;
         }
         if (this.container) {
             this.scene.tweens.killTweensOf(this.container);
