@@ -172,7 +172,7 @@ export const en: TranslationTable = {
     'combat.potion_mp_placeholder': 'Used MP potion! (placeholder)',
     'combat.pickup_failed': 'Pickup failed',
     'combat.drop_owned_by_other': "Someone else's drop",
-    'combat.drop_out_of_range': 'Get closer to pick up',
+    'combat.drop_out_of_range': 'Item too far away',
     'combat.auto_attack_off': '⚔️ Auto-attack: OFF',
     'combat.auto_attack_on': '⚔️ Auto-attack: ON — move to disable',
     'combat.auto_attack_off_moving': '⚔️ Auto-attack: OFF (moving)',
@@ -392,7 +392,7 @@ export const en: TranslationTable = {
     'item.name.skill_book_bow_lv20': 'Bow Skill Book lv 20',
     'item.name.amulet_focus_lv12_sword': 'Focus Amulet (Sword)',
     'item.name.amulet_focus_lv12_bow': 'Focus Amulet (Bow)',
-    'item.name.material_upgrade_stone_lv1': 'Enhancement Stone +1',
+    'item.name.material_upgrade_stone_lv1': 'Enhancement Stone',
     'item.name.material_owl_feather': 'Owl Feather',
     'item.name.material_beetle_carapace': 'Beetle Carapace',
     'item.name.material_turtle_shell': 'Turtle Shell',
@@ -599,7 +599,7 @@ export const en: TranslationTable = {
     'item.equipment.jewelry_bow_ring_lv18':     'Bow Ring lv 18',
 
     // Materials & quest items
-    'item.material.upgrade_stone_lv1': 'Enhancement Stone +1',
+    'item.material.upgrade_stone_lv1': 'Enhancement Stone',
     'item.material.owl_feather':       'Owl Feather',
     'item.material.beetle_carapace':   'Beetle Carapace',
     'item.material.turtle_shell':      'Turtle Shell',

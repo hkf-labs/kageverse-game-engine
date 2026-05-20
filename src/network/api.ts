@@ -1,6 +1,7 @@
 import { getMockMapDetail } from '../features/maps';
 import type { MapDetail } from '../features/maps';
 import { t } from '../i18n';
+import { normalizeLootDrops } from './lootDrop';
 export type { MapDetail, Vec2 } from '../features/maps';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
@@ -779,6 +780,8 @@ export type LootDropDTO = {
     owner_character_id?: string;
     /** RFC3339 timestamp. Sau thời điểm này → public (ai cũng nhặt). Rỗng = không khoá. */
     owner_lock_expires_at?: string;
+    /** RFC3339 — hết hạn trên mặt đất (spawn + 15s). BE luôn gửi; FE despawn theo timestamp. */
+    expires_at: string;
     /** Quest item — chỉ character đang làm quest mới nhặt được. Rỗng cho drop thường. */
     quest_template_id?: string;
     /** Yen kind */
@@ -891,7 +894,10 @@ export const combatAPI = {
         if (!response.ok) {
             throw new Error(`${formatApiError(resData, t('api.error.load_monsters'))} (trace_id=${traceId || 'n/a'})`);
         }
-        return resData as ListMonstersResponse;
+        const res = resData as ListMonstersResponse;
+        const anchorMs =
+            typeof res.server_now === 'string' ? Date.parse(res.server_now) : Date.now();
+        return { ...res, drops: normalizeLootDrops(res.drops, anchorMs) };
     },
     async attack(characterId: string, req: AttackRequest): Promise<AttackResponse> {
         const path = `/characters/${encodeURIComponent(characterId)}/attack`;
@@ -904,7 +910,8 @@ export const combatAPI = {
         if (!response.ok) {
             throw new Error(`${formatApiError(resData, t('api.error.attack'))} (trace_id=${traceId || 'n/a'})`);
         }
-        return resData as AttackResponse;
+        const res = resData as AttackResponse;
+        return { ...res, drops: normalizeLootDrops(res.drops, Date.now()) };
     },
     async respawn(characterId: string): Promise<RespawnResponse> {
         const path = `/characters/${encodeURIComponent(characterId)}/respawn`;

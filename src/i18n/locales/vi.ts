@@ -171,7 +171,7 @@ export const vi: TranslationTable = {
     'combat.potion_hp_placeholder': 'Đã dùng bình HP! (placeholder)',
     'combat.pickup_failed': 'Nhặt thất bại',
     'combat.drop_owned_by_other': 'Vật phẩm của người khác',
-    'combat.drop_out_of_range': 'Lại gần hơn để nhặt',
+    'combat.drop_out_of_range': 'Vật phẩm quá xa',
     'combat.potion_mp_placeholder': 'Đã dùng bình MP! (placeholder)',
     'combat.auto_attack_off': '⚔️ Tự đánh: TẮT',
     'combat.auto_attack_on': '⚔️ Tự đánh: BẬT — di chuyển để tắt',
@@ -400,7 +400,7 @@ export const vi: TranslationTable = {
     'item.name.skill_book_bow_lv20': 'Bí Kíp Cung cấp 20',
     'item.name.amulet_focus_lv12_sword': 'Bùa Định Tâm (Kiếm)',
     'item.name.amulet_focus_lv12_bow': 'Bùa Định Tâm (Cung)',
-    'item.name.material_upgrade_stone_lv1': 'Mảnh Đá Cường Hoá +1',
+    'item.name.material_upgrade_stone_lv1': 'Đá Cường Hoá',
     'item.name.material_owl_feather': 'Lông Cú Đêm',
     'item.name.material_beetle_carapace': 'Mai Bọ Đá',
     'item.name.material_turtle_shell': 'Mai Rùa',
@@ -608,7 +608,7 @@ export const vi: TranslationTable = {
     'item.equipment.jewelry_bow_ring_lv18':     'Nhẫn Cung cấp 18',
 
     // Materials & quest items
-    'item.material.upgrade_stone_lv1': 'Đá Cường Hoá +1',
+    'item.material.upgrade_stone_lv1': 'Đá Cường Hoá',
     'item.material.owl_feather':       'Lông Cú',
     'item.material.beetle_carapace':   'Vỏ Bọ Cánh Cứng',
     'item.material.turtle_shell':      'Mai Rùa',

@@ -18,7 +18,7 @@ import { MODAL_COLORS } from './theme';
 // Cost table mirror BE (equipmentupgrade/domain/upgrade.go costPerLevel). Cap
 // theo character level: <20 = +4, 20-29 = +8.
 //
-// Stone item: material_upgrade_stone_lv1 (Mảnh Đá Cường Hoá +1).
+// Stone item: material_upgrade_stone_lv1 (Đá Cường Hoá).
 
 type Category = 'weapon' | 'jewelry' | 'apparel';
 

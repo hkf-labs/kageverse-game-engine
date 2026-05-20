@@ -11,6 +11,7 @@ import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 
 interface InventoryItem {
@@ -22,6 +23,7 @@ interface InventoryItem {
     subType: string | null;
     iconBg: string;
     iconText: string;
+    iconUrl: string | null;
     amount: number;
     maxStack: number;
     upgradeLevel: number;
@@ -97,6 +99,7 @@ function mapBeItem(dto: InventoryItemDTO): InventoryItem | null {
         subType: dto.sub_type,
         iconBg: DEFAULT_BG[dto.item_type],
         iconText: (dto.sub_type && SUBTYPE_ICON[dto.sub_type]) || DEFAULT_ICON[dto.item_type],
+        iconUrl: resolveItemIconUrl(dto.sprite_key, dto.item_template_id),
         amount: dto.amount,
         maxStack: dto.max_stack,
         upgradeLevel: dto.upgrade_level,
@@ -769,7 +772,7 @@ export class InventoryModal extends BaseModal {
 
             if (item) {
                 cell.innerHTML = [
-                    `<div style="font-size:24px;">${item.iconText}</div>`,
+                    inventorySlotIconHtml(item.iconUrl, item.iconText),
                     item.amount > 1
                         ? `<div style="position:absolute;right:2px;bottom:0;font-size:11px;font-weight:bold;color:#fff;text-shadow:0 0 3px #000,1px 1px 0 #000;">${item.amount}</div>`
                         : '',
