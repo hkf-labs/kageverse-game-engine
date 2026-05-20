@@ -11,6 +11,7 @@ import type {
     RealtimeDirection,
 } from '../../network/protocol/events';
 import { createSpineInstance, ensureSharedSpineData, type SharedSpineData } from './spineShared';
+import { canAutoSelectVertically } from '../worldTarget';
 import type { GameComponent } from './types';
 
 // Parity với PlayerController — giữ sync visual + name plate.
@@ -24,6 +25,9 @@ const SPINE_ORIGIN_Y = SKELETON_CANVAS_Y / CANVAS_H;
 
 const LERP_FACTOR = 0.2;
 const SNAP_DISTANCE_PX = 600;
+const SELECTION_ARROW_GAP_PX = 2;
+const SELECTION_ARROW_HALF_W = 8;
+const SELECTION_ARROW_H = 10;
 /** px/frame — coi là đang chạy nếu lerp di chuyển đủ lớn. */
 const RUN_MOVE_THRESHOLD = 0.8;
 
@@ -57,12 +61,15 @@ export class RemotePlayerManager implements GameComponent {
     private players = new Map<string, RemotePlayer>();
     private ownCharacterID: string | null = null;
     private sharedSpine: SharedSpineData | null = null;
+    private selectedCharacterID: string | null = null;
+    private selectionArrow?: Phaser.GameObjects.Graphics;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
     }
 
     create(): void {
+        this.selectionArrow = this.scene.add.graphics().setDepth(11).setVisible(false);
         ensureSharedSpineData((data) => {
             this.sharedSpine = data;
             for (const rp of this.players.values()) {
@@ -77,6 +84,52 @@ export class RemotePlayerManager implements GameComponent {
             rp.nameText.setVisible(visible);
             rp.spineImage?.setVisible(visible);
         }
+        if (!visible) this.selectionArrow?.setVisible(false);
+    }
+
+    getSelectedCharacterId(): string | null {
+        return this.selectedCharacterID;
+    }
+
+    clearSelection(): void {
+        if (!this.selectedCharacterID) return;
+        this.selectedCharacterID = null;
+        this.hideSelectionArrow();
+    }
+
+    selectCharacterAuto(characterID: string | null): void {
+        if (!characterID) {
+            this.clearSelection();
+            return;
+        }
+        if (!this.players.has(characterID)) {
+            this.clearSelection();
+            return;
+        }
+        if (this.selectedCharacterID === characterID) return;
+        this.selectedCharacterID = characterID;
+        this.updateSelectionArrow();
+    }
+
+    findNearestInRange(
+        playerX: number,
+        playerY: number,
+        maxRangePx: number,
+    ): { characterId: string; distSq: number } | null {
+        const maxSq = maxRangePx * maxRangePx;
+        let best: { characterId: string; distSq: number } | null = null;
+        for (const rp of this.players.values()) {
+            const feetY = rp.container.y + SPINE_FOOT_OFFSET_Y;
+            if (!canAutoSelectVertically(playerY, feetY)) continue;
+            const dx = rp.container.x - playerX;
+            const dy = feetY - playerY;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > maxSq) continue;
+            if (!best || distSq < best.distSq) {
+                best = { characterId: rp.characterID, distSq };
+            }
+        }
+        return best;
     }
 
     setOwnCharacterID(id: string): void {
@@ -118,6 +171,7 @@ export class RemotePlayerManager implements GameComponent {
     }
 
     removePlayer(characterID: string): void {
+        if (this.selectedCharacterID === characterID) this.clearSelection();
         const rp = this.players.get(characterID);
         if (!rp) return;
         rp.spineImage?.destroy();
@@ -147,6 +201,9 @@ export class RemotePlayerManager implements GameComponent {
             }
 
             this.syncVisuals(rp);
+            if (this.selectedCharacterID === rp.characterID) {
+                this.updateSelectionArrow();
+            }
 
             if (rp.spineLoaded && rp.skeleton && rp.animState) {
                 const moved = Math.abs(rp.container.x - tx) + Math.abs(rp.container.y - ty);
@@ -170,6 +227,8 @@ export class RemotePlayerManager implements GameComponent {
 
     destroy(): void {
         this.clear();
+        this.selectionArrow?.destroy();
+        this.selectionArrow = undefined;
     }
 
     handleLeft(p: PlayerLeftPayload): void {
@@ -308,5 +367,35 @@ export class RemotePlayerManager implements GameComponent {
 
     private formatNamePlate(p: PlayerPresencePayload): string {
         return (p.display_name ?? '').trim() || 'Ninja';
+    }
+
+    private updateSelectionArrow(): void {
+        const g = this.selectionArrow;
+        if (!g || !this.selectedCharacterID) return;
+        const rp = this.players.get(this.selectedCharacterID);
+        if (!rp) {
+            this.hideSelectionArrow();
+            return;
+        }
+        const feetY = rp.container.y + SPINE_FOOT_OFFSET_Y;
+        const nameY = feetY - CHAR_HEIGHT_IN_CANVAS * IMAGE_SCALE - 20;
+        const x = rp.container.x;
+        const tipY = nameY - SELECTION_ARROW_GAP_PX;
+        const topY = tipY - SELECTION_ARROW_H;
+        g.clear();
+        g.fillStyle(0xffea7a, 1);
+        g.lineStyle(2, 0x000000, 1);
+        g.beginPath();
+        g.moveTo(x - SELECTION_ARROW_HALF_W, topY);
+        g.lineTo(x + SELECTION_ARROW_HALF_W, topY);
+        g.lineTo(x, tipY);
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+        g.setVisible(true);
+    }
+
+    private hideSelectionArrow(): void {
+        this.selectionArrow?.clear().setVisible(false);
     }
 }

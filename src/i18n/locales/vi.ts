@@ -107,7 +107,9 @@ export const vi: TranslationTable = {
     // Combat errors (MonsterManager)
     'monster.error_no_target': 'Không có quái nào ở gần.',
     'monster.error_out_of_range': 'Mục tiêu ngoài tầm đánh, lại gần hơn.',
+    'monster.error_target_below': 'Cận chiến không đánh được mục tiêu phía dưới — cần phái Cung.',
     'monster.error_attack': 'Lỗi tấn công',
+    'combat.error.target_below': 'Cận chiến không đánh được mục tiêu phía dưới — cần phái Cung.',
 
     // Portal
     'portal.locked_hint': '↵ (Đã khoá)',

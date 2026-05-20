@@ -4,6 +4,7 @@ import { findPendingQuizStep, listQuizMenuEntries, quizQuestionText } from '../q
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import { mapDisplayName, resolveSceneKeyForMap } from '../maps/registry';
+import { canAutoSelectVertically } from '../worldTarget';
 import type { GameComponent, NpcConfig, NpcEntry } from './types';
 import type { ActionMenu, ActionMenuItem } from './ActionMenu';
 import type { ConfirmDialog } from './modals/ConfirmDialog';
@@ -70,11 +71,9 @@ export class NpcManager implements GameComponent {
     private npcList: NpcEntry[] = [];
     private interactingNpc: NpcEntry | null = null;
     private selectedNpc: NpcEntry | null = null;
-    private selectionMode: 'auto' | 'manual' = 'auto';
     private selectionIndicator?: Phaser.GameObjects.Graphics;
     private autoMoveTargetX: number | null = null;
     private fetchSeq = 0;
-    private getPlayerPos: () => { x: number; y: number } | null = () => null;
     private questBadges = new Map<string, Phaser.GameObjects.Text>();
     private availabilityCache: Record<string, NpcQuestListsDTO> = {};
 
@@ -221,42 +220,43 @@ export class NpcManager implements GameComponent {
     getAutoMoveTargetX(): number | null { return this.autoMoveTargetX; }
     clearAutoMove(): void { this.autoMoveTargetX = null; }
 
-    /** Auto-pick nearest NPC trong INTERACT_RANGE mỗi frame. Manual selection
-     * chỉ clear khi player ra khỏi tầm. Trong lúc dialog mở thì freeze. */
     update(): void {
-        if (this.interactingNpc) return; // dialog đang mở — giữ nguyên selection.
-        const pos = this.getPlayerPos();
-        if (!pos) return;
+        // Selection do BaseMapScene unified world target — không auto-pick ở đây.
+    }
 
-        // Manual mode: check sticky range.
-        if (this.selectionMode === 'manual' && this.selectedNpc) {
-            const d = Phaser.Math.Distance.Between(pos.x, pos.y, this.selectedNpc.sprite.x, this.selectedNpc.sprite.y);
-            if (d > this.INTERACT_RANGE) {
-                this.selectionMode = 'auto'; // ra khỏi tầm → fallback auto.
-            } else {
-                return; // còn trong tầm + manual → giữ selection cố định.
-            }
+    /** Auto-select từ unified world target. */
+    selectNpcAuto(npc: NpcEntry | null): void {
+        if (!npc) {
+            this.clearNpcSelection();
+            return;
         }
-
-        // Auto mode: pick nearest NPC trong range.
-        let nearest: NpcEntry | null = null;
-        let nearestD = this.INTERACT_RANGE;
-        for (const n of this.npcList) {
-            const d = Phaser.Math.Distance.Between(pos.x, pos.y, n.sprite.x, n.sprite.y);
-            if (d <= nearestD) {
-                nearestD = d;
-                nearest = n;
-            }
-        }
-        if (nearest === this.selectedNpc) return;
+        if (this.interactingNpc) return;
+        if (this.selectedNpc === npc) return;
         if (this.selectedNpc) this.selectedNpc.nameText?.setColor('#ffea7a');
-        this.selectedNpc = nearest;
-        if (nearest) {
-            nearest.nameText?.setColor('#9affb4');
-            this.updateSelectionIndicator();
-        } else {
-            this.selectionIndicator?.clear().setVisible(false);
+        this.selectedNpc = npc;
+        npc.nameText?.setColor('#9affb4');
+        this.updateSelectionIndicator();
+    }
+
+    /** NPC gần nhất trong INTERACT_RANGE (screen 2D). */
+    findNearestInRange(playerX: number, playerY: number): { npc: NpcEntry; distSq: number } | null {
+        const maxSq = this.INTERACT_RANGE * this.INTERACT_RANGE;
+        let best: { npc: NpcEntry; distSq: number } | null = null;
+        for (const n of this.npcList) {
+            if (!canAutoSelectVertically(playerY, n.sprite.y)) continue;
+            const dx = n.sprite.x - playerX;
+            const dy = n.sprite.y - playerY;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > maxSq) continue;
+            if (!best || distSq < best.distSq) {
+                best = { npc: n, distSq };
+            }
         }
+        return best;
+    }
+
+    getInteractRangePx(): number {
+        return this.INTERACT_RANGE;
     }
 
     /**
@@ -353,22 +353,16 @@ export class NpcManager implements GameComponent {
         this.selectNpc(visible[nextIdx], true);
     }
 
-    /** BaseMapScene gọi để wire vị trí player (để auto-target tick). */
-    setPlayerPositionGetter(getter: () => { x: number; y: number } | null): void {
-        this.getPlayerPos = getter;
-    }
+    /** @deprecated Unified world target dùng findNearestInRange từ scene. */
+    setPlayerPositionGetter(_getter: () => { x: number; y: number } | null): void {}
 
-    private selectNpc(npc: NpcEntry, manual: boolean = false): void {
+    private selectNpc(npc: NpcEntry, _manual: boolean = false): void {
         if (this.interactingNpc) return;
-        if (this.selectedNpc === npc) {
-            if (manual) this.selectionMode = 'manual';
-            return;
-        }
+        if (this.selectedNpc === npc) return;
         if (this.selectedNpc) {
             this.selectedNpc.nameText?.setColor('#ffea7a');
         }
         this.selectedNpc = npc;
-        if (manual) this.selectionMode = 'manual';
         npc.nameText?.setColor('#9affb4');
         this.updateSelectionIndicator();
     }
@@ -377,7 +371,6 @@ export class NpcManager implements GameComponent {
     clearNpcSelection(): void {
         if (this.selectedNpc) this.selectedNpc.nameText?.setColor('#ffea7a');
         this.selectedNpc = null;
-        this.selectionMode = 'auto';
         this.autoMoveTargetX = null;
         this.selectionIndicator?.clear().setVisible(false);
     }

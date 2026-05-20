@@ -14,6 +14,7 @@ import {
     UPGRADE_STONE_TEMPLATE_ID,
 } from '../../network/lootDrop';
 import { isPointInMainCameraView } from '../cameraView';
+import { canAutoSelectVertically } from '../worldTarget';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import type { GameComponent } from './types';
@@ -134,6 +135,45 @@ export class LootDropManager implements GameComponent {
         this.autoMoveTargetScreenX = null;
         this.hideSelectionArrow();
         this.callbacks.onSelectionChanged?.(null);
+    }
+
+    /** Auto-select — gọi từ BaseMapScene (nearest world target). */
+    selectDropAuto(dropID: string | null): void {
+        if (!dropID) {
+            this.clearSelection();
+            return;
+        }
+        const entry = this.drops.find((d) => d.dto.drop_id === dropID);
+        if (!entry || entry.pickingUp || isLootDropExpired(entry.dto)) {
+            this.clearSelection();
+            return;
+        }
+        if (this.selectedDropID === dropID) return;
+        this.selectedDropID = dropID;
+        this.updateSelectionArrow();
+        this.callbacks.onSelectionChanged?.(entry.dto);
+    }
+
+    /** Drop gần nhất trong tầm nhặt (screen 2D). */
+    findNearestInRange(
+        playerX: number,
+        playerY: number,
+        maxRangePx: number,
+    ): { dropId: string; distSq: number } | null {
+        const maxSq = maxRangePx * maxRangePx;
+        let best: { dropId: string; distSq: number } | null = null;
+        for (const d of this.drops) {
+            if (d.pickingUp || isLootDropExpired(d.dto)) continue;
+            if (!canAutoSelectVertically(playerY, d.baseY)) continue;
+            const dx = d.renderX - playerX;
+            const dy = d.baseY - playerY;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > maxSq) continue;
+            if (!best || distSq < best.distSq) {
+                best = { dropId: d.dto.drop_id, distSq };
+            }
+        }
+        return best;
     }
 
     getAutoMoveTargetX(): number | null {

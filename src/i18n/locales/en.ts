@@ -107,7 +107,9 @@ export const en: TranslationTable = {
     // Combat errors (MonsterManager)
     'monster.error_no_target': 'No monsters nearby.',
     'monster.error_out_of_range': 'Target out of range, get closer.',
+    'monster.error_target_below': 'Melee cannot attack targets below you — Bow class required.',
     'monster.error_attack': 'Attack error',
+    'combat.error.target_below': 'Melee cannot attack targets below you — Bow class required.',
 
     // Portal
     'portal.locked_hint': '↵ (Locked)',

@@ -9,7 +9,13 @@ import {
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
 import type { KeyboardModalHandler, SoftKeySlot } from '../components/modals/softKeys';
+import { LOOT_PICKUP_RANGE_RAW_PX } from '../../network/lootDrop';
 import { resolveSpawnOnMap, spawnFromSceneInit, type MapSceneInitData, type MapSpawnPoint } from '../spawn';
+import {
+    REMOTE_PLAYER_SELECT_RANGE_PX,
+    type WorldTargetCandidate,
+    type WorldTargetKind,
+} from '../worldTarget';
 
 export abstract class BaseMapScene extends Phaser.Scene {
     protected background!: MapBackground;
@@ -89,6 +95,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private rtJoined = false;
     private readonly RT_MOVE_THROTTLE_MS = 33; // ~30 Hz cap
     private readonly RT_MOVE_DELTA_PX = 1; // Send only when meaningful move
+    /** Khớp MonsterManager — tầm auto-select quái (raw → screen). */
+    private static readonly MONSTER_SELECT_RANGE_RAW_PX = 120;
+    private activeWorldTarget: WorldTargetKind | null = null;
+    /** ESC bỏ chọn — không auto-select lại cho đến khi di chuyển hoặc ra khỏi tầm. */
+    private worldTargetSelectLocked = false;
     /** Tọa độ từ AuthScene (sau /characters) hoặc portal — spawn ngay, không đợi fetch lần 2. */
     private sceneInitSpawn: MapSpawnPoint | null = null;
 
@@ -1108,6 +1119,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         this.controls.updateSwitchTarget(this.npcs.canCycleTarget());
 
+        if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
+            if (this.hasWorldTargetSelected()) {
+                this.dismissWorldTargetSelection();
+                return;
+            }
+        }
+
         if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
             const now = Date.now();
             if (this.autoAttackEnabled) {
@@ -1124,6 +1142,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
             }
             return;
         }
+
+        this.updateUnifiedWorldTarget(player.x, player.y);
 
         // Movement
         const speed = 280;
@@ -1163,11 +1183,17 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 this.playerCtrl.setFacing(dx < 0);
             }
         } else if (moveLeft) {
+            this.worldTargetSelectLocked = false;
             this.playerCtrl.moveLeft(speed);
         } else if (moveRight) {
+            this.worldTargetSelectLocked = false;
             this.playerCtrl.moveRight(speed);
         } else {
             this.playerCtrl.stopHorizontal();
+        }
+
+        if (moveUp) {
+            this.worldTargetSelectLocked = false;
         }
 
         if (moveUp && this.playerCtrl.isOnGround() && autoTarget === null) {
@@ -1186,6 +1212,118 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.scene.start('AuthScene');
     }
 
+    /**
+     * Mỗi frame: chọn đúng một đối tượng gần nhất trong tầm (loot / quái /
+     * NPC / player khác). Ra xa hết → bỏ select.
+     */
+    private updateUnifiedWorldTarget(playerX: number, playerY: number): void {
+        if (this.deathState !== 'alive' || this.isInputBlockingModalOpen()) {
+            if (this.activeWorldTarget !== null) this.clearAllWorldTargets();
+            return;
+        }
+        if (this.npcs.getInteractingNpc()) return;
+
+        const scale = this.scale.height / 1440;
+        const lootRange = LOOT_PICKUP_RANGE_RAW_PX * scale;
+        const monsterRange = BaseMapScene.MONSTER_SELECT_RANGE_RAW_PX * scale;
+
+        const candidates: WorldTargetCandidate[] = [];
+
+        const loot = this.loot?.findNearestInRange(playerX, playerY, lootRange);
+        if (loot) candidates.push({ kind: 'loot', distSq: loot.distSq });
+
+        const monster = this.monsters.findNearestInRange(playerX, playerY, monsterRange);
+        if (monster) candidates.push({ kind: 'monster', distSq: monster.distSq });
+
+        const npc = this.npcs.findNearestInRange(playerX, playerY);
+        if (npc) candidates.push({ kind: 'npc', distSq: npc.distSq });
+
+        const remote = this.remotePlayers?.findNearestInRange(
+            playerX, playerY, REMOTE_PLAYER_SELECT_RANGE_PX,
+        );
+        if (remote) candidates.push({ kind: 'remote_player', distSq: remote.distSq });
+
+        if (candidates.length === 0) {
+            this.worldTargetSelectLocked = false;
+            if (this.activeWorldTarget !== null) this.clearAllWorldTargets();
+            return;
+        }
+
+        if (this.worldTargetSelectLocked) return;
+
+        let best = candidates[0];
+        for (let i = 1; i < candidates.length; i++) {
+            if (candidates[i].distSq < best.distSq) best = candidates[i];
+        }
+
+        if (this.isSameWorldTarget(best, loot, monster, npc, remote)) return;
+
+        this.clearAllWorldTargets();
+        this.activeWorldTarget = best.kind;
+        switch (best.kind) {
+            case 'loot':
+                if (loot) this.loot?.selectDropAuto(loot.dropId);
+                break;
+            case 'monster':
+                if (monster) this.monsters.selectMonsterAuto(monster.instanceId);
+                break;
+            case 'npc':
+                if (npc) this.npcs.selectNpcAuto(npc.npc);
+                break;
+            case 'remote_player':
+                if (remote) this.remotePlayers?.selectCharacterAuto(remote.characterId);
+                break;
+        }
+    }
+
+    private isSameWorldTarget(
+        best: WorldTargetCandidate,
+        loot: { dropId: string } | null,
+        monster: { instanceId: string } | null,
+        npc: { npc: { key: string } } | null,
+        remote: { characterId: string } | null,
+    ): boolean {
+        if (this.activeWorldTarget !== best.kind) return false;
+        switch (best.kind) {
+            case 'loot':
+                return this.loot?.getSelectedDrop()?.drop_id === loot?.dropId;
+            case 'monster':
+                return this.monsters.getSelectedInstanceId() === monster?.instanceId;
+            case 'npc':
+                return this.npcs.getSelectedNpc()?.key === npc?.npc.key;
+            case 'remote_player':
+                return this.remotePlayers?.getSelectedCharacterId() === remote?.characterId;
+            default:
+                return false;
+        }
+    }
+
+    private hasWorldTargetSelected(): boolean {
+        return !!(
+            this.loot?.getSelectedDrop()
+            || this.monsters.getSelectedInstanceId()
+            || this.npcs.getSelectedNpc()
+            || this.remotePlayers?.getSelectedCharacterId()
+        );
+    }
+
+    /** ESC — bỏ chọn mọi đối tượng world (loot / quái / NPC / player khác). */
+    private dismissWorldTargetSelection(): void {
+        this.worldTargetSelectLocked = true;
+        this.clearAllWorldTargets();
+        this.loot?.clearAutoMove();
+        this.monsters.clearAutoMove();
+        this.npcs.clearAutoMove();
+    }
+
+    private clearAllWorldTargets(): void {
+        this.activeWorldTarget = null;
+        this.loot?.clearSelection();
+        this.monsters.clearSelection();
+        this.npcs.clearNpcSelection();
+        this.remotePlayers?.clearSelection();
+    }
+
     private handleInteract(): void {
         if (this.actionMenu.isOpen()) return;
         const player = this.playerCtrl.getPlayer();
@@ -1202,7 +1340,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        // Drop đang chọn → nhặt hoặc chạy tới (trước NPC để click loot + Enter đúng mục tiêu).
         if (this.loot?.getSelectedDrop()) {
             this.npcs.clearAutoMove();
             this.monsters.clearAutoMove();
@@ -1224,7 +1361,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return;
         }
 
-        // Không có portal/loot/quái/NPC → swing nearest.
+        const remoteId = this.remotePlayers?.getSelectedCharacterId();
+        if (remoteId) {
+            this.loot?.clearAutoMove();
+            this.monsters.clearAutoMove();
+            this.npcs.clearAutoMove();
+            this.characterInfo.open(remoteId);
+            return;
+        }
+
+        // Không có mục tiêu trong tầm → swing nearest.
         void this.monsters.attackNearest().then((hit) => {
             if (hit) this.playerCtrl.playAnim('attack');
         });
