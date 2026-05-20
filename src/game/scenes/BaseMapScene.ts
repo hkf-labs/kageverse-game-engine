@@ -159,6 +159,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.load.image('skill_slot_empty', 'assets/game/skills/skill-empty.png');
         this.load.image('item_yen', 'assets/game/items/yen.png');
         this.load.image('item_upgrade_stone', 'assets/game/items/upgrade_stone.png');
+        this.load.image('item_material_beetle_carapace', 'assets/game/items/material_beetle_carapace.png');
+        this.load.image('item_material_turtle_shell', 'assets/game/items/material_turtle_shell.png');
         this.preloadMapAssets();
     }
 

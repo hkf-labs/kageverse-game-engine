@@ -616,7 +616,16 @@ export type QuizOptionDTO = {
 };
 
 export type QuestObjectiveDTO = {
-    type: 'kill_monster' | 'talk_npc' | 'collect_item' | 'use_item' | 'buy_item' | 'equip_item' | 'visit_zone' | 'item_upgraded' | 'quiz_npc';
+    type:
+        | 'kill_monster'
+        | 'talk_npc'
+        | 'collect_item'
+        | 'use_item'
+        | 'buy_item'
+        | 'equip_item'
+        | 'visit_zone'
+        | 'item_upgraded'
+        | 'quiz_npc';
     target_id: string;
     count: number;
     done: number;

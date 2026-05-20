@@ -1,9 +1,16 @@
-import { UPGRADE_STONE_TEMPLATE_ID } from '../network/lootDrop';
+import {
+    MATERIAL_BEETLE_CARAPACE_ID,
+    MATERIAL_TURTLE_SHELL_ID,
+    UPGRADE_STONE_TEMPLATE_ID,
+} from '../network/lootDrop';
 
 /** sprite_key seed DB cho Đá Cường Hoá. */
 const UPGRADE_STONE_SPRITE_KEY = 'sprite_material_upgrade_stone_lv1';
 
 const UPGRADE_STONE_ASSET_URL = '/assets/game/items/upgrade_stone.png';
+/** Q5 — trùng `item_templates.id` + file trong `public/assets/game/items/`. */
+const BEETLE_CARAPACE_ASSET_URL = '/assets/game/items/material_beetle_carapace.png';
+const TURTLE_SHELL_ASSET_URL = '/assets/game/items/material_turtle_shell.png';
 
 /**
  * URL icon hiển thị trong UI DOM (túi đồ, shop, ...).
@@ -15,6 +22,12 @@ export function resolveItemIconUrl(spriteKey: string, itemTemplateId?: string): 
         itemTemplateId === UPGRADE_STONE_TEMPLATE_ID
     ) {
         return UPGRADE_STONE_ASSET_URL;
+    }
+    if (itemTemplateId === MATERIAL_BEETLE_CARAPACE_ID) {
+        return BEETLE_CARAPACE_ASSET_URL;
+    }
+    if (itemTemplateId === MATERIAL_TURTLE_SHELL_ID) {
+        return TURTLE_SHELL_ASSET_URL;
     }
     return null;
 }

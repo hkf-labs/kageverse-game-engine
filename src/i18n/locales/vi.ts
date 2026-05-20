@@ -170,6 +170,7 @@ export const vi: TranslationTable = {
     // Combat / death status
     'combat.potion_hp_placeholder': 'Đã dùng bình HP! (placeholder)',
     'combat.pickup_failed': 'Nhặt thất bại',
+    'combat.drop_quest_required': 'Chỉ nhân vật đang làm nhiệm vụ mới nhặt được vật phẩm này',
     'combat.drop_owned_by_other': 'Vật phẩm của người khác',
     'combat.drop_out_of_range': 'Vật phẩm quá xa',
     'combat.potion_mp_placeholder': 'Đã dùng bình MP! (placeholder)',
@@ -422,8 +423,9 @@ export const vi: TranslationTable = {
     'item.name.amulet_focus_lv12_bow': 'Bùa Định Tâm (Cung)',
     'item.name.material_upgrade_stone_lv1': 'Đá Cường Hoá',
     'item.name.material_owl_feather': 'Lông Cú Đêm',
-    'item.name.material_beetle_carapace': 'Mai Bọ Đá',
-    'item.name.material_turtle_shell': 'Mai Rùa',
+    // Q5 nguyên liệu — trùng tên quái rơi ra (Bọ Đá / Rùa Vàng), xem main-quests.md.
+    'item.name.material_beetle_carapace': 'Mai vỏ Bọ Đá',
+    'item.name.material_turtle_shell': 'Mai vỏ Rùa Vàng',
     'item.name.material_herb_flower': 'Bông Thảo Dược',
     'item.name.quest_letter_q16_genji': 'Thư Cho Genji',
     'item.name.quest_letter_q16_hoshi': 'Thư Cho Hoshi',
@@ -630,8 +632,8 @@ export const vi: TranslationTable = {
     // Materials & quest items
     'item.material.upgrade_stone_lv1': 'Đá Cường Hoá',
     'item.material.owl_feather':       'Lông Cú',
-    'item.material.beetle_carapace':   'Vỏ Bọ Cánh Cứng',
-    'item.material.turtle_shell':      'Mai Rùa',
+    'item.material.beetle_carapace':   'Mai vỏ Bọ Đá',
+    'item.material.turtle_shell':      'Mai vỏ Rùa Vàng',
     'item.material.herb_flower':       'Hoa Thảo Dược',
     'item.material.anchor_shard':      'Mảnh Mỏ Neo',
     'item.quest.letter_q16_genji': 'Thư Cho Genji',

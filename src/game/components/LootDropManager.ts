@@ -3,8 +3,12 @@ import { combatAPI, type LootDropDTO } from '../../network/api';
 import {
     isLootDropExpired,
     isPlayerInLootPickupRange,
+    LOOT_SPRITE_BEETLE_CARAPACE,
+    LOOT_SPRITE_TURTLE_SHELL,
     LOOT_SPRITE_UPGRADE_STONE,
     LOOT_SPRITE_YEN,
+    MATERIAL_BEETLE_CARAPACE_ID,
+    MATERIAL_TURTLE_SHELL_ID,
     UPGRADE_STONE_TEMPLATE_ID,
 } from '../../network/lootDrop';
 import { getCurrentCharacter } from '../playerSession';
@@ -20,8 +24,10 @@ const HIT_AREA_H = 44;
 
 const GLOW_YEN = 0xffd070;
 const GLOW_UPGRADE_STONE = 0x58b8ff;
+const GLOW_QUEST_MATERIAL = 0xa8e06a;
 const GLOW_SELECT_YEN = 0xffea7a;
 const GLOW_SELECT_STONE = 0x9ae8ff;
+const GLOW_SELECT_QUEST_MATERIAL = 0xc8f090;
 
 interface DropEntry {
     dto: LootDropDTO;
@@ -148,6 +154,13 @@ export class LootDropManager implements GameComponent {
         if (dto.kind === 'item' && dto.item_template_id === UPGRADE_STONE_TEMPLATE_ID) {
             return { base: GLOW_UPGRADE_STONE, select: GLOW_SELECT_STONE };
         }
+        if (
+            dto.kind === 'item'
+            && (dto.item_template_id === MATERIAL_BEETLE_CARAPACE_ID
+                || dto.item_template_id === MATERIAL_TURTLE_SHELL_ID)
+        ) {
+            return { base: GLOW_QUEST_MATERIAL, select: GLOW_SELECT_QUEST_MATERIAL };
+        }
         return { base: GLOW_YEN, select: GLOW_SELECT_YEN };
     }
 
@@ -206,6 +219,12 @@ export class LootDropManager implements GameComponent {
         if (dto.kind === 'item' && dto.item_template_id === UPGRADE_STONE_TEMPLATE_ID) {
             return LOOT_SPRITE_UPGRADE_STONE;
         }
+        if (dto.kind === 'item' && dto.item_template_id === MATERIAL_BEETLE_CARAPACE_ID) {
+            return LOOT_SPRITE_BEETLE_CARAPACE;
+        }
+        if (dto.kind === 'item' && dto.item_template_id === MATERIAL_TURTLE_SHELL_ID) {
+            return LOOT_SPRITE_TURTLE_SHELL;
+        }
         return LOOT_SPRITE_YEN;
     }
 
@@ -250,6 +269,9 @@ export class LootDropManager implements GameComponent {
             } else if (raw.includes('drop_out_of_range')) {
                 this.callbacks.onError?.(t('combat.drop_out_of_range'));
             } else if (raw.includes('drop_not_found')) {
+                this.fadeOut(entry);
+            } else if (raw.includes('drop_quest_required')) {
+                this.callbacks.onError?.(t('combat.drop_quest_required'));
                 this.fadeOut(entry);
             } else {
                 this.callbacks.onError?.(t('combat.pickup_failed'));
