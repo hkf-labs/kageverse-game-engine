@@ -8,6 +8,7 @@ import {
 import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
+import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 
@@ -100,6 +101,7 @@ export class EquipmentModal extends BaseModal {
      * panel trong shell.overlay, absolute đáy màn hình. */
     private actionBarEl?: HTMLDivElement;
     private actionButtons: HTMLButtonElement[] = [];
+    private actionDefsForKeys: ActionDef[] = [];
     /** Sub-modal "Xem chi tiết" item — overlay riêng z-index=tooltip. */
     private detailOverlayEl?: HTMLDivElement;
     private detailPanelEl?: HTMLDivElement;
@@ -324,6 +326,11 @@ export class EquipmentModal extends BaseModal {
             return;
         }
         if (this.selectedSlotKey) this.toggleDetailModal();
+    }
+
+    triggerSoftKey(slot: SoftKeySlot): boolean {
+        if (!this.visible) return false;
+        return clickActionBarSlot(this.actionDefsForKeys, this.actionButtons, slot);
     }
 
     private getFocusedDef(): SlotDef | null {
@@ -552,8 +559,10 @@ export class EquipmentModal extends BaseModal {
         if (!this.actionBarEl) return;
         this.actionBarEl.innerHTML = '';
         this.actionButtons = [];
+        this.actionDefsForKeys = [];
 
         const actions = this.collectActions();
+        this.actionDefsForKeys = actions;
         if (actions.length === 0) {
             if (this.focusZone === 'actions') this.focusZone = 'grid';
             return;

@@ -1,5 +1,6 @@
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
+import type { SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { MODAL_COLORS } from './theme';
 
@@ -136,6 +137,27 @@ export class ConfirmDialog extends BaseModal {
         if (!this.visible) return;
         const btn = this.focusedButton === 0 ? this.cancelBtnEl : this.confirmBtnEl;
         btn?.click();
+    }
+
+    /** F1 = Huỷ (trái), Enter = nút đang focus, F2 = Xác nhận (phải). */
+    triggerSoftKey(slot: SoftKeySlot): boolean {
+        if (!this.visible) return false;
+        if (slot === 'left') {
+            this.cancelBtnEl?.click();
+            return true;
+        }
+        if (slot === 'right') {
+            this.confirmBtnEl?.click();
+            return true;
+        }
+        if (slot === 'center') {
+            const btn = this.focusedButton === 0 ? this.cancelBtnEl : this.confirmBtnEl;
+            if (btn) {
+                btn.click();
+                return true;
+            }
+        }
+        return false;
     }
 
     /** ESC = cancel. */

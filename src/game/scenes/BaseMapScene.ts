@@ -8,6 +8,7 @@ import {
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
+import type { KeyboardModalHandler, SoftKeySlot } from '../components/modals/softKeys';
 import { resolveSpawnOnMap, spawnFromSceneInit, type MapSceneInitData, type MapSpawnPoint } from '../spawn';
 
 export abstract class BaseMapScene extends Phaser.Scene {
@@ -938,9 +939,10 @@ export abstract class BaseMapScene extends Phaser.Scene {
      * Trả modal đang ở top-most và hỗ trợ keyboard navigation. Priority match
      * thứ tự depth/UX: confirm dialog (z=300) trên cùng, rồi end-MVP, rồi tới
      * các panel HTML thường. ActionMenu xử lý riêng (Phaser container, có
-     * nhánh trong update()). Caller forward ←/→/↑/↓/Enter cho modal trả về.
+     * nhánh trong update()). Soft keys F1/Enter/F2 bubble tới handler này
+     * trước menu map / Back (J2ME-style action bar).
      */
-    private getNavigableModal(): { navigate(d: 'left' | 'right' | 'up' | 'down'): void; confirm(): void } | null {
+    private getNavigableModal(): KeyboardModalHandler | null {
         if (this.confirmDialog.isOpen()) return this.confirmDialog;
         if (this.endMvpOverlay.isOpen()) return this.endMvpOverlay;
         if (this.hoshiUpgradeModal.isOpen()) return this.hoshiUpgradeModal;
@@ -951,6 +953,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (this.settingsModal.isOpen()) return this.settingsModal;
         if (this.chat.isOpen()) return this.chat;
         return null;
+    }
+
+    /** Gửi soft key tới modal top-most (nếu có triggerSoftKey). */
+    private dispatchTopmostSoftKey(slot: SoftKeySlot): boolean {
+        const handler = this.getNavigableModal();
+        if (!handler?.triggerSoftKey) return false;
+        return handler.triggerSoftKey(slot);
     }
 
     update(): void {
@@ -1041,33 +1050,33 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 return;
             }
 
-            // Forward arrow keys + Enter cho modal đang focus. Topmost theo
-            // priority: confirmDialog > endMvpOverlay > inventory > settings.
-            // (Các modal complex còn lại sẽ wire dần.)
             const navTarget = this.getNavigableModal();
-            if (navTarget) {
-                if (Phaser.Input.Keyboard.JustDown(cursors.left))  { navTarget.navigate('left');  return; }
-                if (Phaser.Input.Keyboard.JustDown(cursors.right)) { navTarget.navigate('right'); return; }
-                if (Phaser.Input.Keyboard.JustDown(cursors.up))    { navTarget.navigate('up');    return; }
-                if (Phaser.Input.Keyboard.JustDown(cursors.down))  { navTarget.navigate('down');  return; }
-                if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+
+            // J2ME soft keys — component top-most ăn trước map menu / back.
+            // F1 = action trái (Sử dụng/Mua/Huỷ), Enter = giữa (Xem), F2 = phải
+            // (Vứt/Xác nhận) hoặc Back nếu modal không có nút phải.
+            if (this.menuKey && Phaser.Input.Keyboard.JustDown(this.menuKey)) {
+                if (this.dispatchTopmostSoftKey('left')) return;
+                return;
+            }
+            if (this.backKey && Phaser.Input.Keyboard.JustDown(this.backKey)) {
+                if (this.dispatchTopmostSoftKey('right')) return;
+                this.handleBack();
+                return;
+            }
+            if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+                if (this.dispatchTopmostSoftKey('center')) return;
+                if (navTarget) {
                     navTarget.confirm();
                     return;
                 }
             }
 
-            // F1 toggle menu — đồng nhất click nút Menu. Cho phép mở từ trạng
-            // thái chat/inventory open (toggleMainMenu tự đóng chat trước).
-            if (this.menuKey && Phaser.Input.Keyboard.JustDown(this.menuKey)) {
-                this.toggleMainMenu();
-                return;
-            }
-
-            // F2 back — đóng modal hiện tại + mở lại menu nếu modal đó được
-            // trigger từ menu (cameFromMenu=true).
-            if (this.backKey && Phaser.Input.Keyboard.JustDown(this.backKey)) {
-                this.handleBack();
-                return;
+            if (navTarget) {
+                if (Phaser.Input.Keyboard.JustDown(cursors.left))  { navTarget.navigate('left');  return; }
+                if (Phaser.Input.Keyboard.JustDown(cursors.right)) { navTarget.navigate('right'); return; }
+                if (Phaser.Input.Keyboard.JustDown(cursors.up))    { navTarget.navigate('up');    return; }
+                if (Phaser.Input.Keyboard.JustDown(cursors.down))  { navTarget.navigate('down');  return; }
             }
 
             if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {

@@ -11,6 +11,7 @@ import {
 import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
+import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ConfirmDialog } from './ConfirmDialog';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
@@ -95,6 +96,7 @@ export class ShopModal extends BaseModal {
     private actionBarEl?: HTMLDivElement;
     /** Order [buy, view] để keyboard nav ←/→ chạy tự nhiên (Mua trái → Xem giữa). */
     private actionButtons: HTMLButtonElement[] = [];
+    private actionDefsForKeys: ActionDef[] = [];
 
     // ── Sub-modal Xem (thông tin item) ──
     private detailOverlayEl?: HTMLDivElement;
@@ -323,6 +325,11 @@ export class ShopModal extends BaseModal {
         if (this.findSelected()) this.toggleBuyMenu();
     }
 
+    triggerSoftKey(slot: SoftKeySlot): boolean {
+        if (!this.visible) return false;
+        return clickActionBarSlot(this.actionDefsForKeys, this.actionButtons, slot);
+    }
+
     /** Set selectedIdx trực tiếp (không toggle như selectListing) — cho arrow nav. */
     private setSelectedIdx(idx: number): void {
         this.selectedIdx = idx;
@@ -511,6 +518,7 @@ export class ShopModal extends BaseModal {
 
         const item = this.findSelected();
         if (this.loading || !item) {
+            this.actionDefsForKeys = [];
             if (this.focusZone === 'actions') this.focusZone = 'grid';
             return;
         }
@@ -531,6 +539,7 @@ export class ShopModal extends BaseModal {
                 onClick: () => this.toggleDetailModal(),
             },
         ];
+        this.actionDefsForKeys = actions;
 
         if (this.focusedAction >= actions.length) this.focusedAction = 0;
 

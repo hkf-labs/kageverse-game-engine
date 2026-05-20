@@ -10,6 +10,7 @@ import {
 import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
+import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
@@ -144,6 +145,8 @@ export class InventoryModal extends BaseModal {
     private actionBarEl?: HTMLDivElement;
     /** Mảng button hiện tại — recreate mỗi lần renderActionBar() chạy. */
     private actionButtons: HTMLButtonElement[] = [];
+    /** Mirror collectActions() — dùng cho F1/Enter/F2 (soft keys). */
+    private actionDefsForKeys: ActionDef[] = [];
     /** Sub-modal "Xem chi tiết" — overlay riêng z-index=tooltip, panel nhỏ
      * trung tâm hiển thị info item đang chọn. Toggle qua nút Xem ↔ Đóng. */
     private detailOverlayEl?: HTMLDivElement;
@@ -336,6 +339,12 @@ export class InventoryModal extends BaseModal {
         }
     }
 
+    /** F1 / Enter / F2 — luôn map tới action bar (không cần focus zone actions). */
+    triggerSoftKey(slot: SoftKeySlot): boolean {
+        if (!this.visible) return false;
+        return clickActionBarSlot(this.actionDefsForKeys, this.actionButtons, slot);
+    }
+
     private navTabs(direction: 'left' | 'right' | 'up' | 'down'): void {
         switch (direction) {
             case 'left': {
@@ -485,6 +494,7 @@ export class InventoryModal extends BaseModal {
             || this.currentPage !== DATA_PAGE
             || !item;
         if (blockReason) {
+            this.actionDefsForKeys = [];
             // Không còn button khả dụng → focus zone='actions' (nếu đang ở đó)
             // không còn nghĩa lý → trượt về grid để Enter có target.
             if (this.focusZone === 'actions') this.focusZone = 'grid';
@@ -492,6 +502,7 @@ export class InventoryModal extends BaseModal {
         }
 
         const actions = this.collectActions(item);
+        this.actionDefsForKeys = actions;
         if (actions.length === 0) {
             if (this.focusZone === 'actions') this.focusZone = 'grid';
             return;
