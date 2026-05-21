@@ -14,6 +14,11 @@ const BEETLE_CARAPACE_ASSET_URL = '/assets/game/items/material_beetle_carapace.p
 const TURTLE_SHELL_ASSET_URL = '/assets/game/items/material_turtle_shell.png';
 const HERB_FLOWER_ASSET_URL = '/assets/game/items/material_herb_flower.png';
 
+/** Bùa Dịch Chuyển — `sprite_teleport_charm` / `consumable_teleport_charm`. */
+const TELEPORT_CHARM_SPRITE_KEY = 'sprite_teleport_charm';
+const TELEPORT_CHARM_TEMPLATE_ID = 'consumable_teleport_charm';
+const TELEPORT_CHARM_ASSET_URL = '/assets/game/items/teleport_charm.png';
+
 /**
  * URL icon hiển thị trong UI DOM (túi đồ, shop, ...).
  * Trả null → fallback emoji theo item_type.
@@ -33,6 +38,12 @@ export function resolveItemIconUrl(spriteKey: string, itemTemplateId?: string): 
     }
     if (itemTemplateId === MATERIAL_HERB_FLOWER_ID) {
         return HERB_FLOWER_ASSET_URL;
+    }
+    if (
+        spriteKey === TELEPORT_CHARM_SPRITE_KEY ||
+        itemTemplateId === TELEPORT_CHARM_TEMPLATE_ID
+    ) {
+        return TELEPORT_CHARM_ASSET_URL;
     }
     return null;
 }
