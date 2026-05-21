@@ -803,11 +803,20 @@ export const questAPI = {
         return resData as NpcAvailabilityResponse;
     },
 
-    async turnIn(characterId: string, questId: string, npcId: string): Promise<TurnInQuestResponse> {
+    async turnIn(
+        characterId: string,
+        questId: string,
+        npcId: string,
+        classId?: string,
+    ): Promise<TurnInQuestResponse> {
+        const body: { npc_id: string; class_id?: string } = { npc_id: npcId };
+        if (classId) {
+            body.class_id = classId;
+        }
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/quests/${encodeURIComponent(questId)}/turn-in`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ npc_id: npcId }),
+            body: JSON.stringify(body),
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {

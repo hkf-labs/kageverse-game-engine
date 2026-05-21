@@ -8,7 +8,13 @@ import {
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig,
 } from '../components';
-import type { KeyboardModalHandler, SoftKeySlot } from '../components/modals/softKeys';
+import {
+    createActionMenuInputTarget,
+    createKeyboardModalTarget,
+    INPUT_LAYER,
+    pickTopInputTarget,
+    type InputFocusTarget,
+} from '../components/inputFocus';
 import { LOOT_PICKUP_RANGE_RAW_PX } from '../../network/lootDrop';
 import { resolveSceneKeyForMap } from '../maps/registry';
 import { resolveSpawnOnMap, spawnFromSceneInit, type MapSceneInitData, type MapSpawnPoint } from '../spawn';
@@ -439,7 +445,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         // Inventory modal (HTML DOM overlay) — callback HUD + buff indicator khi dùng item.
         this.inventory = new InventoryModal(this, {
-            actionMenu: this.actionMenu,
             onStatusMessage: (text, color) => this.hud.setStatus(text, color),
             onTeleportToMap: (mapId) => {
                 this.scene.start(resolveSceneKeyForMap(mapId));
@@ -966,30 +971,133 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     /**
-     * Trả modal đang ở top-most và hỗ trợ keyboard navigation. Priority match
-     * thứ tự depth/UX: confirm dialog (z=300) trên cùng, rồi end-MVP, rồi tới
-     * các panel HTML thường. ActionMenu xử lý riêng (Phaser container, có
-     * nhánh trong update()). Soft keys F1/Enter/F2 bubble tới handler này
-     * trước menu map / Back (J2ME-style action bar).
+     * Gom mọi UI đang mở thành `InputFocusTarget` — chọn layer cao nhất.
+     * Xem `inputFocus.ts` (menu chức năng < modal < menu item < confirm).
      */
-    private getNavigableModal(): KeyboardModalHandler | null {
-        if (this.confirmDialog.isOpen()) return this.confirmDialog;
-        if (this.endMvpOverlay.isOpen()) return this.endMvpOverlay;
-        if (this.hoshiUpgradeModal.isOpen()) return this.hoshiUpgradeModal;
-        if (this.shop.isOpen()) return this.shop;
-        if (this.skillModal.isOpen()) return this.skillModal;
-        if (this.inventory.isOpen()) return this.inventory;
-        if (this.equipment.isOpen()) return this.equipment;
-        if (this.settingsModal.isOpen()) return this.settingsModal;
-        if (this.chat.isOpen()) return this.chat;
-        return null;
+    private collectInputTargets(): InputFocusTarget[] {
+        const targets: InputFocusTarget[] = [];
+        if (this.confirmDialog.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.confirm,
+                this.confirmDialog,
+                () => { this.confirmDialog.cancel(); return true; },
+            ));
+        }
+        if (this.endMvpOverlay.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.cinematic,
+                this.endMvpOverlay,
+                () => { this.endMvpOverlay.close(); return true; },
+            ));
+        }
+        if (this.hoshiUpgradeModal.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.blockingDialog,
+                this.hoshiUpgradeModal,
+                () => { this.hoshiUpgradeModal.close(); return true; },
+            ));
+        }
+        if (this.shop.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.modal,
+                this.shop,
+                () => { this.shop.close(); return true; },
+            ));
+        }
+        if (this.skillModal.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.modal,
+                this.skillModal,
+                () => { this.skillModal.close(); return true; },
+            ));
+        }
+        if (this.inventory.isOpen()) {
+            targets.push(this.inventory.getInputTarget());
+        }
+        if (this.equipment.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.modal,
+                this.equipment,
+                () => { this.equipment.close(); return true; },
+            ));
+        }
+        if (this.settingsModal.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.modal,
+                this.settingsModal,
+                () => { this.settingsModal.close(); return true; },
+            ));
+        }
+        if (this.chat.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.modal,
+                this.chat,
+                () => { this.chat.toggle(); return true; },
+            ));
+        }
+        if (this.actionMenu.isOpen()) {
+            targets.push(createActionMenuInputTarget({
+                menu: this.actionMenu,
+                currentMenuName: this.currentMenuName,
+                onBackFromSelf: () => this.openMainMenu('self'),
+                onCloseMenu: () => {
+                    this.actionMenu.close();
+                    this.cameFromMenu = false;
+                    this.lastMenuKey = null;
+                    this.lastMenuName = null;
+                    this.currentMenuName = null;
+                },
+            }));
+        }
+        return targets;
     }
 
-    /** Gửi soft key tới modal top-most (nếu có triggerSoftKey). */
-    private dispatchTopmostSoftKey(slot: SoftKeySlot): boolean {
-        const handler = this.getNavigableModal();
-        if (!handler?.triggerSoftKey) return false;
-        return handler.triggerSoftKey(slot);
+    private resolveTopInputHandler(): InputFocusTarget | null {
+        return pickTopInputTarget(this.collectInputTargets());
+    }
+
+    /** Mọi phím khi modal/menu chặn gameplay — chỉ tới layer cao nhất. */
+    private routeBlockedInput(cursors: Phaser.Types.Input.Keyboard.CursorKeys): void {
+        const target = this.resolveTopInputHandler();
+        if (!target) return;
+
+        if (Phaser.Input.Keyboard.JustDown(cursors.left)) target.navigate('left');
+        else if (Phaser.Input.Keyboard.JustDown(cursors.right)) target.navigate('right');
+        else if (Phaser.Input.Keyboard.JustDown(cursors.up)) target.navigate('up');
+        else if (Phaser.Input.Keyboard.JustDown(cursors.down)) target.navigate('down');
+
+        if (this.menuKey && Phaser.Input.Keyboard.JustDown(this.menuKey)) {
+            if (!target.softKey('left')) target.navigate('left');
+            return;
+        }
+        if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+            if (!target.softKey('center')) target.confirm();
+            return;
+        }
+        if (this.backKey && Phaser.Input.Keyboard.JustDown(this.backKey)) {
+            if (target.softKey('right')) return;
+            if (target.cancel()) {
+                if (!this.isInputBlockingModalOpen() && this.cameFromMenu) {
+                    this.reopenMenuAfterModalClose();
+                }
+                return;
+            }
+            this.handleBack();
+            return;
+        }
+        if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
+            if (target.cancel() && !this.isInputBlockingModalOpen() && this.cameFromMenu) {
+                this.reopenMenuAfterModalClose();
+            }
+        }
+    }
+
+    private reopenMenuAfterModalClose(): void {
+        const key = this.lastMenuKey;
+        const menu = this.lastMenuName;
+        this.cameFromMenu = false;
+        if (menu === 'self') this.openSelfMenu(key);
+        else if (menu === 'main') this.openMainMenu(key);
     }
 
     update(): void {
@@ -1050,79 +1158,12 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.setMapUIVisible(!modalOpen);
         }
 
-        // Bất kỳ modal/menu nào đang mở → không cho nhân vật di chuyển. Forward
-        // ←/→/Enter cho ActionMenu (modal Phaser duy nhất hỗ trợ điều hướng);
-        // các modal HTML khác xử lý focus/scroll qua DOM. ESC đóng theo
-        // priority top-down (modal mở sau cùng / depth cao nhất đóng trước).
+        // Modal/menu mở → chặn di chuyển; phím chức năng chỉ tới UI layer cao nhất.
         if (this.isInputBlockingModalOpen()) {
             player.body?.setVelocityX(0);
             this.controls.resetVirtualInputs();
             this.characterInfo.update();
-
-            if (this.actionMenu.isOpen()) {
-                if (Phaser.Input.Keyboard.JustDown(cursors.left)) this.actionMenu.navigate('left');
-                else if (Phaser.Input.Keyboard.JustDown(cursors.right)) this.actionMenu.navigate('right');
-                else if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) this.actionMenu.confirm();
-                else if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) this.actionMenu.close();
-                else if (this.backKey && Phaser.Input.Keyboard.JustDown(this.backKey)) {
-                    // F2 từ sub-menu 'Bản thân' = quay về main menu (giữ self
-                    // được highlight). F2 từ main menu = đóng hẳn.
-                    if (this.currentMenuName === 'self') {
-                        this.openMainMenu('self');
-                    } else {
-                        this.actionMenu.close();
-                        this.cameFromMenu = false;
-                        this.lastMenuKey = null;
-                        this.lastMenuName = null;
-                        this.currentMenuName = null;
-                    }
-                }
-                return;
-            }
-
-            const navTarget = this.getNavigableModal();
-
-            // J2ME soft keys — component top-most ăn trước map menu / back.
-            // F1 = action trái (Sử dụng/Mua/Huỷ), Enter = giữa (Xem), F2 = phải
-            // (Vứt/Xác nhận) hoặc Back nếu modal không có nút phải.
-            if (this.menuKey && Phaser.Input.Keyboard.JustDown(this.menuKey)) {
-                if (this.dispatchTopmostSoftKey('left')) return;
-                return;
-            }
-            if (this.backKey && Phaser.Input.Keyboard.JustDown(this.backKey)) {
-                if (this.dispatchTopmostSoftKey('right')) return;
-                this.handleBack();
-                return;
-            }
-            if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
-                if (this.dispatchTopmostSoftKey('center')) return;
-                if (navTarget) {
-                    navTarget.confirm();
-                    return;
-                }
-            }
-
-            if (navTarget) {
-                if (Phaser.Input.Keyboard.JustDown(cursors.left))  { navTarget.navigate('left');  return; }
-                if (Phaser.Input.Keyboard.JustDown(cursors.right)) { navTarget.navigate('right'); return; }
-                if (Phaser.Input.Keyboard.JustDown(cursors.up))    { navTarget.navigate('up');    return; }
-                if (Phaser.Input.Keyboard.JustDown(cursors.down))  { navTarget.navigate('down');  return; }
-            }
-
-            if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
-                if (this.confirmDialog.isOpen()) {
-                    // ConfirmDialog tự xử lý close qua button — bỏ qua ESC.
-                } else if (this.endMvpOverlay.isOpen()) this.endMvpOverlay.close();
-                else if (this.hoshiUpgradeModal.isOpen()) this.hoshiUpgradeModal.close();
-                else if (this.shop.isOpen()) this.shop.close();
-                else if (this.inventory.isOpen()) this.inventory.toggle();
-                else if (this.questLog.isVisible()) this.questLog.close();
-                else if (this.equipment.isOpen()) this.equipment.close();
-                else if (this.characterInfo.isOpen()) this.characterInfo.close();
-                else if (this.skillModal.isOpen()) this.skillModal.close();
-                else if (this.settingsModal.isOpen()) this.settingsModal.close();
-                else if (this.chat.isOpen()) this.chat.toggle();
-            }
+            this.routeBlockedInput(cursors);
             return;
         }
 
@@ -1848,7 +1889,26 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.actionMenu.close();
             return;
         }
+        // Menu chức năng (Phaser) chỉ khi không có modal HTML — modal/item menu DOM
+        // luôn trên canvas; mở F1 lúc túi/shop đang mở sẽ bị kẹt dưới overlay.
+        if (this.isHtmlModalOpen()) return;
         this.openMainMenu();
+    }
+
+    /** Modal overlay HTML — khi mở thì không hiện menu chức năng Phaser. */
+    private isHtmlModalOpen(): boolean {
+        return (
+            this.inventory.isOpen()
+            || this.shop.isOpen()
+            || this.questLog.isVisible()
+            || this.equipment.isOpen()
+            || this.characterInfo.isOpen()
+            || this.skillModal.isOpen()
+            || this.settingsModal.isOpen()
+            || this.hoshiUpgradeModal.isOpen()
+            || this.confirmDialog.isOpen()
+            || this.endMvpOverlay.isOpen()
+        );
     }
 
     private openMainMenu(initialKey?: string | null): void {
@@ -1913,37 +1973,17 @@ export abstract class BaseMapScene extends Phaser.Scene {
      * decision point, back ra ngoài tương đương huỷ).
      */
     private handleBack(): void {
-        if (this.confirmDialog.isOpen()) {
-            this.confirmDialog.cancel();
-            return;
-        }
-        if (this.actionMenu.isOpen()) {
-            // F2 trên sub-menu 'Bản thân' = về main menu (giữ self highlight).
-            // F2 trên main menu = đóng hẳn.
-            if (this.currentMenuName === 'self') {
-                this.openMainMenu('self');
-            } else {
-                this.actionMenu.close();
-                this.cameFromMenu = false;
-                this.lastMenuKey = null;
-                this.lastMenuName = null;
-                this.currentMenuName = null;
+        const target = this.resolveTopInputHandler();
+        if (!target) return;
+        if (target.softKey('right')) return;
+        if (target.cancel()) {
+            if (!this.isInputBlockingModalOpen() && this.cameFromMenu) {
+                this.reopenMenuAfterModalClose();
             }
             return;
         }
         if (!this.closeTopModal()) return;
-        if (this.cameFromMenu) {
-            const key = this.lastMenuKey;
-            const menu = this.lastMenuName;
-            this.cameFromMenu = false;
-            // Reopen menu nguồn gốc — 'self' nếu modal mở từ sub-menu, ngược
-            // lại 'main'. lastMenuKey dùng làm initialSelectedKey để giữ focus.
-            if (menu === 'self') {
-                this.openSelfMenu(key);
-            } else {
-                this.openMainMenu(key);
-            }
-        }
+        if (this.cameFromMenu) this.reopenMenuAfterModalClose();
     }
 
     /** Đóng modal đang ở top theo priority, trả true nếu đã đóng. Match thứ
@@ -1953,7 +1993,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (this.endMvpOverlay.isOpen()) { this.endMvpOverlay.close(); return true; }
         if (this.hoshiUpgradeModal.isOpen()) { this.hoshiUpgradeModal.close(); return true; }
         if (this.shop.isOpen()) { this.shop.close(); return true; }
-        if (this.inventory.isOpen()) { this.inventory.toggle(); return true; }
+        if (this.inventory.isOpen()) {
+            if (this.inventory.dismissTeleportPicker()) return true;
+            this.inventory.toggle();
+            return true;
+        }
         if (this.questLog.isVisible()) { this.questLog.close(); return true; }
         if (this.equipment.isOpen()) { this.equipment.close(); return true; }
         if (this.characterInfo.isOpen()) { this.characterInfo.close(); return true; }

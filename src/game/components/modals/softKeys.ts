@@ -1,8 +1,8 @@
 /**
- * Phím tắt kiểu J2ME / emulator JAR: thanh action đáy màn hình map 1-1 với
- *   - F1 (soft trái)  → nút slot `left`  (vd Sử dụng / Trang bị / Mua)
- *   - Enter (soft giữa) → nút slot `center` (vd Xem)
- *   - F2 (soft phải)   → nút slot `right` (vd Vứt); nếu không có nút → Back scene
+ * Phím tắt kiểu J2ME: F1 trái / Enter giữa / F2 phải.
+ *
+ * Routing: `BaseMapScene.routeBlockedInput` + `inputFocus.ts` — chỉ UI có
+ * **layer cao nhất** nhận phím (menu chức năng → modal → menu item → confirm).
  */
 export type SoftKeySlot = 'left' | 'center' | 'right';
 

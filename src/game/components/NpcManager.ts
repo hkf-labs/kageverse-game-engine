@@ -15,6 +15,13 @@ import type { NpcChatBubble } from './NpcChatBubble';
 import { questDisplayName } from './modals/QuestLogPanel';
 import type { QuestLogPanel } from './modals/QuestLogPanel';
 import type { ShopModal } from './modals/ShopModal';
+import {
+    MQ_INITIATION,
+    confirmWarningKeyForClass,
+    factionsForPrincipal,
+    isInitiationPrincipal,
+    type InitiationFactionOption,
+} from '../initiation';
 
 const ACTION_KEY: Record<string, string> = {
     talk: 'npc.action_talk',
@@ -440,6 +447,20 @@ export class NpcManager implements GameComponent {
         this.lastMenuActions = actions;
         const items: ActionMenuItem[] = [];
 
+        // Q10 Bái Sư — Chọn Lớp tại Hiệu trưởng (quest active, chưa có phái).
+        if (
+            npc.templateId
+            && this.hasActiveInitiationQuest()
+            && isInitiationPrincipal(npc.templateId)
+        ) {
+            items.push({
+                key: 'choose_class',
+                label: t('npc.initiation.choose_class'),
+                icon: '🎓',
+                action: () => this.runChooseClassMenu(npc),
+            });
+        }
+
         // Quest hooks lên đầu menu — phổ biến nhất khi player tới gặp NPC quest.
         for (const questID of this.turnInQuestIDs) {
             items.push({
@@ -796,6 +817,84 @@ export class NpcManager implements GameComponent {
         if (this.lastMenuActions.length > 0) {
             this.openMenuFromBE(npc, this.lastMenuActions);
         }
+    }
+
+    private hasActiveInitiationQuest(): boolean {
+        const cls = getCurrentCharacter()?.class;
+        if (cls && cls !== 'none') {
+            return false;
+        }
+        return this.questLog?.getQuests().some(
+            (q) => q.quest_id === MQ_INITIATION && q.status === 'active',
+        ) ?? false;
+    }
+
+    private runChooseClassMenu(npc: NpcEntry): void {
+        if (!this.actionMenu || !npc.templateId) return;
+        const factions = factionsForPrincipal(npc.templateId);
+        const items: ActionMenuItem[] = factions.map((f) => ({
+            key: `faction_${f.classId}`,
+            label: f.mvp ? t(f.labelKey) : `${t(f.labelKey)} (${t('npc.initiation.coming_soon')})`,
+            disabled: !f.mvp,
+            action: () => {
+                if (!f.mvp) {
+                    this.onStatusMessage?.(t('npc.initiation.coming_soon'), '#ffaa66');
+                    return;
+                }
+                this.runInitiationConfirm(npc, f);
+            },
+        }));
+        items.push({
+            key: 'class_back',
+            label: t('npc.quiz.back'),
+            icon: '↩️',
+            action: () => this.reopenNpcMenu(npc),
+        });
+        this.chatBubble?.show(npc.sprite, t('npc.initiation.principal_hint'));
+        this.actionMenu.open({
+            title: t('npc.initiation.choose_class'),
+            items,
+            onClose: () => this.handleMenuClosed(),
+        });
+    }
+
+    private runInitiationConfirm(npc: NpcEntry, faction: InitiationFactionOption): void {
+        const warningKey = confirmWarningKeyForClass(faction.classId);
+        const doTurnIn = () => this.runInitiationTurnIn(npc, faction.classId);
+        if (this.confirmDialog) {
+            this.confirmDialog.open({
+                title: t('npc.initiation.confirm_title', { class: t(faction.labelKey) }),
+                message: t(warningKey),
+                confirmLabel: t('confirm.btn_confirm'),
+                cancelLabel: t('confirm.btn_cancel'),
+                confirmColor: 'red',
+                onConfirm: doTurnIn,
+            });
+            return;
+        }
+        doTurnIn();
+    }
+
+    private runInitiationTurnIn(npc: NpcEntry, classId: string): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) {
+            this.onStatusMessage?.(t('npc.quest.cannot_turn_in'), '#ff8a8a');
+            return;
+        }
+        void questAPI.turnIn(character.id, MQ_INITIATION, npc.templateId, classId)
+            .then((res) => {
+                const questName = questDisplayName(res.quest.name_key);
+                this.onQuestRewarded?.(questName, res.granted_rewards);
+                if (res.level_up) {
+                    this.onLevelUp?.(res.level_up);
+                }
+                void this.refreshCharacterAfterAccept(character.id);
+                this.onStatusMessage?.(t('npc.initiation.complete'), '#bdf0a0');
+            })
+            .catch((err) => {
+                const msg = err instanceof Error ? err.message : t('npc.quest.turn_in_failed');
+                this.onStatusMessage?.(msg, '#ff8a8a');
+            });
     }
 
     private runQuestTurnIn(npc: NpcEntry, questID: string): void {

@@ -29,6 +29,8 @@ export { EquipmentModal } from './EquipmentModal';
 export { HoshiUpgradeModal } from './HoshiUpgradeModal';
 export { InventoryModal } from './InventoryModal';
 export type { CharacterCurrencies } from './InventoryModal';
+export { ModalItemMenu } from './ModalItemMenu';
+export type { ModalItemMenuEntry, ModalItemMenuOptions } from './ModalItemMenu';
 export { QuestLogPanel, questDisplayName, targetDisplayName } from './QuestLogPanel';
 export { SettingsModal } from './SettingsModal';
 export { ShopModal } from './ShopModal';

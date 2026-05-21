@@ -11,11 +11,17 @@ import {
 import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
-import type { ActionMenu, ActionMenuItem } from '../ActionMenu';
 import { mapDisplayName } from '../../maps/registry';
 import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
+import {
+    createKeyboardModalTarget,
+    createModalItemMenuInputTarget,
+    INPUT_LAYER,
+    type InputFocusTarget,
+} from '../inputFocus';
+import { ModalItemMenu, type ModalItemMenuEntry } from './ModalItemMenu';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 
 interface InventoryItem {
@@ -141,7 +147,10 @@ interface ActionDef {
 }
 
 export class InventoryModal extends BaseModal {
+    private gridWrapEl?: HTMLDivElement;
     private gridEl?: HTMLDivElement;
+    /** Che lưới khi menu item (Bùa) mở — chặn hover; click = đóng menu. */
+    private gridBlockerEl?: HTMLDivElement;
     private tabsEl?: HTMLDivElement;
     private currenciesEl?: HTMLDivElement;
     /** Action bar overlay — nằm trong shell.overlay nhưng absolute-positioned
@@ -175,7 +184,8 @@ export class InventoryModal extends BaseModal {
     private onEquipmentChanged?: () => void;
     private onItemUsed?: () => void;
     private onSkillLearned?: (skillIDs: string[]) => void;
-    private actionMenu?: ActionMenu;
+    /** Menu item trong túi (Bùa Dịch Chuyển, …) — DOM trên overlay, không ActionMenu. */
+    private bagItemMenu?: ModalItemMenu;
     private onStatusMessage?: (text: string, color: string) => void;
     private onTeleportToMap?: (mapId: string) => void;
 
@@ -190,7 +200,6 @@ export class InventoryModal extends BaseModal {
              * vừa được grant. Scene auto-assign vào hotbar empty slot + show
              * animation banner. */
             onSkillLearned?: (skillIDs: string[]) => void;
-            actionMenu?: ActionMenu;
             onStatusMessage?: (text: string, color: string) => void;
             onTeleportToMap?: (mapId: string) => void;
         },
@@ -201,7 +210,6 @@ export class InventoryModal extends BaseModal {
         this.onEquipmentChanged = callbacks?.onEquipmentChanged;
         this.onItemUsed = callbacks?.onItemUsed;
         this.onSkillLearned = callbacks?.onSkillLearned;
-        this.actionMenu = callbacks?.actionMenu;
         this.onStatusMessage = callbacks?.onStatusMessage;
         this.onTeleportToMap = callbacks?.onTeleportToMap;
     }
@@ -231,6 +239,7 @@ export class InventoryModal extends BaseModal {
         grid.style.cssText = `display:grid;grid-template-columns:repeat(${COLS}, 56px);gap:6px;justify-content:center;`;
         gridWrap.appendChild(grid);
         shell.body.appendChild(gridWrap);
+        this.gridWrapEl = gridWrap;
         this.gridEl = grid;
 
         // Currencies bar — section cuối của panel. Detail section (info item)
@@ -277,13 +286,70 @@ export class InventoryModal extends BaseModal {
 
     protected teardownShell(): void {
         super.teardownShell();
+        this.gridWrapEl = undefined;
         this.gridEl = undefined;
+        this.removeGridBlocker();
         this.tabsEl = undefined;
         this.currenciesEl = undefined;
         this.actionBarEl = undefined;
         this.actionButtons = [];
-        // Sub-modal detail cũng đóng theo modal chính.
+        // Sub-modal detail + menu item đóng theo modal chính.
         this.closeDetailModal();
+        this.bagItemMenu?.close();
+        this.bagItemMenu = undefined;
+        this.setBagItemMenuBlocking(false);
+    }
+
+    /** Menu item (vd Bùa) đang mở — ESC/F2 đóng menu trước, giữ túi. */
+    isTeleportPickerOpen(): boolean {
+        return this.bagItemMenu?.isOpen() ?? false;
+    }
+
+    /** Đóng menu Làng/Trường/Huỷ + gỡ lớp mờ lưới (Huỷ gọi sau khi menu DOM đã close). */
+    private clearBagItemMenuOverlay(): void {
+        this.bagItemMenu?.close();
+        this.setBagItemMenuBlocking(false);
+        this.renderActionBar();
+    }
+
+    dismissTeleportPicker(): boolean {
+        const hadOverlay = this.isBagItemMenuBlocking();
+        this.clearBagItemMenuOverlay();
+        return hadOverlay;
+    }
+
+    private isBagItemMenuBlocking(): boolean {
+        return (this.bagItemMenu?.isOpen() ?? false) || !!this.gridBlockerEl;
+    }
+
+    /** Lớp input đang active trong túi — menu item (300) hoặc modal (200). */
+    getInputTarget(): InputFocusTarget {
+        if (this.bagItemMenu?.isOpen()) {
+            return createModalItemMenuInputTarget(this.bagItemMenu, () => this.dismissTeleportPicker());
+        }
+        return createKeyboardModalTarget(INPUT_LAYER.modal, this, () => this.cancelInventory());
+    }
+
+    cancelInventory(): boolean {
+        if (!this.visible) return false;
+        if (this.detailOpen) {
+            this.closeDetailModal();
+            return true;
+        }
+        this.toggle();
+        return true;
+    }
+
+    private ensureBagItemMenu(): ModalItemMenu | undefined {
+        if (!this.shell) return undefined;
+        if (!this.bagItemMenu) {
+            this.bagItemMenu = new ModalItemMenu({
+                mountParent: this.shell.overlay,
+                bottomOffsetPx: 72,
+                applyZoom: (el) => this.shell?.applyZoomTo(el),
+            });
+        }
+        return this.bagItemMenu;
     }
 
     toggle(): void {
@@ -327,19 +393,14 @@ export class InventoryModal extends BaseModal {
      * Mục tiêu: mọi clickable trong modal đều tới được không cần chuột.
      */
     navigate(direction: 'left' | 'right' | 'up' | 'down'): void {
-        if (!this.visible) return;
+        if (!this.visible || this.bagItemMenu?.isOpen()) return;
         if (this.focusZone === 'tabs') return this.navTabs(direction);
         if (this.focusZone === 'actions') return this.navActions(direction);
         this.navGrid(direction);
     }
 
-    /** Enter trên zone đang focus:
-     *   - actions: click nút focused (Sử dụng / Xem / Vứt / ...).
-     *   - grid: shortcut cho nút Xem — toggle sub-modal chi tiết item nếu slot
-     *     đang focus có item. Không có item → no-op.
-     *   - tabs: no-op (page đã đổi qua ←/→). */
     confirm(): void {
-        if (!this.visible) return;
+        if (!this.visible || this.bagItemMenu?.isOpen()) return;
         if (this.focusZone === 'actions') {
             const btn = this.actionButtons[this.focusedAction];
             if (btn && !btn.disabled) btn.click();
@@ -352,10 +413,50 @@ export class InventoryModal extends BaseModal {
         }
     }
 
-    /** F1 / Enter / F2 — luôn map tới action bar (không cần focus zone actions). */
     triggerSoftKey(slot: SoftKeySlot): boolean {
-        if (!this.visible) return false;
+        if (!this.visible || this.bagItemMenu?.isOpen()) return false;
         return clickActionBarSlot(this.actionDefsForKeys, this.actionButtons, slot);
+    }
+
+    /** Menu item (Bùa, …) đang mở — khóa grid/tab/action bar; click lưới = đóng menu. */
+    private setBagItemMenuBlocking(blocked: boolean): void {
+        if (this.actionBarEl) {
+            this.actionBarEl.style.opacity = blocked ? '0.38' : '1';
+            this.actionBarEl.style.filter = blocked ? 'grayscale(0.6)' : '';
+            for (const btn of this.actionButtons) {
+                if (blocked) btn.disabled = true;
+            }
+        }
+        if (this.gridWrapEl) {
+            this.gridWrapEl.style.opacity = blocked ? '0.55' : '1';
+        }
+        if (this.tabsEl) {
+            this.tabsEl.style.opacity = blocked ? '0.55' : '1';
+        }
+        if (blocked) this.ensureGridBlocker();
+        else this.removeGridBlocker();
+    }
+
+    private ensureGridBlocker(): void {
+        if (!this.gridWrapEl || this.gridBlockerEl) return;
+        this.gridWrapEl.style.position = 'relative';
+        const blocker = document.createElement('div');
+        Object.assign(blocker.style, {
+            position: 'absolute',
+            inset: '0',
+            zIndex: '1',
+            cursor: 'default',
+        });
+        blocker.addEventListener('click', () => this.dismissTeleportPicker());
+        this.gridWrapEl.appendChild(blocker);
+        this.gridBlockerEl = blocker;
+    }
+
+    private removeGridBlocker(): void {
+        if (this.gridBlockerEl) {
+            this.gridBlockerEl.remove();
+            this.gridBlockerEl = undefined;
+        }
     }
 
     private navTabs(direction: 'left' | 'right' | 'up' | 'down'): void {
@@ -567,6 +668,9 @@ export class InventoryModal extends BaseModal {
         });
 
         this.renderActionFocus();
+        if (this.bagItemMenu?.isOpen()) {
+            this.setBagItemMenuBlocking(true);
+        }
     }
 
     /** Tập hợp action khả dụng cho item — array order = left → center → right. */
@@ -821,6 +925,10 @@ export class InventoryModal extends BaseModal {
     }
 
     private selectSlot(slot: number): void {
+        if (this.isBagItemMenuBlocking()) {
+            this.dismissTeleportPicker();
+            return;
+        }
         this.selectedSlot = this.selectedSlot === slot ? null : slot;
         this.renderGrid();
         this.renderDetail();
@@ -873,7 +981,13 @@ export class InventoryModal extends BaseModal {
             });
             tab.textContent = unlocked ? label : `🔒 ${label}`;
             if (unlocked) {
-                tab.addEventListener('click', () => this.setPage(p));
+                tab.addEventListener('click', () => {
+                    if (this.isBagItemMenuBlocking()) {
+                        this.dismissTeleportPicker();
+                        return;
+                    }
+                    this.setPage(p);
+                });
             }
             this.tabsEl.appendChild(tab);
         }
@@ -975,7 +1089,7 @@ export class InventoryModal extends BaseModal {
 
     private async handleTeleportCharmUse(userItemId: string): Promise<void> {
         const character = getCurrentCharacter();
-        if (!character || !this.actionMenu) return;
+        if (!character) return;
 
         this.actionInFlight = true;
         this.renderActionBar();
@@ -987,7 +1101,6 @@ export class InventoryModal extends BaseModal {
                 this.renderDetail();
                 return;
             }
-            // Giữ túi đồ mở — ActionMenu chọn Làng/Trường/đích đè lên canvas.
             this.openTeleportCategoryMenu(menu, userItemId);
         } catch (err) {
             this.errorMessage = err instanceof Error ? err.message : t('inventory.error_use');
@@ -998,37 +1111,51 @@ export class InventoryModal extends BaseModal {
         }
     }
 
+    private openTeleportPicker(title: string, items: ModalItemMenuEntry[]): void {
+        const menu = this.ensureBagItemMenu();
+        if (!menu) return;
+        if (this.focusZone === 'actions') {
+            this.focusZone = 'grid';
+            this.renderActionFocus();
+        }
+        menu.openMenu(title, items);
+        this.setBagItemMenuBlocking(true);
+        this.renderTabs();
+    }
+
     private openTeleportCategoryMenu(menu: TeleportCharmMenuDTO, userItemId: string): void {
-        if (!this.actionMenu) return;
-        const items: ActionMenuItem[] = menu.categories.map((cat) => ({
+        const items: ModalItemMenuEntry[] = menu.categories.map((cat) => ({
             key: `tp_cat_${cat.category}`,
             label: t(cat.label_key),
             icon: cat.category === 'village' ? '🏘️' : '🏫',
             action: () => this.openTeleportDestinationMenu(cat.destinations, userItemId),
         }));
-        items.push({ key: 'cancel', label: t('inventory.teleport.cancel'), icon: '↩️', action: () => {} });
-        this.actionMenu.open({
-            title: t('inventory.teleport.title'),
-            items,
+        items.push({
+            key: 'cancel',
+            label: t('inventory.teleport.cancel'),
+            icon: '↩️',
+            action: () => { this.clearBagItemMenuOverlay(); },
         });
+        this.openTeleportPicker(t('inventory.teleport.title'), items);
     }
 
     private openTeleportDestinationMenu(
         destinations: TeleportCharmMenuDTO['categories'][0]['destinations'],
         userItemId: string,
     ): void {
-        if (!this.actionMenu) return;
-        const items: ActionMenuItem[] = destinations.map((d) => ({
+        const items = destinations.map((d) => ({
             key: `tp_dest_${d.map_id}`,
             label: mapDisplayName(d.map_id),
             icon: '🗺️',
             action: () => void this.confirmTeleportCharm(userItemId, d.map_id, d.is_unlocked),
         }));
-        items.push({ key: 'cancel', label: t('inventory.teleport.cancel'), icon: '↩️', action: () => {} });
-        this.actionMenu.open({
-            title: t('inventory.teleport.pick_destination'),
-            items,
+        items.push({
+            key: 'cancel',
+            label: t('inventory.teleport.cancel'),
+            icon: '↩️',
+            action: () => { this.clearBagItemMenuOverlay(); },
         });
+        this.openTeleportPicker(t('inventory.teleport.pick_destination'), items);
     }
 
     private async confirmTeleportCharm(
@@ -1049,6 +1176,7 @@ export class InventoryModal extends BaseModal {
             });
             const completed = res.effects?.teleport_completed;
             const targetMapId = completed?.map_id ?? mapId;
+            this.clearBagItemMenuOverlay();
             await this.loadInventory();
             this.onItemUsed?.();
             this.onTeleportToMap?.(targetMapId);

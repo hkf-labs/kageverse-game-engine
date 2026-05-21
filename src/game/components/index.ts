@@ -1,3 +1,5 @@
+export { INPUT_LAYER, pickTopInputTarget } from './inputFocus';
+export type { InputFocusTarget, NavDirection } from './inputFocus';
 export { ActionMenu } from './ActionMenu';
 export type { ActionMenuItem, ActionMenuOpenOptions } from './ActionMenu';
 export { BossHPBar } from './BossHPBar';

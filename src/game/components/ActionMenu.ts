@@ -1,6 +1,12 @@
 import * as Phaser from 'phaser';
 import type { GameComponent } from './types';
 
+/**
+ * Menu ngang Phaser (canvas) — **menu chức năng F1**, NPC, shop slot.
+ *
+ * Không dùng khi đã mở modal HTML (túi đồ, shop, …): canvas nằm dưới overlay.
+ * Menu từ item trong túi → `ModalItemMenu` (DOM trên overlay modal).
+ */
 export interface ActionMenuItem {
     key: string;
     label: string;

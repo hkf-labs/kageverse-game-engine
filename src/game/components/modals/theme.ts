@@ -67,18 +67,27 @@ export const MODAL_SIZES = {
  * z-index layering — đảm bảo modal đè lên HUD/canvas + dialog đè lên modal.
  * QuestTracker / BuffIndicator / BossHPBar là Phaser-native (sống trong canvas)
  * nên không có z-index DOM — modal HTML overlay luôn nằm trên canvas tự động.
- *  - panel: ChatPanel (100 — dưới modal vì có thể mở cùng inventory)
- *  - modal: Inventory / Shop / Skill / Equipment / CharacterInfo (110)
+ *
+ * ## Input (phím chức năng) — xem `inputFocus.ts`
+ *
+ * Một UI active tại một thời điểm (layer cao nhất). Không trộn ActionMenu Phaser
+ * với menu item DOM trên modal.
+ *
+ * Thứ tự DOM (z-index):
+ *  - panel: ChatPanel (100)
+ *  - modal: Inventory / Shop / … (110)
+ *  - modalItemMenu / tooltip: sub-menu & Xem chi tiết trên modal (150)
  *  - blockingDialog: Settings / QuestLog / HoshiUpgrade (200)
- *  - cinematic: EndMvpOverlay / DeathMenu (250 — story-blocking)
+ *  - cinematic: EndMvpOverlay / DeathMenu (250)
  *  - confirm: ConfirmDialog (300)
- *  - toast: PickupToast DOM (350 — nhặt / mua shop, trên modal & confirm)
+ *  - toast: PickupToast (350)
  */
 export const MODAL_Z_INDEX = {
     chat: 100,
     modal: 110,
-    /** Sub-modal nhẹ overlay lên modal chính (vd InventoryModal item detail).
-     * Không có backdrop dim — modal chính vẫn hiển thị bình thường. */
+    /** Menu item trong modal (Bùa Dịch Chuyển, …) — `ModalItemMenu`. */
+    modalItemMenu: 150,
+    /** Sub-modal nhẹ (vd InventoryModal "Xem chi tiết"). Cùng tầng modalItemMenu. */
     tooltip: 150,
     blockingDialog: 200,
     cinematic: 250,
