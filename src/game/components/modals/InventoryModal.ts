@@ -987,7 +987,7 @@ export class InventoryModal extends BaseModal {
                 this.renderDetail();
                 return;
             }
-            if (this.visible) this.toggle();
+            // Giữ túi đồ mở — ActionMenu chọn Làng/Trường/đích đè lên canvas.
             this.openTeleportCategoryMenu(menu, userItemId);
         } catch (err) {
             this.errorMessage = err instanceof Error ? err.message : t('inventory.error_use');
