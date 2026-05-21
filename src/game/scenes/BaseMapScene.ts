@@ -118,6 +118,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private sceneInitSpawn: MapSpawnPoint | null = null;
     /** link_id từ cổng vừa đi qua (BE map_links). */
     private sceneInitLinkId: string | null = null;
+    /** Spawn tại hub_spawn của map (respawn về làng, item dịch chuyển, NPC Tabi). */
+    private sceneInitUseHubSpawn = false;
     private coordDebug?: MapCoordinateDebug;
 
     constructor(sceneKey: string) {
@@ -127,6 +129,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     init(data?: MapSceneInitData): void {
         this.sceneInitSpawn = spawnFromSceneInit(data);
         this.sceneInitLinkId = incomingLinkIdFromSceneInit(data);
+        this.sceneInitUseHubSpawn = data?.useHubSpawn === true;
     }
 
     protected abstract getMapConfig(): MapConfig;
@@ -892,6 +895,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     private savePositionFireAndForget(keepalive: boolean): void {
+        // Không save khi player còn ở frozen state (chưa activate) — tránh
+        // ghi đè last_pos_x/y với tọa độ default (worldWidth*0.1, 50) trước khi
+        // link spawn / resolveSpawnOnMap được áp dụng, vì charactersAPI.list()
+        // sau đó sẽ đọc lại giá trị sai này và override đúng vị trí portal.
+        if (!this.playerCtrl?.isActivated()) return;
         const character = getCurrentCharacter();
         if (!character) return;
         const player = this.playerCtrl?.getPlayer();
@@ -942,6 +950,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 }
             }
 
+            if (!this.sceneInitSpawn && !this.sceneInitLinkId && this.sceneInitUseHubSpawn && mapDetail) {
+                const hub = mapDetail.spawnPoints.default;
+                const scale = this.scale.height / mapDetail.size.height;
+                const spawnX = hub.x * scale;
+                const groundY = this.background.getPlatformYAtX(spawnX);
+                const player = this.playerCtrl.getPlayer();
+                player?.setPosition(spawnX, groundY - 22);
+            }
+
             const list = await charactersAPI.list();
             const c = list.characters.find((it) => it.id === current.id) ?? list.characters[0];
             if (!c) return;
@@ -974,12 +991,16 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 this.buffIndicator.removeBuff('food_buff');
             }
 
-            // Restore tọa độ authoritative từ BE (ưu tiên hơn portal link spawn).
-            const saved = resolveSpawnOnMap(c, cfg.mapId);
-            if (saved) {
-                const player = this.playerCtrl.getPlayer();
-                if (player) {
-                    player.setPosition(saved.x, saved.y);
+            // Restore tọa độ authoritative từ BE — bỏ qua khi đã dùng hub spawn
+            // (respawn về làng) hoặc link spawn (portal) để tránh override bằng
+            // last_pos cũ trên map đó.
+            if (!this.sceneInitUseHubSpawn && !this.sceneInitLinkId) {
+                const saved = resolveSpawnOnMap(c, cfg.mapId);
+                if (saved) {
+                    const player = this.playerCtrl.getPlayer();
+                    if (player) {
+                        player.setPosition(saved.x, saved.y);
+                    }
                 }
             }
 
@@ -1187,11 +1208,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         // Chưa activate (đang chờ /characters) — không physics / input.
         if (!this.playerCtrl.isActivated()) {
-            this.playerCtrl.update();
             return;
         }
 
         this.background.update();
+        // Animation + hitbox luôn update mỗi frame — không phụ thuộc modal hay
+        // death state. Đảm bảo Spine anim tiếp tục chạy khi menu / chat mở.
+        this.playerCtrl.update();
         // D-pad highlight chỉ phản chiếu input thực điều khiển nhân vật. Khi
         // modal/menu chiếm input hoặc nhân vật đang chết → cursor không
         // chuyển thành highlight (tránh hiểu nhầm "đang đi" trong khi modal mở).
@@ -1917,7 +1940,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     this.deathState = 'alive';
                     this.monsters?.setTickPaused(false);
                     this.deathMenu.hide();
-                    this.scene.start('VillageScene');
+                    this.scene.start('VillageScene', { useHubSpawn: true });
                 } catch (err) {
                     const msg = err instanceof Error ? err.message : t('combat.respawn_failed');
                     this.hud.setStatus(msg, '#ff8a8a');

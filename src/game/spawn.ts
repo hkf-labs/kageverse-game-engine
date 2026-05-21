@@ -11,6 +11,8 @@ export type MapSceneInitData = {
     spawnY?: number;
     /** Cổng vừa đi qua — map đích resolve spawn từ BE map_links (spawn_points.by_link_id). */
     linkId?: string;
+    /** Dùng hub_spawn của map (spawnPoints.default) — respawn về làng, item dịch chuyển, NPC Tabi. */
+    useHubSpawn?: boolean;
 };
 
 /** Chân nhân vật ~22px dưới tâm hitbox so với mặt nền (khớp PlayerController). */
