@@ -45,13 +45,17 @@ export class VillageScene extends BaseMapScene {
             // sẽ auto-unlock toàn bộ portal locked (xem BaseMapScene
             // loadInitialCharacterState ~L740).
             {
-                x: 200,
+                x: 1500,
                 label: t('portal.label.to_wind_school'),
-                targetSceneKey: 'VillageToWind001Scene',
+                linkId: 'village_001_to_village_to_wind_001',
                 locked: true,
                 lockedMessage: t('portal.locked.wind_school'),
             },
-            { x: 3500, label: t('portal.label.to_ice_school'),  targetSceneKey: 'VillageToIce001Scene' },
+            {
+                x: 3500,
+                label: t('portal.label.to_ice_school'),
+                linkId: 'village_001_to_village_to_ice_001',
+            },
             {
                 x: 6300,
                 label: t('portal.label.to_fire_school'),

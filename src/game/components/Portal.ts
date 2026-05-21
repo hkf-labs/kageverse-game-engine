@@ -1,6 +1,5 @@
 import * as Phaser from 'phaser';
 import { t } from '../../i18n';
-import { getMapLink } from '../maps/mapLinks';
 import { mapIdForSceneKey } from '../maps/registry';
 import type { GameComponent, PortalConfig } from './types';
 import type { MapBackground } from './MapBackground';
@@ -21,6 +20,8 @@ export class Portal implements GameComponent {
     private inRange = false;
     private triggered = false;
     private locked = false;
+    /** Đích từ BE map_links (hydrate sau loadMapDetail). */
+    private resolvedTargetMapId?: string;
 
     constructor(
         scene: Phaser.Scene,
@@ -88,11 +89,17 @@ export class Portal implements GameComponent {
 
     isLocked(): boolean { return this.locked; }
     getLockedMessage(): string | undefined { return this.config.lockedMessage; }
+    getLinkId(): string | undefined { return this.config.linkId; }
 
-    /** map_id đích — dùng gating unlocked_maps. */
+    /** Gắn target_map_id từ GET /maps/:id (outgoing links). */
+    bindLinkTargetMapId(targetMapId: string): void {
+        this.resolvedTargetMapId = targetMapId;
+    }
+
+    /** map_id đích — dùng gating unlocked_maps. Lock vẫn từ PortalConfig.locked. */
     getTargetMapId(): string | undefined {
         if (this.config.linkId) {
-            return getMapLink(this.config.linkId)?.toMapId;
+            return this.resolvedTargetMapId;
         }
         if (this.config.targetSceneKey) {
             return mapIdForSceneKey(this.config.targetSceneKey);

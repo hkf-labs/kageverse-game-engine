@@ -25,7 +25,7 @@ import {
     type MapSceneInitData,
     type MapSpawnPoint,
 } from '../spawn';
-import { getMapLink } from '../maps/mapLinks';
+import { loadMapDetail, peekLinkTargetMapId } from '../../features/maps/mapDetailStore';
 import {
     REMOTE_PLAYER_SELECT_RANGE_PX,
     type WorldTargetCandidate,
@@ -115,7 +115,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private worldTargetSelectLocked = false;
     /** Tọa độ từ AuthScene (sau /characters) hoặc portal — spawn ngay, không đợi fetch lần 2. */
     private sceneInitSpawn: MapSpawnPoint | null = null;
-    /** link_id từ cổng vừa đi qua (mock map_links). */
+    /** link_id từ cổng vừa đi qua (BE map_links). */
     private sceneInitLinkId: string | null = null;
 
     constructor(sceneKey: string) {
@@ -137,16 +137,26 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     private resolvePortalTargetScene(portalCfg: PortalConfig): string | null {
         if (portalCfg.linkId) {
-            const link = getMapLink(portalCfg.linkId);
-            if (!link) {
-                console.warn(`[portal] unknown linkId=${portalCfg.linkId}`);
+            const fromMapId = this.getMapConfig().mapId;
+            const toMapId = peekLinkTargetMapId(fromMapId, portalCfg.linkId);
+            if (!toMapId) {
+                console.warn(`[portal] unknown linkId=${portalCfg.linkId} on map ${fromMapId}`);
                 return null;
             }
-            return resolveSceneKeyForMap(link.toMapId);
+            return resolveSceneKeyForMap(toMapId);
         }
         if (portalCfg.targetSceneKey) return portalCfg.targetSceneKey;
         console.warn('[portal] missing linkId and targetSceneKey');
         return null;
+    }
+
+    private hydratePortalsFromMapDetail(links: { linkId: string; targetMapId: string }[]): void {
+        for (const portal of this.portals) {
+            const linkId = portal.getLinkId();
+            if (!linkId) continue;
+            const link = links.find((l) => l.linkId === linkId);
+            if (link) portal.bindLinkTargetMapId(link.targetMapId);
+        }
     }
 
     private buildPortalSceneInit(portalCfg: PortalConfig): MapSceneInitData | undefined {
@@ -234,20 +244,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.background = new MapBackground(this, cfg);
         this.background.create();
 
-        let initialSpawn = this.sceneInitSpawn;
-        if (!initialSpawn && this.sceneInitLinkId) {
-            initialSpawn = resolveSpawnFromIncomingLink(
-                this.sceneInitLinkId,
-                cfg.mapId,
-                cfg.tiledOriginalHeight,
-                this.scale.height,
-                (renderX) => this.background.getPlatformYAtX(renderX),
-            );
-        }
-
-        // Player — spawn từ Auth / map link / default.
+        // Player — spawn từ Auth; link spawn áp sau loadMapDetail (BE).
         this.playerCtrl = new PlayerController(this, this.background);
-        this.playerCtrl.create(initialSpawn ?? undefined);
+        this.playerCtrl.create(this.sceneInitSpawn ?? undefined);
         if (this.sceneInitSpawn) {
             // F5 / login: tọa độ đã biết → hiện ngay, không chờ list() lần 2.
             this.playerCtrl.activate();
@@ -902,6 +901,30 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Initial fetch quest list để QuestTracker populate ngay khi vào scene.
         void this.questLog.refresh();
         try {
+            const cfg = this.getMapConfig();
+            let mapDetail: Awaited<ReturnType<typeof loadMapDetail>> | null = null;
+            try {
+                mapDetail = await loadMapDetail(cfg.mapId);
+                this.hydratePortalsFromMapDetail(mapDetail.links);
+            } catch (err) {
+                console.warn('map: load detail failed', err instanceof Error ? err.message : err);
+            }
+
+            if (!this.sceneInitSpawn && this.sceneInitLinkId && mapDetail) {
+                const linkSpawn = resolveSpawnFromIncomingLink(
+                    this.sceneInitLinkId,
+                    cfg.mapId,
+                    mapDetail,
+                    cfg.tiledOriginalHeight,
+                    this.scale.height,
+                    (renderX) => this.background.getPlatformYAtX(renderX),
+                );
+                if (linkSpawn) {
+                    const player = this.playerCtrl.getPlayer();
+                    player?.setPosition(linkSpawn.x, linkSpawn.y);
+                }
+            }
+
             const list = await charactersAPI.list();
             const c = list.characters.find((it) => it.id === current.id) ?? list.characters[0];
             if (!c) return;
@@ -934,8 +957,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 this.buffIndicator.removeBuff('food_buff');
             }
 
-            // Restore tọa độ authoritative từ BE (ưu tiên hơn scene init nếu khác).
-            const cfg = this.getMapConfig();
+            // Restore tọa độ authoritative từ BE (ưu tiên hơn portal link spawn).
             const saved = resolveSpawnOnMap(c, cfg.mapId);
             if (saved) {
                 const player = this.playerCtrl.getPlayer();

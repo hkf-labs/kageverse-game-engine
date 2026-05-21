@@ -1,5 +1,6 @@
+import type { MapDetail } from '../features/maps';
+import { peekSpawnForIncomingLink } from '../features/maps/mapDetailStore';
 import type { CharacterDTO } from '../network/api';
-import { getMapLink } from './maps/mapLinks';
 
 export type MapSpawnPoint = { x: number; y: number };
 
@@ -7,7 +8,7 @@ export type MapSpawnPoint = { x: number; y: number };
 export type MapSceneInitData = {
     spawnX?: number;
     spawnY?: number;
-    /** Cổng vừa đi qua — map đích resolve spawn từ mock map_links. */
+    /** Cổng vừa đi qua — map đích resolve spawn từ BE map_links (spawn_points.by_link_id). */
     linkId?: string;
 };
 
@@ -46,27 +47,25 @@ export function incomingLinkIdFromSceneInit(
 }
 
 /**
- * Spawn trên map đích sau khi đi qua link_id (mock map_links).
- * Trả null nếu link không tồn tại hoặc toMapId không khớp scene hiện tại.
+ * Spawn sau khi đi qua link_id — đọc spawn_points.by_link_id từ MapDetail BE (đã cache).
  */
 export function resolveSpawnFromIncomingLink(
     linkId: string,
     toMapId: string,
+    mapDetail: MapDetail | undefined,
     tiledOriginalHeight: number,
     viewportHeight: number,
     platformYAtRenderX: (renderX: number) => number,
 ): MapSpawnPoint | null {
-    const link = getMapLink(linkId);
-    if (!link || link.toMapId !== toMapId) return null;
+    const business = mapDetail?.spawnPoints.byLinkId[linkId]
+        ?? peekSpawnForIncomingLink(toMapId, linkId);
+    if (!business) return null;
 
     const scale = viewportHeight / tiledOriginalHeight;
-    const spawnX = link.targetX * scale;
-    let spawnY: number;
-    if (link.targetY !== undefined) {
-        spawnY = link.targetY * scale - SPAWN_FOOT_OFFSET_RENDER;
-    } else {
-        const groundY = platformYAtRenderX(spawnX);
-        spawnY = groundY - SPAWN_FOOT_OFFSET_RENDER;
-    }
+    const spawnX = business.x * scale;
+    const groundY = platformYAtRenderX(spawnX);
+    const spawnY = business.y > 0
+        ? business.y * scale - SPAWN_FOOT_OFFSET_RENDER
+        : groundY - SPAWN_FOOT_OFFSET_RENDER;
     return { x: spawnX, y: spawnY };
 }

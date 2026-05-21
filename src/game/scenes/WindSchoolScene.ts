@@ -41,7 +41,11 @@ export class WindSchoolScene extends BaseMapScene {
 
     protected getPortalConfigs(): PortalConfig[] {
         return [
-            { x: 750, label: t('portal.label.return'), targetSceneKey: 'VillageToWind002Scene' },
+            {
+                x: 750,
+                label: t('portal.label.return'),
+                linkId: 'wind_school_001_to_village_to_wind_002',
+            },
         ];
     }
 

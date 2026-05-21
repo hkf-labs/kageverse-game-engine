@@ -1,4 +1,4 @@
-import { getMockMapDetail, parseMapDetail } from '../features/maps';
+import { clearMapDetailCache, parseMapDetail } from '../features/maps';
 import type { MapDetail } from '../features/maps';
 import { t } from '../i18n';
 import { normalizeLootDrops } from './lootDrop';
@@ -151,6 +151,7 @@ async function authFetch(
 }
 
 export function logout(): void {
+    clearMapDetailCache();
     clearTokens();
 }
 
@@ -565,20 +566,16 @@ export const inventoryAPI = {
 export const mapsAPI = {
     async getDetail(mapId: string): Promise<MapDetail> {
         const path = `/maps/${encodeURIComponent(mapId)}`;
-        try {
-            const { response, traceId } = await authFetch(path);
-            const resData: unknown = await response.json();
-            if (!response.ok) {
-                throw new Error(
-                    `${formatApiError(resData, t('api.error.map_detail'))} (trace_id=${traceId || 'n/a'})`,
-                );
-            }
-            const rec = asRecord(resData);
-            if (!rec) throw new Error(t('api.error.map_detail'));
-            return parseMapDetail(rec);
-        } catch {
-            return getMockMapDetail(mapId);
+        const { response, traceId } = await authFetch(path);
+        const resData: unknown = await response.json();
+        if (!response.ok) {
+            throw new Error(
+                `${formatApiError(resData, t('api.error.map_detail'))} (trace_id=${traceId || 'n/a'})`,
+            );
         }
+        const rec = asRecord(resData);
+        if (!rec) throw new Error(t('api.error.map_detail'));
+        return parseMapDetail(rec);
     },
 };
 
