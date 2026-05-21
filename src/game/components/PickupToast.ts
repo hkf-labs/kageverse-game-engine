@@ -1,5 +1,6 @@
-import * as Phaser from 'phaser';
+import type * as Phaser from 'phaser';
 import { t, tOpt } from '../../i18n';
+import { MODAL_Z_INDEX } from './modals/theme';
 import { targetDisplayName } from './modals/QuestLogPanel';
 import type { GameComponent } from './types';
 
@@ -18,14 +19,15 @@ const VIEWPORT_H = 28;
 const SCROLL_MS_PER_PX = 32;
 const MIN_SCROLL_MS = 2200;
 
-const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
-    fontFamily: 'system-ui, sans-serif',
-    fontSize: '15px',
-    fontStyle: 'bold',
-    color: '#ffea7a',
-    stroke: '#000000',
-    strokeThickness: 4,
-};
+const MESSAGE_CSS = `
+    font-family: system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: bold;
+    color: #ffea7a;
+    white-space: nowrap;
+    -webkit-text-stroke: 1px #000;
+    paint-order: stroke fill;
+`;
 
 type ToastPhase = 'idle' | 'static' | 'scroll';
 
@@ -39,18 +41,19 @@ function yenPickupLabel(amount: number): string {
 }
 
 /**
- * Toast nhặt loot: một dòng, nối bằng dấu phẩy, vùng ngang có mask.
- * 3s đứng im → marquee (nếu dài) → thoát. Thêm item khi đang hiện không reset timer/tween.
+ * Toast nhặt loot / mua shop — DOM (ngoài canvas), z-index toast.
+ * Modal HTML che canvas; toast phải mount body để hiện khi shop/inventory mở.
  */
 export class PickupToast implements GameComponent {
     private scene: Phaser.Scene;
     private labels: string[] = [];
     /** i18n key cho dòng prefix (nhặt vs mua shop). */
     private receivedKey = 'combat.pickup_received';
-    private container?: Phaser.GameObjects.Container;
-    private scrollText?: Phaser.GameObjects.Text;
-    private maskGfx?: Phaser.GameObjects.Graphics;
-    private scrollTween?: Phaser.Tweens.Tween;
+    private root?: HTMLDivElement;
+    private viewport?: HTMLDivElement;
+    private track?: HTMLDivElement;
+    private messageEl?: HTMLSpanElement;
+    private scrollEndHandler?: () => void;
     private phase: ToastPhase = 'idle';
     private batchTimer?: number;
     private staticTimer?: number;
@@ -96,7 +99,7 @@ export class PickupToast implements GameComponent {
     }
 
     private enqueuePickup(label: string, receivedKey: string): void {
-        if (this.container && !this.isExiting && this.phase !== 'idle') {
+        if (this.root && !this.isExiting && this.phase !== 'idle') {
             this.labels.push(label);
             this.updateMessageOnly();
             return;
@@ -126,65 +129,91 @@ export class PickupToast implements GameComponent {
         return Math.min(MAX_VIEW_WIDTH_PX, Math.round(this.scene.scale.width * VIEW_WIDTH_SCREEN_RATIO));
     }
 
-    private getLeftEdge(): number {
-        return -this.getViewWidth() / 2;
-    }
-
     private ensureToast(): void {
-        if (this.container) return;
+        if (this.root) return;
 
-        const y = Math.round(this.scene.scale.height * 0.975);
-        const x = this.scene.scale.width / 2;
-        const viewW = this.getViewWidth();
+        const root = document.createElement('div');
+        root.className = 'kageverse-pickup-toast';
+        Object.assign(root.style, {
+            position: 'fixed',
+            left: '50%',
+            bottom: '2.5%',
+            transform: 'translateX(-50%)',
+            zIndex: String(MODAL_Z_INDEX.toast),
+            pointerEvents: 'none',
+            opacity: '0',
+            visibility: 'hidden',
+        });
 
-        this.container = this.scene.add
-            .container(x, y)
-            .setDepth(95)
-            .setScrollFactor(0);
+        const viewport = document.createElement('div');
+        Object.assign(viewport.style, {
+            overflow: 'hidden',
+            height: `${VIEWPORT_H}px`,
+            display: 'flex',
+            alignItems: 'center',
+        });
 
-        this.maskGfx = this.scene.add.graphics();
-        this.maskGfx.fillStyle(0xffffff, 1);
-        this.maskGfx.fillRect(-viewW / 2, -VIEWPORT_H / 2, viewW, VIEWPORT_H);
-        const mask = this.maskGfx.createGeometryMask();
+        const track = document.createElement('div');
+        Object.assign(track.style, {
+            position: 'relative',
+            flexShrink: '0',
+            height: `${VIEWPORT_H}px`,
+            display: 'flex',
+            alignItems: 'center',
+            willChange: 'transform',
+        });
 
-        this.scrollText = this.scene.add
-            .text(0, 0, '', TEXT_STYLE)
-            .setOrigin(0, 0.5)
-            .setMask(mask);
+        const messageEl = document.createElement('span');
+        messageEl.style.cssText = MESSAGE_CSS;
 
-        this.container.add([this.maskGfx, this.scrollText]);
-        this.maskGfx.setVisible(false);
+        track.appendChild(messageEl);
+        viewport.appendChild(track);
+        root.appendChild(viewport);
+        document.body.appendChild(root);
+
+        this.root = root;
+        this.viewport = viewport;
+        this.track = track;
+        this.messageEl = messageEl;
     }
 
-    private redrawMask(): void {
-        if (!this.maskGfx) return;
-        const viewW = this.getViewWidth();
-        this.maskGfx.clear();
-        this.maskGfx.fillStyle(0xffffff, 1);
-        this.maskGfx.fillRect(-viewW / 2, -VIEWPORT_H / 2, viewW, VIEWPORT_H);
+    private applyViewportWidth(): void {
+        if (!this.viewport) return;
+        this.viewport.style.width = `${this.getViewWidth()}px`;
     }
 
-    /** Chỉ đổi nội dung — không đụng vị trí, tween, timer (đang static/scroll). */
+    private measureTextWidth(): number {
+        if (!this.messageEl) return 0;
+        return this.messageEl.getBoundingClientRect().width;
+    }
+
+    private resetTrackMotion(): void {
+        if (!this.track) return;
+        this.killScrollTween();
+        this.track.style.transition = 'none';
+        this.track.style.transform = 'translateX(0)';
+    }
+
+    /** Chỉ đổi nội dung — không đụng vị trí, animation, timer (đang static/scroll). */
     private updateMessageOnly(): void {
-        if (!this.scrollText) return;
-        this.redrawMask();
-        this.scrollText.setText(this.buildMessage());
+        if (!this.messageEl) return;
+        this.messageEl.textContent = this.buildMessage();
     }
 
     /** Bắt đầu hiển thị: căn chỗ + 3s đứng im. */
     private layoutStaticStart(): void {
-        if (!this.scrollText) return;
-        this.redrawMask();
-        this.scrollText.setText(this.buildMessage());
+        if (!this.messageEl || !this.viewport || !this.track) return;
+        this.applyViewportWidth();
+        this.resetTrackMotion();
+        this.messageEl.textContent = this.buildMessage();
 
         const viewW = this.getViewWidth();
-        const textW = this.scrollText.width;
-        const left = this.getLeftEdge();
+        const textW = this.measureTextWidth();
 
         if (textW <= viewW) {
-            this.scrollText.x = left + (viewW - textW) / 2;
+            this.viewport.style.justifyContent = 'center';
         } else {
-            this.scrollText.x = left;
+            this.viewport.style.justifyContent = 'flex-start';
         }
     }
 
@@ -193,10 +222,12 @@ export class PickupToast implements GameComponent {
         this.isExiting = false;
         this.phase = 'static';
         this.ensureToast();
+        if (!this.root) return;
 
-        const y = Math.round(this.scene.scale.height * 0.975);
-        const x = this.scene.scale.width / 2;
-        this.container?.setPosition(x, y).setAlpha(1);
+        this.root.style.visibility = 'visible';
+        this.root.style.opacity = '1';
+        this.root.style.transition = 'none';
+        this.root.style.transform = 'translateX(-50%)';
 
         this.layoutStaticStart();
         this.staticTimer = window.setTimeout(() => this.beginScrollOrExit(), STATIC_HOLD_MS);
@@ -204,32 +235,38 @@ export class PickupToast implements GameComponent {
 
     private beginScrollOrExit(): void {
         this.staticTimer = undefined;
-        if (!this.scrollText || this.isExiting) return;
+        if (!this.messageEl || !this.viewport || !this.track || this.isExiting) return;
 
         const viewW = this.getViewWidth();
-        const textW = this.scrollText.width;
-        const left = this.getLeftEdge();
+        const textW = this.measureTextWidth();
 
         if (textW <= viewW) {
-            this.scrollText.x = left + (viewW - textW) / 2;
+            this.viewport.style.justifyContent = 'center';
+            this.resetTrackMotion();
             this.scheduleExit(EXIT_DELAY_MS);
             return;
         }
 
         this.phase = 'scroll';
-        this.scrollText.x = left;
+        this.viewport.style.justifyContent = 'flex-start';
         const overflow = textW - viewW;
         const duration = Math.max(MIN_SCROLL_MS, overflow * SCROLL_MS_PER_PX);
-        this.scrollTween = this.scene.tweens.add({
-            targets: this.scrollText,
-            x: left - overflow,
-            duration,
-            ease: 'Linear',
-            onComplete: () => {
-                this.scrollTween = undefined;
-                if (!this.isExiting) this.scheduleExit(EXIT_DELAY_MS);
-            },
-        });
+
+        this.killScrollTween();
+        this.track.style.transition = 'none';
+        this.track.style.transform = 'translateX(0)';
+        void this.track.offsetWidth;
+        this.track.style.transition = `transform ${duration}ms linear`;
+        this.track.style.transform = `translateX(-${overflow}px)`;
+
+        const onEnd = (): void => {
+            if (this.scrollEndHandler !== onEnd) return;
+            this.scrollEndHandler = undefined;
+            this.track?.removeEventListener('transitionend', onEnd);
+            if (!this.isExiting) this.scheduleExit(EXIT_DELAY_MS);
+        };
+        this.scrollEndHandler = onEnd;
+        this.track.addEventListener('transitionend', onEnd);
     }
 
     private scheduleExit(delayMs: number): void {
@@ -241,7 +278,7 @@ export class PickupToast implements GameComponent {
 
     private startExit(): void {
         this.exitTimer = undefined;
-        if (!this.container) {
+        if (!this.root) {
             this.labels = [];
             this.phase = 'idle';
             return;
@@ -249,38 +286,39 @@ export class PickupToast implements GameComponent {
         this.isExiting = true;
         this.phase = 'idle';
         this.killScrollTween();
-        const box = this.container;
-        this.scene.tweens.add({
-            targets: box,
-            x: box.x - EXIT_SLIDE_X_PX,
-            alpha: 0,
-            duration: EXIT_MS,
-            ease: 'Cubic.easeIn',
-            onComplete: () => {
-                this.destroyToast();
-                this.labels = [];
-                this.receivedKey = 'combat.pickup_received';
-                this.isExiting = false;
-            },
-        });
+
+        const root = this.root;
+        const onEnd = (e: TransitionEvent): void => {
+            if (e.target !== root || e.propertyName !== 'transform') return;
+            root.removeEventListener('transitionend', onEnd);
+            this.destroyToast();
+            this.labels = [];
+            this.receivedKey = 'combat.pickup_received';
+            this.isExiting = false;
+        };
+        root.style.transition = `transform ${EXIT_MS}ms cubic-bezier(0.55, 0.085, 0.68, 0.53), opacity ${EXIT_MS}ms ease-in`;
+        root.style.transform = `translateX(calc(-50% - ${EXIT_SLIDE_X_PX}px))`;
+        root.style.opacity = '0';
+        root.addEventListener('transitionend', onEnd);
     }
 
     private killScrollTween(): void {
-        if (this.scrollTween) {
-            this.scrollTween.stop();
-            this.scrollTween = undefined;
+        if (this.scrollEndHandler && this.track) {
+            this.track.removeEventListener('transitionend', this.scrollEndHandler);
+            this.scrollEndHandler = undefined;
         }
-        if (this.scrollText) {
-            this.scene.tweens.killTweensOf(this.scrollText);
+        if (this.track) {
+            this.track.style.transition = 'none';
         }
     }
 
     private destroyToast(): void {
         this.killScrollTween();
-        this.container?.destroy();
-        this.container = undefined;
-        this.scrollText = undefined;
-        this.maskGfx = undefined;
+        this.root?.remove();
+        this.root = undefined;
+        this.viewport = undefined;
+        this.track = undefined;
+        this.messageEl = undefined;
     }
 
     private clearTimers(): void {
@@ -296,9 +334,9 @@ export class PickupToast implements GameComponent {
             window.clearTimeout(this.exitTimer);
             this.exitTimer = undefined;
         }
-        if (this.container) {
-            this.scene.tweens.killTweensOf(this.container);
-        }
         this.killScrollTween();
+        if (this.root) {
+            this.root.style.transition = 'none';
+        }
     }
 }

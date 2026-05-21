@@ -71,7 +71,8 @@ export const MODAL_SIZES = {
  *  - modal: Inventory / Shop / Skill / Equipment / CharacterInfo (110)
  *  - blockingDialog: Settings / QuestLog / HoshiUpgrade (200)
  *  - cinematic: EndMvpOverlay / DeathMenu (250 — story-blocking)
- *  - confirm: ConfirmDialog (300 — luôn trên cùng)
+ *  - confirm: ConfirmDialog (300)
+ *  - toast: PickupToast DOM (350 — nhặt / mua shop, trên modal & confirm)
  */
 export const MODAL_Z_INDEX = {
     chat: 100,
@@ -82,6 +83,7 @@ export const MODAL_Z_INDEX = {
     blockingDialog: 200,
     cinematic: 250,
     confirm: 300,
+    toast: 350,
 } as const;
 
 export type ModalSize = keyof typeof MODAL_SIZES.width;
