@@ -61,7 +61,13 @@ export interface PortalConfig {
     /** Lệch theo trục y so với ground tại x. Âm = lên cao, dương = xuống. Mặc định 0. */
     offsetY?: number;
     label: string;
-    targetSceneKey: string;
+    /**
+     * Mock map link — ưu tiên hơn targetSceneKey; spawn map đích theo target_x.
+     * Khi có linkId, targetSceneKey có thể bỏ qua (derive từ registry).
+     */
+    linkId?: string;
+    /** Scene Phaser đích — dùng khi chưa có linkId (path chưa khai báo links). */
+    targetSceneKey?: string;
     /**
      * Cổng bị khoá — không cho dịch chuyển khi tương tác. Mặc định false.
      * Có thể được FE override sang false runtime nếu nhân vật có cờ

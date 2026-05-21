@@ -1,5 +1,7 @@
 import * as Phaser from 'phaser';
 import { t } from '../../i18n';
+import { getMapLink } from '../maps/mapLinks';
+import { mapIdForSceneKey } from '../maps/registry';
 import type { GameComponent, PortalConfig } from './types';
 import type { MapBackground } from './MapBackground';
 
@@ -86,7 +88,17 @@ export class Portal implements GameComponent {
 
     isLocked(): boolean { return this.locked; }
     getLockedMessage(): string | undefined { return this.config.lockedMessage; }
-    getTargetSceneKey(): string { return this.config.targetSceneKey; }
+
+    /** map_id đích — dùng gating unlocked_maps. */
+    getTargetMapId(): string | undefined {
+        if (this.config.linkId) {
+            return getMapLink(this.config.linkId)?.toMapId;
+        }
+        if (this.config.targetSceneKey) {
+            return mapIdForSceneKey(this.config.targetSceneKey);
+        }
+        return undefined;
+    }
 
     /** Override lockedMessage runtime — dùng khi gating thay đổi (vd map chưa unlock theo quest). */
     setLockedMessage(msg: string): void {

@@ -750,6 +750,7 @@ export const vi: TranslationTable = {
     'api.error.equip': 'Trang bị thất bại',
     'api.error.unequip': 'Tháo trang bị thất bại',
     'api.error.load_equipped': 'Không tải được danh sách trang bị',
+    'api.error.map_detail': 'Không tải được dữ liệu bản đồ',
     'api.error.load_npc': 'Không tải được NPC',
     'api.error.talk_npc': 'Nói chuyện thất bại',
     'api.error.load_quests': 'Không tải được nhiệm vụ',

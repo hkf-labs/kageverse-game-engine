@@ -52,7 +52,11 @@ export class VillageScene extends BaseMapScene {
                 lockedMessage: t('portal.locked.wind_school'),
             },
             { x: 3500, label: t('portal.label.to_ice_school'),  targetSceneKey: 'VillageToIce001Scene' },
-            { x: 6300, label: t('portal.label.to_fire_school'), targetSceneKey: 'VillageToFire001Scene' },
+            {
+                x: 6300,
+                label: t('portal.label.to_fire_school'),
+                linkId: 'village_001_to_village_to_fire_001',
+            },
         ];
     }
 

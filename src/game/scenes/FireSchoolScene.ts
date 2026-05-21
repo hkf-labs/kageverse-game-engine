@@ -44,7 +44,11 @@ export class FireSchoolScene extends BaseMapScene {
     protected getPortalConfigs(): PortalConfig[] {
         return [
             { x: 180, label: t('portal.label.return_bamboo'), targetSceneKey: 'FireToVillage004001Scene' },
-            { x: 750, label: t('portal.label.return'), targetSceneKey: 'VillageToFire002Scene' },
+            {
+                x: 750,
+                label: t('portal.label.return'),
+                linkId: 'fire_school_001_to_village_to_fire_002',
+            },
         ];
     }
 

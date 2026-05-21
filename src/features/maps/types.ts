@@ -26,8 +26,11 @@ export type MapDetail = {
     links: Array<{
         linkId: string;
         targetMapId: string;
+        portalPoint?: Vec2;
         entryPoint: Vec2;
         linkType: 'portal' | 'gate' | 'door' | 'teleport' | string;
+        requiredLevel?: number;
+        requiredQuest?: string | null;
         unlockCondition: string | null;
     }>;
     rules: {
