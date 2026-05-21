@@ -45,6 +45,7 @@ type AnimName = 'idle' | 'run' | 'attack' | 'skill' | 'die' | 'win';
 export class PlayerController implements GameComponent {
     private player?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private playerNameText?: Phaser.GameObjects.Text;
+    private autoAttackLabel?: Phaser.GameObjects.Text;
     private spineImage?: Phaser.GameObjects.Image;
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private virtualInputs = { left: false, right: false, up: false };
@@ -101,6 +102,18 @@ export class PlayerController implements GameComponent {
             },
         ).setOrigin(0.5).setDepth(11);
 
+        this.autoAttackLabel = this.scene.add.text(
+            this.player!.x, this.player!.y,
+            '⚔ Tự đánh',
+            {
+                fontSize: '12px', color: '#bdf0a0',
+                fontFamily: 'system-ui, sans-serif',
+                stroke: '#000', strokeThickness: 3,
+                backgroundColor: '#00000066',
+                padding: { left: 5, right: 5, top: 2, bottom: 2 },
+            },
+        ).setOrigin(0.5).setDepth(11).setVisible(false);
+
         this.scene.physics.add.collider(this.player!, this.background.getPlatforms());
 
         const width = this.scene.scale.width;
@@ -149,7 +162,9 @@ export class PlayerController implements GameComponent {
         if (this.playerNameText) {
             const charHeightWorld = CHAR_HEIGHT_IN_CANVAS * IMAGE_SCALE;
             const feetWorldY = this.player.y + SPINE_FOOT_OFFSET_Y;
-            this.playerNameText.setPosition(this.player.x, feetWorldY - charHeightWorld - 20);
+            const nameY = feetWorldY - charHeightWorld - 20;
+            this.playerNameText.setPosition(this.player.x, nameY);
+            this.autoAttackLabel?.setPosition(this.player.x, nameY - 20);
         }
 
         this._updateAnimState();
@@ -163,6 +178,8 @@ export class PlayerController implements GameComponent {
         this.spineLoaded = false;
         this.spineImage?.destroy();
         this.spineImage = undefined;
+        this.autoAttackLabel?.destroy();
+        this.autoAttackLabel = undefined;
         // Remove the CanvasTexture so re-entering the scene doesn't hit a duplicate key.
         if (this.scene.textures.exists(SPINE_TEX_KEY)) {
             this.scene.textures.remove(SPINE_TEX_KEY);
@@ -191,6 +208,12 @@ export class PlayerController implements GameComponent {
         this.spineImage?.setVisible(visible);
         const hitboxRect = this.player as unknown as Phaser.GameObjects.Rectangle | undefined;
         hitboxRect?.setVisible(visible);
+        // autoAttackLabel chỉ hiện khi visible=true VÀ đang ở trạng thái tự đánh.
+        if (!visible) this.autoAttackLabel?.setVisible(false);
+    }
+
+    setAutoAttackLabel(enabled: boolean): void {
+        this.autoAttackLabel?.setVisible(enabled);
     }
 
     /** Trigger a one-shot animation (attack, skill, die, win). Returns to idle after. */

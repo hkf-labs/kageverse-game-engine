@@ -1906,6 +1906,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     private setAutoAttack(enabled: boolean, statusMsg?: string): void {
         this.autoAttackEnabled = enabled;
+        this.playerCtrl?.setAutoAttackLabel(enabled);
         if (statusMsg) this.hud.setStatus(statusMsg, enabled ? '#bdf0a0' : '#aaa');
     }
 
