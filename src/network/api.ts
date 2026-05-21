@@ -400,6 +400,35 @@ export type FoodBuffStartedDTO = {
     previous_buff_overridden: string | null;
 };
 
+export type TeleportCharmDestinationDTO = {
+    map_id: string;
+    display_name_key: string;
+    category: string;
+    is_unlocked: boolean;
+};
+
+export type TeleportCharmCategoryDTO = {
+    category: string;
+    label_key: string;
+    destinations: TeleportCharmDestinationDTO[];
+};
+
+export type TeleportCharmMenuDTO = {
+    categories: TeleportCharmCategoryDTO[];
+};
+
+export type TeleportCompletedDTO = {
+    map_id: string;
+    display_name_key: string;
+    category: string;
+};
+
+/** Payload tuỳ chọn khi POST /inventory/use (hiện: Bùa Dịch Chuyển bước 2). */
+export type UseItemParams = {
+    type: 'teleport_hub_map';
+    map_id: string;
+};
+
 export type UseInventoryEffects = {
     hp_delta?: number;
     mp_delta?: number;
@@ -409,6 +438,10 @@ export type UseInventoryEffects = {
      * công. actions liệt kê grant_skill action với skill_id mới học. FE trigger
      * animation + auto-assign vào skill hotbar slot trống. */
     skill_learned?: SkillLearnedEffect;
+    /** Bùa Dịch Chuyển — bước 1: mở menu Làng / Trường (chưa tiêu Bùa). */
+    teleport_charm_menu?: TeleportCharmMenuDTO;
+    /** Bùa Dịch Chuyển — bước 2: đã tiêu Bùa, FE chuyển scene tới map_id. */
+    teleport_completed?: TeleportCompletedDTO;
 };
 
 export type SkillLearnedEffect = {
@@ -445,11 +478,18 @@ export const inventoryAPI = {
         return resData as ListInventoryResponse;
     },
 
-    async use(characterId: string, userItemId: string, amount = 1): Promise<UseInventoryResponse> {
+    async use(
+        characterId: string,
+        userItemId: string,
+        amount = 1,
+        params?: UseItemParams,
+    ): Promise<UseInventoryResponse> {
+        const body: Record<string, unknown> = { user_item_id: userItemId, amount };
+        if (params) body.params = params;
         const { response, traceId } = await authFetch(`/characters/${encodeURIComponent(characterId)}/inventory/use`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_item_id: userItemId, amount }),
+            body: JSON.stringify(body),
         });
         const resData = await parseJsonSafe(response);
         if (!response.ok) {

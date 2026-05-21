@@ -6,10 +6,13 @@ import {
     type FoodBuffStartedDTO,
     type InventoryItemDTO,
     type InventoryItemType,
+    type TeleportCharmMenuDTO,
 } from '../../../network/api';
 import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
+import type { ActionMenu, ActionMenuItem } from '../ActionMenu';
+import { mapDisplayName } from '../../maps/registry';
 import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
@@ -76,6 +79,7 @@ const SUBTYPE_ICON: Record<string, string> = {
     hp_potion: '🍙',
     mp_potion: '🍵',
     food_buff: '🍜',
+    teleport_charm: '✨',
 };
 
 const DEFAULT_BG: Record<InventoryItemType, string> = {
@@ -171,6 +175,9 @@ export class InventoryModal extends BaseModal {
     private onEquipmentChanged?: () => void;
     private onItemUsed?: () => void;
     private onSkillLearned?: (skillIDs: string[]) => void;
+    private actionMenu?: ActionMenu;
+    private onStatusMessage?: (text: string, color: string) => void;
+    private onTeleportToMap?: (mapId: string) => void;
 
     constructor(
         scene: Phaser.Scene,
@@ -183,6 +190,9 @@ export class InventoryModal extends BaseModal {
              * vừa được grant. Scene auto-assign vào hotbar empty slot + show
              * animation banner. */
             onSkillLearned?: (skillIDs: string[]) => void;
+            actionMenu?: ActionMenu;
+            onStatusMessage?: (text: string, color: string) => void;
+            onTeleportToMap?: (mapId: string) => void;
         },
     ) {
         super(scene);
@@ -191,6 +201,9 @@ export class InventoryModal extends BaseModal {
         this.onEquipmentChanged = callbacks?.onEquipmentChanged;
         this.onItemUsed = callbacks?.onItemUsed;
         this.onSkillLearned = callbacks?.onSkillLearned;
+        this.actionMenu = callbacks?.actionMenu;
+        this.onStatusMessage = callbacks?.onStatusMessage;
+        this.onTeleportToMap = callbacks?.onTeleportToMap;
     }
 
     protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
@@ -923,6 +936,11 @@ export class InventoryModal extends BaseModal {
         const character = getCurrentCharacter();
         if (!character) return;
 
+        if (item.subType === 'teleport_charm') {
+            await this.handleTeleportCharmUse(item.userItemId);
+            return;
+        }
+
         this.actionInFlight = true;
         this.renderActionBar();
         try {
@@ -952,6 +970,91 @@ export class InventoryModal extends BaseModal {
             this.renderDetail();
         } finally {
             this.actionInFlight = false;
+        }
+    }
+
+    private async handleTeleportCharmUse(userItemId: string): Promise<void> {
+        const character = getCurrentCharacter();
+        if (!character || !this.actionMenu) return;
+
+        this.actionInFlight = true;
+        this.renderActionBar();
+        try {
+            const res = await inventoryAPI.use(character.id, userItemId, 1);
+            const menu = res.effects?.teleport_charm_menu;
+            if (!menu?.categories?.length) {
+                this.errorMessage = t('inventory.teleport.menu_empty');
+                this.renderDetail();
+                return;
+            }
+            if (this.visible) this.toggle();
+            this.openTeleportCategoryMenu(menu, userItemId);
+        } catch (err) {
+            this.errorMessage = err instanceof Error ? err.message : t('inventory.error_use');
+            this.renderDetail();
+        } finally {
+            this.actionInFlight = false;
+            this.renderActionBar();
+        }
+    }
+
+    private openTeleportCategoryMenu(menu: TeleportCharmMenuDTO, userItemId: string): void {
+        if (!this.actionMenu) return;
+        const items: ActionMenuItem[] = menu.categories.map((cat) => ({
+            key: `tp_cat_${cat.category}`,
+            label: t(cat.label_key),
+            icon: cat.category === 'village' ? '🏘️' : '🏫',
+            action: () => this.openTeleportDestinationMenu(cat.destinations, userItemId),
+        }));
+        items.push({ key: 'cancel', label: t('inventory.teleport.cancel'), icon: '↩️', action: () => {} });
+        this.actionMenu.open({
+            title: t('inventory.teleport.title'),
+            items,
+        });
+    }
+
+    private openTeleportDestinationMenu(
+        destinations: TeleportCharmMenuDTO['categories'][0]['destinations'],
+        userItemId: string,
+    ): void {
+        if (!this.actionMenu) return;
+        const items: ActionMenuItem[] = destinations.map((d) => ({
+            key: `tp_dest_${d.map_id}`,
+            label: mapDisplayName(d.map_id),
+            icon: '🗺️',
+            action: () => void this.confirmTeleportCharm(userItemId, d.map_id, d.is_unlocked),
+        }));
+        items.push({ key: 'cancel', label: t('inventory.teleport.cancel'), icon: '↩️', action: () => {} });
+        this.actionMenu.open({
+            title: t('inventory.teleport.pick_destination'),
+            items,
+        });
+    }
+
+    private async confirmTeleportCharm(
+        userItemId: string,
+        mapId: string,
+        isUnlocked: boolean,
+    ): Promise<void> {
+        if (!isUnlocked) {
+            this.onStatusMessage?.(t('inventory.teleport.map_locked'), '#ffd070');
+            return;
+        }
+        const character = getCurrentCharacter();
+        if (!character) return;
+        try {
+            const res = await inventoryAPI.use(character.id, userItemId, 1, {
+                type: 'teleport_hub_map',
+                map_id: mapId,
+            });
+            const completed = res.effects?.teleport_completed;
+            const targetMapId = completed?.map_id ?? mapId;
+            await this.loadInventory();
+            this.onItemUsed?.();
+            this.onTeleportToMap?.(targetMapId);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : t('inventory.error_use');
+            this.onStatusMessage?.(msg, '#ff8888');
         }
     }
 

@@ -10,6 +10,7 @@ import {
 } from '../components';
 import type { KeyboardModalHandler, SoftKeySlot } from '../components/modals/softKeys';
 import { LOOT_PICKUP_RANGE_RAW_PX } from '../../network/lootDrop';
+import { resolveSceneKeyForMap } from '../maps/registry';
 import { resolveSpawnOnMap, spawnFromSceneInit, type MapSceneInitData, type MapSpawnPoint } from '../spawn';
 import {
     REMOTE_PLAYER_SELECT_RANGE_PX,
@@ -437,6 +438,11 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
         // Inventory modal (HTML DOM overlay) — callback HUD + buff indicator khi dùng item.
         this.inventory = new InventoryModal(this, {
+            actionMenu: this.actionMenu,
+            onStatusMessage: (text, color) => this.hud.setStatus(text, color),
+            onTeleportToMap: (mapId) => {
+                this.scene.start(resolveSceneKeyForMap(mapId));
+            },
             onStatsChanged: (stats) => {
                 this.hud.setStats({
                     current_hp: stats.current_hp,
