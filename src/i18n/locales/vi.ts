@@ -967,6 +967,7 @@ export const vi: TranslationTable = {
     'shop.error_no_payment': 'Chưa chọn loại thanh toán.',
     'shop.processing': 'Đang xử lý...',
     'shop.bought': 'Đã mua {amount} {name}. Còn lại {icon} {balance}.',
+    'shop.purchase_received': 'Bạn đã mua {items}',
     'shop.error_buy': 'Mua hàng thất bại',
 
     // Equipment modal

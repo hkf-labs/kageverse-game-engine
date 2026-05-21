@@ -956,6 +956,7 @@ export const en: TranslationTable = {
     'shop.error_no_payment': 'No payment method picked.',
     'shop.processing': 'Processing...',
     'shop.bought': 'Bought {amount} {name}. Remaining {icon} {balance}.',
+    'shop.purchase_received': 'You bought {items}',
     'shop.error_buy': 'Failed to buy',
 
     // Equipment modal

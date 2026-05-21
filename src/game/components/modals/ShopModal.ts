@@ -132,10 +132,16 @@ export class ShopModal extends BaseModal {
      * gọi shopAPI.buy. Nếu không inject (vd ShopModal tách độc lập), handleBuy
      * sẽ mua thẳng không cần confirm. */
     private confirmDialog?: ConfirmDialog;
+    /** Toast dưới màn hình (PickupToast) sau mua thành công. */
+    private onItemPurchased?: (nameKey: string, qty: number) => void;
 
-    constructor(scene: Phaser.Scene, deps?: { confirmDialog?: ConfirmDialog }) {
+    constructor(scene: Phaser.Scene, deps?: {
+        confirmDialog?: ConfirmDialog;
+        onItemPurchased?: (nameKey: string, qty: number) => void;
+    }) {
         super(scene);
         this.confirmDialog = deps?.confirmDialog;
+        this.onItemPurchased = deps?.onItemPurchased;
     }
 
     protected buildShellOptions(): Omit<ModalShellOptions, 'scene'> {
@@ -1043,6 +1049,7 @@ export class ShopModal extends BaseModal {
                 }),
                 'ok',
             );
+            this.onItemPurchased?.(item.name_key, qty);
             // Sync lại 3 loại tiền (đề phòng tickets / quest cùng lúc).
             void this.loadWallet();
             // Đóng popup Mua sau khi mua thành công.

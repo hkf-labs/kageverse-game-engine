@@ -212,10 +212,14 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.confirmDialog = new ConfirmDialog(this);
         this.confirmDialog.create();
 
+        this.pickupToast = new PickupToast(this);
+        this.pickupToast.create();
+
         // Shop modal — phải tạo trước NpcManager để NPC dialog gọi được.
-        // ConfirmDialog wired để hiển thị "Mua sẽ trừ {total} {icon}" trước
-        // khi gọi API.
-        this.shop = new ShopModal(this, { confirmDialog: this.confirmDialog });
+        this.shop = new ShopModal(this, {
+            confirmDialog: this.confirmDialog,
+            onItemPurchased: (nameKey, qty) => this.pickupToast.notifyShopItem(nameKey, qty),
+        });
         this.shop.create();
 
         // Bong bóng thoại NPC (typewriter)
@@ -324,9 +328,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // hoặc boss chết.
         this.bossHPBar = new BossHPBar(this);
         this.bossHPBar.create();
-
-        this.pickupToast = new PickupToast(this);
-        this.pickupToast.create();
 
         // Loot drops (Yên + items) — render trên mặt đất, detect overlap để nhặt.
         // Khởi tạo trước MonsterManager để hook onAttackResult / onDropsSync.

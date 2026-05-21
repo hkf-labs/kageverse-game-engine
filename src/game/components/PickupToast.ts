@@ -45,6 +45,8 @@ function yenPickupLabel(amount: number): string {
 export class PickupToast implements GameComponent {
     private scene: Phaser.Scene;
     private labels: string[] = [];
+    /** i18n key cho dòng prefix (nhặt vs mua shop). */
+    private receivedKey = 'combat.pickup_received';
     private container?: Phaser.GameObjects.Container;
     private scrollText?: Phaser.GameObjects.Text;
     private maskGfx?: Phaser.GameObjects.Graphics;
@@ -70,21 +72,30 @@ export class PickupToast implements GameComponent {
         this.clearTimers();
         this.destroyToast();
         this.labels = [];
+        this.receivedKey = 'combat.pickup_received';
         this.phase = 'idle';
         this.isExiting = false;
     }
 
     notifyItem(templateId: string, qty = 1): void {
         if (!templateId || qty <= 0) return;
-        this.enqueuePickup(itemPickupLabel(templateId, qty));
+        this.enqueuePickup(itemPickupLabel(templateId, qty), 'combat.pickup_received');
+    }
+
+    /** Mua tại NPC shop — dùng name_key từ listing (vd item.consumable.teleport_charm). */
+    notifyShopItem(nameKey: string, qty = 1): void {
+        if (!nameKey || qty <= 0) return;
+        const name = t(nameKey);
+        const label = qty > 1 ? `${name} ×${qty}` : name;
+        this.enqueuePickup(label, 'shop.purchase_received');
     }
 
     notifyYen(amount: number): void {
         if (amount <= 0) return;
-        this.enqueuePickup(yenPickupLabel(amount));
+        this.enqueuePickup(yenPickupLabel(amount), 'combat.pickup_received');
     }
 
-    private enqueuePickup(label: string): void {
+    private enqueuePickup(label: string, receivedKey: string): void {
         if (this.container && !this.isExiting && this.phase !== 'idle') {
             this.labels.push(label);
             this.updateMessageOnly();
@@ -92,6 +103,9 @@ export class PickupToast implements GameComponent {
         }
 
         this.labels.push(label);
+        if (this.phase === 'idle' && !this.isExiting) {
+            this.receivedKey = receivedKey;
+        }
         if (this.batchTimer !== undefined) {
             window.clearTimeout(this.batchTimer);
         }
@@ -105,7 +119,7 @@ export class PickupToast implements GameComponent {
     }
 
     private buildMessage(): string {
-        return t('combat.pickup_received', { items: this.labels.join(', ') });
+        return t(this.receivedKey, { items: this.labels.join(', ') });
     }
 
     private getViewWidth(): number {
@@ -245,6 +259,7 @@ export class PickupToast implements GameComponent {
             onComplete: () => {
                 this.destroyToast();
                 this.labels = [];
+                this.receivedKey = 'combat.pickup_received';
                 this.isExiting = false;
             },
         });
