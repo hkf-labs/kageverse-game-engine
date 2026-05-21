@@ -14,6 +14,7 @@ import { BaseModal } from './BaseModal';
 import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ConfirmDialog } from './ConfirmDialog';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 
 // Grid 6-cột (kích thước cell match InventoryModal — 56×56, gap 6px). Width
@@ -63,6 +64,7 @@ const SUBTYPE_ICON: Record<string, string> = {
     hp_potion: '🍙',
     mp_potion: '🍵',
     food_buff: '🍜',
+    teleport_charm: '✨',
 };
 
 interface OpenParams {
@@ -410,9 +412,12 @@ export class ShopModal extends BaseModal {
             const isSelected = item && this.selectedIdx === i;
             const borderColor = item ? TYPE_BORDER[item.item_type] : '#3a2a1a';
             const bgColor = item ? DEFAULT_BG[item.item_type] : 'rgba(20,12,4,0.6)';
-            const icon = item
+            const iconText = item
                 ? ((item.sub_type && SUBTYPE_ICON[item.sub_type]) || DEFAULT_ICON[item.item_type])
                 : '';
+            const iconUrl = item
+                ? resolveItemIconUrl(item.sprite_key, item.item_template_id)
+                : null;
 
             // Cell 56×56 — match InventoryModal grid. Item hiển thị icon; tên +
             // giá + currency xem ở sub-modal Xem (click Xem trên action bar).
@@ -433,7 +438,7 @@ export class ShopModal extends BaseModal {
             });
             if (item) {
                 cell.title = t(item.name_key);
-                cell.innerHTML = `<div style="font-size:24px;line-height:1;">${icon}</div>`;
+                cell.innerHTML = inventorySlotIconHtml(iconUrl, iconText);
                 cell.addEventListener('click', () => this.selectListing(i));
                 cell.addEventListener('mouseenter', () => {
                     if (this.selectedIdx !== i) cell.style.borderColor = '#ffd070';
