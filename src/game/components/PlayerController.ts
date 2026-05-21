@@ -11,6 +11,7 @@ import {
 } from '@esotericsoftware/spine-canvas';
 import { getCurrentCharacter, saveCurrentCharacter } from '../playerSession';
 import { charactersAPI } from '../../network/api';
+import { applyPhysicsDebugToBody } from '../mapCoordinateDebug';
 import type { MapSpawnPoint } from '../spawn';
 import type { GameComponent } from './types';
 import type { MapBackground } from './MapBackground';
@@ -86,7 +87,7 @@ export class PlayerController implements GameComponent {
         if (this.player?.body) {
             this.player.body.setCollideWorldBounds(true);
             this.player.body.setBounce(0);
-            this.player.body.debugShowBody = false;
+            applyPhysicsDebugToBody(this.player.body);
         }
 
         const displayName = getCurrentCharacter()?.displayName || 'Ninja';

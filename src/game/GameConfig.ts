@@ -26,6 +26,9 @@ import { MahoragaBossScene } from './scenes/MahoragaBossScene';
 const DESIGN_WIDTH = 1280;
 const DESIGN_HEIGHT = 720;
 
+const PHYSICS_DEBUG = import.meta.env.VITE_GAME_DEBUG === 'true'
+    || import.meta.env.VITE_GAME_DEBUG === '1';
+
 export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
     return {
         type: Phaser.AUTO,
@@ -53,7 +56,7 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
             default: 'arcade',
             arcade: {
                 gravity: { x: 0, y: 0 },
-                debug: false // HIỂN THỊ VIỀN TÍM CỦA HITBOX — bật khi cần debug platform
+                debug: PHYSICS_DEBUG // viền tím hitbox + platform collider — VITE_GAME_DEBUG=true
             }
         },
         scene: [

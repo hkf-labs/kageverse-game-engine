@@ -31,6 +31,7 @@ import {
     type WorldTargetCandidate,
     type WorldTargetKind,
 } from '../worldTarget';
+import { isMapDebugEnabled, MapCoordinateDebug } from '../mapCoordinateDebug';
 
 export abstract class BaseMapScene extends Phaser.Scene {
     protected background!: MapBackground;
@@ -117,6 +118,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     private sceneInitSpawn: MapSpawnPoint | null = null;
     /** link_id từ cổng vừa đi qua (BE map_links). */
     private sceneInitLinkId: string | null = null;
+    private coordDebug?: MapCoordinateDebug;
 
     constructor(sceneKey: string) {
         super(sceneKey);
@@ -243,6 +245,18 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Background & platforms
         this.background = new MapBackground(this, cfg);
         this.background.create();
+
+        if (isMapDebugEnabled()) {
+            this.coordDebug = new MapCoordinateDebug(
+                this,
+                () => this.getMapConfig(),
+                () => this.playerCtrl?.getPlayer(),
+            );
+            this.coordDebug.create(
+                this.background.getWorldWidth(),
+                this.background.getBgHeight(),
+            );
+        }
 
         // Player — spawn từ Auth; link spawn áp sau loadMapDetail (BE).
         this.playerCtrl = new PlayerController(this, this.background);
@@ -604,6 +618,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // tích tụ qua mỗi lần chuyển map. Phaser tự cleanup GameObjects nhưng
         // <div> append vào canvas parent thì phải tự xoá.
         this.events.once('shutdown', () => {
+            this.coordDebug?.destroy();
+            this.coordDebug = undefined;
             this.teardownRealtimeListeners();
             this.playerCtrl?.destroy();
             this.questTracker?.destroy();
@@ -905,6 +921,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             let mapDetail: Awaited<ReturnType<typeof loadMapDetail>> | null = null;
             try {
                 mapDetail = await loadMapDetail(cfg.mapId);
+                this.coordDebug?.setMapBusinessHeight(mapDetail.size.height);
                 this.hydratePortalsFromMapDetail(mapDetail.links);
             } catch (err) {
                 console.warn('map: load detail failed', err instanceof Error ? err.message : err);
@@ -915,8 +932,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     this.sceneInitLinkId,
                     cfg.mapId,
                     mapDetail,
-                    cfg.tiledOriginalHeight,
                     this.scale.height,
+                    mapDetail.size.height,
                     (renderX) => this.background.getPlatformYAtX(renderX),
                 );
                 if (linkSpawn) {
@@ -1162,6 +1179,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
     }
 
     update(): void {
+        this.coordDebug?.update();
+
         const player = this.playerCtrl.getPlayer();
         const cursors = this.playerCtrl.getCursors();
         if (!player || !cursors) return;
