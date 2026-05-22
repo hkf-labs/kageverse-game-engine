@@ -22,6 +22,7 @@ const FACTION_ICON: Record<string, string> = {
 interface SlotView {
     container: Phaser.GameObjects.Container;
     bg: Phaser.GameObjects.Image;
+    selectRing: Phaser.GameObjects.Graphics;
     iconImage: Phaser.GameObjects.Image;
     iconText: Phaser.GameObjects.Text;
     keyLabel: Phaser.GameObjects.Text;
@@ -37,7 +38,9 @@ export class SkillHotbar implements GameComponent {
     private slots: SlotView[] = [];
     private skillsByID: Map<string, SkillDTO> = new Map();
     private boundSlots: (string | null)[] = [null, null, null, null, null];
+    private selectedSlotIndex: number | null = null;
     private onSlotPressed?: (slotIdx: number, skillID: string) => void;
+    private onPrimaryChanged?: (skillID: string | null) => void;
     private keyHandlers: Phaser.Input.Keyboard.Key[] = [];
     private classLocked = true;
     private externallyVisible = true;
@@ -49,6 +52,25 @@ export class SkillHotbar implements GameComponent {
 
     setOnSlotPressed(cb: (slotIdx: number, skillID: string) => void): void {
         this.onSlotPressed = cb;
+    }
+
+    /** Skill chính gắn nút tấn công — đổi khi chọn ô hotbar. */
+    setOnPrimaryChanged(cb: (skillID: string | null) => void): void {
+        this.onPrimaryChanged = cb;
+    }
+
+    getPrimarySkillID(): string | null {
+        if (this.selectedSlotIndex === null) return null;
+        return this.boundSlots[this.selectedSlotIndex] ?? null;
+    }
+
+    /** Skill dùng cho combat swing — chỉ active_attack; buff/passive → basic swing. */
+    getPrimaryAttackSkillID(): string | null {
+        const id = this.getPrimarySkillID();
+        if (!id) return null;
+        const s = this.skillsByID.get(id);
+        if (s?.skill_type === 'active_attack') return id;
+        return null;
     }
 
     create(): void {
@@ -83,6 +105,7 @@ export class SkillHotbar implements GameComponent {
             const slotX = i * (SLOT_SIZE + SLOT_GAP) + SLOT_SIZE / 2;
             const cell = this.scene.add.container(slotX, 0);
             const bg = this.scene.add.image(0, 0, TEX_KEY_EMPTY).setDisplaySize(SLOT_SIZE, SLOT_SIZE);
+            const selectRing = this.scene.add.graphics();
             const iconImage = this.scene.add.image(0, 0, TEX_KEY_EMPTY)
                 .setDisplaySize(SLOT_SIZE - 6, SLOT_SIZE - 6)
                 .setVisible(false);
@@ -98,9 +121,18 @@ export class SkillHotbar implements GameComponent {
                 fontSize: '11px', fontStyle: 'bold', color: '#bdf0a0',
                 fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
             }).setOrigin(1, 1);
-            cell.add([bg, iconImage, iconText, keyLabel, levelLabel]);
+            cell.add([bg, selectRing, iconImage, iconText, keyLabel, levelLabel]);
+            cell.setSize(SLOT_SIZE, SLOT_SIZE);
+            cell.setInteractive(
+                new Phaser.Geom.Rectangle(-SLOT_SIZE / 2, -SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE),
+                Phaser.Geom.Rectangle.Contains,
+            );
+            cell.on('pointerdown', () => this.handleSlotTapped(i));
             this.container.add(cell);
-            this.slots.push({ container: cell, bg, iconImage, iconText, keyLabel, levelLabel });
+            this.slots.push({
+                container: cell, bg, iconImage, iconText, keyLabel, levelLabel,
+                selectRing,
+            });
         }
 
         void this.refresh();
@@ -117,6 +149,7 @@ export class SkillHotbar implements GameComponent {
             this.skillsByID.clear();
             for (const s of res.skills) this.skillsByID.set(s.skill_id, s);
             this.boundSlots = res.skill_slots.slice(0, SLOT_COUNT) as (string | null)[];
+            this.ensureValidPrimarySelection();
             this.repaint();
             void this.loadBoundSkillIcons();
         } catch (err) {
@@ -126,6 +159,7 @@ export class SkillHotbar implements GameComponent {
 
     setSlots(slots: (string | null)[]): void {
         this.boundSlots = slots.slice(0, SLOT_COUNT) as (string | null)[];
+        this.ensureValidPrimarySelection();
         this.repaint();
         void this.loadBoundSkillIcons();
     }
@@ -157,10 +191,50 @@ export class SkillHotbar implements GameComponent {
         this.container.setPosition(this.scene.scale.width / 2 - totalWidth / 2, this.scene.scale.height - 70);
     }
 
-    private handleSlotPressed(slotIdx: number): void {
+    private handleSlotTapped(slotIdx: number): void {
         const skillID = this.boundSlots[slotIdx];
-        if (!skillID || !this.onSlotPressed) return;
-        this.onSlotPressed(slotIdx, skillID);
+        if (!skillID) {
+            this.selectPrimarySlot(null);
+            return;
+        }
+        this.selectPrimarySlot(slotIdx);
+        const s = this.skillsByID.get(skillID);
+        if (s?.skill_type === 'active_buff' && this.onSlotPressed) {
+            this.onSlotPressed(slotIdx, skillID);
+        }
+    }
+
+    private handleSlotPressed(slotIdx: number): void {
+        this.handleSlotTapped(slotIdx);
+    }
+
+    private selectPrimarySlot(slotIdx: number | null): void {
+        this.selectedSlotIndex = slotIdx;
+        this.repaintSelection();
+        this.onPrimaryChanged?.(this.getPrimarySkillID());
+    }
+
+    /** Bỏ chọn nếu ô đang chọn bị gỡ skill — không tự chọn ô khác. */
+    private ensureValidPrimarySelection(): void {
+        if (
+            this.selectedSlotIndex !== null
+            && !this.boundSlots[this.selectedSlotIndex]
+        ) {
+            this.selectedSlotIndex = null;
+        }
+        this.onPrimaryChanged?.(this.getPrimarySkillID());
+    }
+
+    private repaintSelection(): void {
+        for (let i = 0; i < SLOT_COUNT; i++) {
+            const slot = this.slots[i];
+            if (!slot) continue;
+            const g = slot.selectRing;
+            g.clear();
+            if (this.selectedSlotIndex !== i) continue;
+            g.lineStyle(3, 0xffea7a, 1);
+            g.strokeRoundedRect(-SLOT_SIZE / 2 + 2, -SLOT_SIZE / 2 + 2, SLOT_SIZE - 4, SLOT_SIZE - 4, 6);
+        }
     }
 
     /** Nạp texture qua HTMLImageElement — ổn định hơn LoaderPlugin sau create(). */
@@ -170,9 +244,11 @@ export class SkillHotbar implements GameComponent {
         await Promise.all(ids.map((id) => ensureSkillIconTexture(this.scene, id)));
         if (gen !== this.iconLoadGeneration) return;
         this.repaint();
+        this.onPrimaryChanged?.(this.getPrimarySkillID());
     }
 
     private repaint(): void {
+        this.repaintSelection();
         for (let i = 0; i < SLOT_COUNT; i++) {
             const slot = this.slots[i];
             if (!slot) continue;

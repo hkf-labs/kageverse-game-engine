@@ -1,5 +1,9 @@
 import * as Phaser from 'phaser';
+import { ensureSkillIconTexture, skillTextureKey } from '../skillIcon';
 import type { GameComponent } from './types';
+
+const ATTACK_BTN_SCALE = 0.7;
+const ATTACK_SKILL_ICON_SIZE = 44;
 
 interface DirBtnEntry {
     g: Phaser.GameObjects.Graphics;
@@ -42,6 +46,10 @@ export class GameControls implements GameComponent {
     private virtualInputs = { left: false, right: false, up: false };
     private dirBtns: DirBtnEntry[] = [];
     private attackBtn?: Phaser.GameObjects.Image;
+    private attackSkillIcon?: Phaser.GameObjects.Image;
+    private attackSkillLoadGen = 0;
+    private attackSkillShowing = false;
+    private controlsVisible = true;
     private satBtns: SatBtnEntry[] = [];
     private switchTargetBtn?: { bg: Phaser.GameObjects.Arc; txt: Phaser.GameObjects.Text };
     private scene: Phaser.Scene;
@@ -74,12 +82,24 @@ export class GameControls implements GameComponent {
 
         // Attack button — right-anchored. Position recomputed in layout().
         const attackBtn = this.scene.add.image(0, 0, 'btn_attack')
-            .setScrollFactor(0).setDepth(100).setScale(0.7)
+            .setScrollFactor(0).setDepth(100).setScale(ATTACK_BTN_SCALE)
             .setInteractive({ useHandCursor: true });
-        attackBtn.on('pointerdown', () => { attackBtn.setScale(0.66); this.callbacks.onInteract(); });
-        attackBtn.on('pointerup', () => attackBtn.setScale(0.7));
-        attackBtn.on('pointerout', () => attackBtn.setScale(0.7));
+        attackBtn.on('pointerdown', () => {
+            attackBtn.setScale(ATTACK_BTN_SCALE * 0.94);
+            this.attackSkillIcon?.setScale((ATTACK_SKILL_ICON_SIZE / 64) * 0.94);
+            this.callbacks.onInteract();
+        });
+        const releaseAttackScale = () => {
+            attackBtn.setScale(ATTACK_BTN_SCALE);
+            this.syncAttackSkillIconScale();
+        };
+        attackBtn.on('pointerup', releaseAttackScale);
+        attackBtn.on('pointerout', releaseAttackScale);
         this.attackBtn = attackBtn;
+
+        this.attackSkillIcon = this.scene.add.image(0, 0, 'btn_attack')
+            .setScrollFactor(0).setDepth(99)
+            .setVisible(false);
 
         const makeSatBtn = (angleDeg: number, fillColor: number, label: string, labelColor: string, onClick: () => void) => {
             const bg = this.scene.add.circle(0, 0, SAT_RADIUS, fillColor, 0.92)
@@ -108,6 +128,7 @@ export class GameControls implements GameComponent {
         this.switchTargetBtn = { bg: swEntry.bg, txt: swEntry.txt };
 
         this.layout();
+        this.syncAttackSkillIconScale();
         this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
         this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
@@ -128,6 +149,7 @@ export class GameControls implements GameComponent {
         const attackX = this.scene.scale.width - ATTACK_RIGHT_OFFSET;
         const attackY = this.scene.scale.height - ATTACK_BOTTOM_OFFSET;
         this.attackBtn?.setPosition(attackX, attackY);
+        this.attackSkillIcon?.setPosition(attackX, attackY);
 
         for (const sat of this.satBtns) {
             const rad = Phaser.Math.DegToRad(sat.angleDeg);
@@ -136,6 +158,35 @@ export class GameControls implements GameComponent {
             sat.bg.setPosition(x, y);
             sat.txt.setPosition(x, y);
         }
+    }
+
+    /** Icon skill chính trong vòng nút tấn công; `null` → chỉ khung trống. */
+    setPrimaryAttackSkill(skillID: string | null): void {
+        const gen = ++this.attackSkillLoadGen;
+        if (!skillID) {
+            this.attackSkillShowing = false;
+            this.attackSkillIcon?.setVisible(false);
+            return;
+        }
+        void ensureSkillIconTexture(this.scene, skillID).then((ok) => {
+            if (gen !== this.attackSkillLoadGen || !this.attackSkillIcon) return;
+            const texKey = skillTextureKey(skillID);
+            if (!ok || !this.scene.textures.exists(texKey)) {
+                this.attackSkillShowing = false;
+                this.attackSkillIcon.setVisible(false);
+                return;
+            }
+            this.attackSkillIcon
+                .setTexture(texKey)
+                .setDisplaySize(ATTACK_SKILL_ICON_SIZE, ATTACK_SKILL_ICON_SIZE);
+            this.syncAttackSkillIconScale();
+            this.attackSkillShowing = true;
+            this.attackSkillIcon.setVisible(this.controlsVisible);
+        });
+    }
+
+    private syncAttackSkillIconScale(): void {
+        this.attackSkillIcon?.setScale(1);
     }
 
     getVirtualInputs(): { left: boolean; right: boolean; up: boolean } { return this.virtualInputs; }
@@ -153,11 +204,13 @@ export class GameControls implements GameComponent {
      * virtualInputs khi ẩn để pointerdown đang giữ không bleed sau khi modal đóng. */
     setVisible(visible: boolean): void {
         if (!visible) this.resetVirtualInputs();
+        this.controlsVisible = visible;
         for (const btn of this.dirBtns) {
             btn.g.setVisible(visible);
             btn.hit.setVisible(visible);
         }
         this.attackBtn?.setVisible(visible);
+        this.attackSkillIcon?.setVisible(visible && this.attackSkillShowing);
         for (const sat of this.satBtns) {
             sat.bg.setVisible(visible);
             sat.txt.setVisible(visible);

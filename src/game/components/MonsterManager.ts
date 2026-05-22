@@ -74,6 +74,8 @@ export interface MonsterManagerCallbacks {
     onFaceScreenX?: (screenX: number) => void;
     /** Loot/NPC click-lock — không auto-select quái khi swing. */
     isOtherWorldTargetManualLocked?: () => boolean;
+    /** Skill đánh từ ô hotbar đang chọn (active_attack). */
+    getSwingSkillId?: () => string;
 }
 
 // Player base attack range — Phase 1.5 hardcode khớp BE skillRegistry. Đơn vị
@@ -89,9 +91,16 @@ const DEFAULT_SKILL_ID = 'none.basic_swing';
 // request mỗi khi user giữ phím Enter; BE vẫn check authoritative.
 const SKILL_COOLDOWN_MS: Record<string, number> = {
     'none.basic_swing': 800,
+    'sword.slash_lv10': 1500,
+    'bow.shoot_lv10': 1200,
 };
 function getSkillCooldownMs(skillId: string): number {
     return SKILL_COOLDOWN_MS[skillId] ?? 800;
+}
+
+function resolveSwingSkillId(explicit?: string, callbacks?: MonsterManagerCallbacks): string {
+    if (explicit) return explicit;
+    return callbacks?.getSwingSkillId?.() ?? DEFAULT_SKILL_ID;
 }
 
 export class MonsterManager implements GameComponent {
@@ -269,10 +278,11 @@ export class MonsterManager implements GameComponent {
     /** Trigger swing với skill_id (default basic_swing). Tìm target ưu tiên: selected
      * → nearest in scan radius. Nếu ngoài tầm → toast, không tấn công.
      * Client-side cooldown gate: silent skip nếu chưa hết cooldown skill (mirror BE). */
-    async swing(skillId: string = DEFAULT_SKILL_ID): Promise<boolean> {
+    async swing(skillId?: string): Promise<boolean> {
+        const resolvedId = resolveSwingSkillId(skillId, this.callbacks);
         if (this.inFlightAttack) return false;
         const now = Date.now();
-        if (now - this.lastSwingAt < getSkillCooldownMs(skillId)) return false;
+        if (now - this.lastSwingAt < getSkillCooldownMs(resolvedId)) return false;
         const pos = this.getPlayerPos();
         if (!pos) return false;
 
@@ -300,7 +310,7 @@ export class MonsterManager implements GameComponent {
         }
         this.autoMoveTargetScreenX = null;
         this.callbacks.onFaceScreenX?.(target.renderX);
-        await this.fireAttack(target, skillId, pos);
+        await this.fireAttack(target, resolvedId, pos);
         return true;
     }
 
@@ -530,7 +540,7 @@ export class MonsterManager implements GameComponent {
     getSelectedInstanceId(): string | null { return this.selectedInstanceId; }
 
     /** Backward compatibility cho các call site cũ. */
-    async attackNearest(): Promise<boolean> { return this.swing(); }
+    async attackNearest(skillId?: string): Promise<boolean> { return this.swing(skillId); }
 
     private async refreshFromBE(): Promise<void> {
         const character = getCurrentCharacter();

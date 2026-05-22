@@ -476,6 +476,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             onTickResult: (hp, dead) => this.handleTickResult(hp, dead),
             onDropsSync: (drops) => this.loot.syncDrops(drops),
             onFaceScreenX: (x) => this.playerCtrl.faceTowardScreenX(x),
+            getSwingSkillId: () => this.getSwingSkillID(),
         }, { safeZone: cfg.safeZone === true });
         this.monsters.create();
         this.monsters.setPlayerPositionGetter(() => {
@@ -611,6 +612,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Skill hotbar — 5 slot ngoài world, phía trên minimap mobile.
         this.skillHotbar = new SkillHotbar(this);
         this.skillHotbar.create();
+        this.skillHotbar.setOnPrimaryChanged((skillID) => {
+            this.controls.setPrimaryAttackSkill(skillID);
+        });
         this.skillHotbar.setOnSlotPressed((_idx, skillID) => {
             void this.handleCastSkill(skillID);
         });
@@ -1364,7 +1368,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             if (moveLeft || moveRight || moveUp) {
                 this.setAutoAttack(false, t('combat.auto_attack_off_moving'));
             } else {
-                void this.monsters.swing();
+                void this.monsters.swing(this.getSwingSkillID());
             }
         }
 
@@ -1598,9 +1602,14 @@ export abstract class BaseMapScene extends Phaser.Scene {
         }
 
         // Không có mục tiêu trong tầm → swing nearest.
-        void this.monsters.attackNearest().then((hit) => {
+        void this.monsters.attackNearest(this.getSwingSkillID()).then((hit) => {
             if (hit) this.playerCtrl.playAnim('attack');
         });
+    }
+
+    /** Skill đánh thường — từ ô hotbar đang chọn (active_attack) hoặc đòn cơ bản. */
+    private getSwingSkillID(): string {
+        return this.skillHotbar?.getPrimaryAttackSkillID() ?? 'none.basic_swing';
     }
 
     private handleYenPicked(amount: number, balance: number): void {
