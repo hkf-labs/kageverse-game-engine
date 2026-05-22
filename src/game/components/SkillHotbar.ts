@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { skillAPI, type SkillDTO } from '../../network/api';
 import { getCurrentCharacter } from '../playerSession';
+import { ensureSkillIconTexture, skillTextureKey } from '../skillIcon';
 import type { GameComponent } from './types';
 
 const SLOT_COUNT = 5;
@@ -8,7 +9,6 @@ const SLOT_SIZE = 48;
 const SLOT_GAP = 6;
 const TEX_KEY_EMPTY = 'skill_slot_empty';
 
-// Icon emoji fallback theo faction — match SkillModal convention.
 const FACTION_ICON: Record<string, string> = {
     none: '🗡',
     sword: '⚔',
@@ -18,24 +18,6 @@ const FACTION_ICON: Record<string, string> = {
     dart: '🎯',
     kunai: '🔪',
 };
-
-// Skill ID có file icon — match SkillModal SKILL_ICON_AVAILABLE.
-const SKILL_ICON_AVAILABLE: ReadonlySet<string> = new Set([
-    'sword.slash_lv10', 'sword.guard_lv15', 'sword.iron_body_lv20', 'sword.combo_lv25',
-    'sword.crit_focus_lv30', 'sword.cleave_lv35', 'sword.heavy_lv40', 'sword.fury_lv45',
-    'sword.thunder_lv50', 'sword.parry_lv60', 'sword.kage_lv70', 'sword.divine_lv80',
-    'bow.shoot_lv10', 'bow.eagle_eye_lv15', 'bow.steady_aim_lv20', 'bow.rapid_lv25',
-    'bow.wind_lv30', 'bow.piercing_lv35', 'bow.hunter_lv40', 'bow.swift_lv45',
-    'bow.storm_lv50', 'bow.shadow_step_lv60', 'bow.falcon_lv70', 'bow.master_lv80',
-]);
-
-function skillTextureKey(skillID: string): string {
-    return `skill_icon_${skillID.replace('.', '_')}`;
-}
-
-function skillIconURL(skillID: string): string {
-    return `assets/game/skills/icon_${skillID.replace('.', '_')}.png`;
-}
 
 interface SlotView {
     container: Phaser.GameObjects.Container;
@@ -47,13 +29,7 @@ interface SlotView {
 }
 
 /**
- * SkillHotbar — 5-slot bar trên world map. Slot trống dùng skill-empty.png;
- * slot gán hiện icon faction (emoji placeholder) + level badge. Phím 1-5 cast
- * skill tương ứng (Phase 2 chỉ wire data; cast logic defer skill module
- * combat unify).
- *
- * Sync: load từ skillAPI.list() lúc create + setSlots() để SkillModal
- * push update sau mỗi assignSlots.
+ * SkillHotbar — 5-slot bar trên world map. Icon từ `public/assets/game/skills/icon_<skill_id>.png`.
  */
 export class SkillHotbar implements GameComponent {
     private scene: Phaser.Scene;
@@ -61,46 +37,25 @@ export class SkillHotbar implements GameComponent {
     private slots: SlotView[] = [];
     private skillsByID: Map<string, SkillDTO> = new Map();
     private boundSlots: (string | null)[] = [null, null, null, null, null];
-    /** Callback dispatch cast skill khi player click slot hoặc nhấn 1-5.
-     * Scene wire qua skillAPI.cast → handle response. */
     private onSlotPressed?: (slotIdx: number, skillID: string) => void;
     private keyHandlers: Phaser.Input.Keyboard.Key[] = [];
-    /** Pre-Bái Sư (character.class === 'none' / undefined) chỉ có 1 skill default
-     * → không cần hotbar. Bắt đầu = true để ẩn cho đến khi refresh xác nhận class. */
     private classLocked = true;
-    /** Visibility do scene yêu cầu qua setVisible() (modal mở/đóng). Combine
-     * với classLocked để ra trạng thái thật của container. */
     private externallyVisible = true;
+    private iconLoadGeneration = 0;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
     }
 
-    /** Wire callback khi player nhấn slot (key hoặc click). Scene gọi sau
-     * khi tạo + create() để inject handler. */
     setOnSlotPressed(cb: (slotIdx: number, skillID: string) => void): void {
         this.onSlotPressed = cb;
     }
 
-    preload(): void {
-        if (!this.scene.textures.exists(TEX_KEY_EMPTY)) {
-            this.scene.load.image(TEX_KEY_EMPTY, 'assets/game/skills/skill-empty.png');
-        }
-        for (const skillID of SKILL_ICON_AVAILABLE) {
-            const key = skillTextureKey(skillID);
-            if (!this.scene.textures.exists(key)) {
-                this.scene.load.image(key, skillIconURL(skillID));
-            }
-        }
-    }
-
     create(): void {
         const totalWidth = SLOT_COUNT * SLOT_SIZE + (SLOT_COUNT - 1) * SLOT_GAP;
-        // Vị trí: bottom-center, cách đáy 70px. Re-anchor on resize event.
         const cx = this.scene.scale.width / 2;
         const y = this.scene.scale.height - 70;
         this.container = this.scene.add.container(cx - totalWidth / 2, y).setScrollFactor(0).setDepth(95);
-        // Ẩn lúc tạo — refresh() sẽ tự show nếu character đã có class.
         this.container.setVisible(false);
 
         this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
@@ -108,7 +63,6 @@ export class SkillHotbar implements GameComponent {
             this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
         });
 
-        // Key bindings 1-5 → dispatch slot press.
         const keyboard = this.scene.input.keyboard;
         if (keyboard) {
             const codes = [
@@ -152,7 +106,6 @@ export class SkillHotbar implements GameComponent {
         void this.refresh();
     }
 
-    /** Reload skill list + slot binding từ BE — gọi sau khi SkillModal assignSlots. */
     async refresh(): Promise<void> {
         const character = getCurrentCharacter();
         if (!character) return;
@@ -165,15 +118,16 @@ export class SkillHotbar implements GameComponent {
             for (const s of res.skills) this.skillsByID.set(s.skill_id, s);
             this.boundSlots = res.skill_slots.slice(0, SLOT_COUNT) as (string | null)[];
             this.repaint();
+            void this.loadBoundSkillIcons();
         } catch (err) {
             if (err instanceof Error) console.warn('skill hotbar: refresh failed', err.message);
         }
     }
 
-    /** SkillModal call sau assignSlots — sync nhanh không cần round-trip BE thêm. */
     setSlots(slots: (string | null)[]): void {
         this.boundSlots = slots.slice(0, SLOT_COUNT) as (string | null)[];
         this.repaint();
+        void this.loadBoundSkillIcons();
     }
 
     setVisible(visible: boolean): void {
@@ -207,6 +161,15 @@ export class SkillHotbar implements GameComponent {
         const skillID = this.boundSlots[slotIdx];
         if (!skillID || !this.onSlotPressed) return;
         this.onSlotPressed(slotIdx, skillID);
+    }
+
+    /** Nạp texture qua HTMLImageElement — ổn định hơn LoaderPlugin sau create(). */
+    private async loadBoundSkillIcons(): Promise<void> {
+        const gen = ++this.iconLoadGeneration;
+        const ids = [...new Set(this.boundSlots.filter((id): id is string => !!id))];
+        await Promise.all(ids.map((id) => ensureSkillIconTexture(this.scene, id)));
+        if (gen !== this.iconLoadGeneration) return;
+        this.repaint();
     }
 
     private repaint(): void {

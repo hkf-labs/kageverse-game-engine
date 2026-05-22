@@ -4,6 +4,7 @@ import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
+import { skillIconPublicUrl } from '../../skillIcon';
 import { MODAL_COLORS } from './theme';
 
 // SKILL_NAME_VI / SKILL_DESC_VI moved to i18n bundles (`skill.<id>.name` / `.desc`).
@@ -19,20 +20,8 @@ const SKILL_ICON_EMOJI: Record<string, string> = {
     kunai: '🔪',
 };
 
-// Skill ID có file icon trong /assets/game/skills/icon_<id-with-underscore>.png.
-// Skills chưa có icon (lv 90/100/110/120) fallback về emoji theo phái.
-const SKILL_ICON_AVAILABLE: ReadonlySet<string> = new Set([
-    'sword.slash_lv10', 'sword.guard_lv15', 'sword.iron_body_lv20', 'sword.combo_lv25',
-    'sword.crit_focus_lv30', 'sword.cleave_lv35', 'sword.heavy_lv40', 'sword.fury_lv45',
-    'sword.thunder_lv50', 'sword.parry_lv60', 'sword.kage_lv70', 'sword.divine_lv80',
-    'bow.shoot_lv10', 'bow.eagle_eye_lv15', 'bow.steady_aim_lv20', 'bow.rapid_lv25',
-    'bow.wind_lv30', 'bow.piercing_lv35', 'bow.hunter_lv40', 'bow.swift_lv45',
-    'bow.storm_lv50', 'bow.shadow_step_lv60', 'bow.falcon_lv70', 'bow.master_lv80',
-]);
-
-function skillIconURL(skillID: string): string | null {
-    if (!SKILL_ICON_AVAILABLE.has(skillID)) return null;
-    return `/assets/game/skills/icon_${skillID.replace('.', '_')}.png`;
+function skillIconURL(skillID: string): string {
+    return skillIconPublicUrl(skillID);
 }
 
 const TYPE_KEY: Record<string, string> = {
@@ -52,20 +41,25 @@ function skillDesc(key: string | null | undefined): string {
     const v = t(key);
     return v === key ? key : v;
 }
+function skillIconLayered(skillID: string, faction: string, px: number): string {
+    const url = skillIconURL(skillID);
+    const emoji = SKILL_ICON_EMOJI[faction] ?? '✨';
+    return [
+        `<div style="width:${px}px;height:${px}px;display:inline-flex;align-items:center;justify-content:center;position:relative;vertical-align:middle;">`,
+        `<span style="font-size:${Math.round(px * 0.72)}px;line-height:1;">${emoji}</span>`,
+        `<img src="${url}" alt="" draggable="false"`,
+        ` style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;"`,
+        ` onerror="this.style.display='none'" />`,
+        `</div>`,
+    ].join('');
+}
+
 function skillIcon(s: SkillDTO): string {
-    const url = skillIconURL(s.skill_id);
-    if (url) {
-        return `<img src="${url}" alt="" style="width:38px;height:38px;image-rendering:pixelated;display:block;" />`;
-    }
-    return SKILL_ICON_EMOJI[s.faction] ?? '✨';
+    return skillIconLayered(s.skill_id, s.faction, 38);
 }
 
 function skillIconInline(s: SkillDTO, size: number): string {
-    const url = skillIconURL(s.skill_id);
-    if (url) {
-        return `<img src="${url}" alt="" style="width:${size}px;height:${size}px;image-rendering:pixelated;vertical-align:middle;margin-right:6px;" />`;
-    }
-    return (SKILL_ICON_EMOJI[s.faction] ?? '✨') + ' ';
+    return skillIconLayered(s.skill_id, s.faction, size) + ' ';
 }
 
 /**

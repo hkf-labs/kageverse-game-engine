@@ -18,6 +18,7 @@ import {
 import { LOOT_PICKUP_RANGE_RAW_PX } from '../../network/lootDrop';
 import { portalLabelForTargetMap } from '../maps/portalLabels';
 import { resolveSceneKeyForMap } from '../maps/registry';
+import { registerSkillIconPreloads } from '../skillIcon';
 import {
     businessVecToRender,
     incomingLinkIdFromSceneInit,
@@ -262,6 +263,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.load.image('btn_menu', 'assets/game/buttons/menu.png');
         this.load.image('topbar', 'assets/game/ui/topbar.png');
         this.load.image('skill_slot_empty', 'assets/game/skills/skill-empty.png');
+        registerSkillIconPreloads(this);
         this.load.image('item_yen', 'assets/game/items/yen.png');
         this.load.image('item_upgrade_stone', 'assets/game/items/upgrade_stone.png');
         this.load.image('item_material_beetle_carapace', 'assets/game/items/material_beetle_carapace.png');
@@ -602,7 +604,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // Skill modal — Menu → Kỹ năng. Khi gán slot xong, push xuống hotbar
         // để khỏi mất round-trip BE thêm cho UI sync.
         this.skillModal = new SkillModal(this, {
-            onSlotsChanged: (slots) => this.skillHotbar?.setSlots(slots),
+            onSlotsChanged: () => void this.skillHotbar?.refresh(),
         });
         this.skillModal.create();
 
