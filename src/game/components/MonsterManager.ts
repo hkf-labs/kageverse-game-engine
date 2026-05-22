@@ -3,6 +3,7 @@ import { combatAPI, type AttackResponse, type LootDropDTO, type MonsterInstanceD
 import { isPointInMainCameraView } from '../cameraView';
 import { canAutoSelectVertically } from '../worldTarget';
 import { canAttackMonsterBelow, isMonsterBelowPlayer } from '../combatClass';
+import { isCombatTickEnabled } from '../env';
 import { getCurrentCharacter } from '../playerSession';
 import { t, tOpt } from '../../i18n';
 import type { GameComponent } from './types';
@@ -142,10 +143,12 @@ export class MonsterManager implements GameComponent {
         this.pollTimer = window.setInterval(() => {
             void this.refreshFromBE();
         }, LIST_POLL_INTERVAL_MS);
-        // Combat tick — luồng quái phản đòn độc lập.
-        this.tickTimer = window.setInterval(() => {
-            void this.combatTick();
-        }, COMBAT_TICK_INTERVAL_MS);
+        // Combat tick — luồng quái phản đòn độc lập (tắt: VITE_COMBAT_TICK_ENABLED=false).
+        if (isCombatTickEnabled()) {
+            this.tickTimer = window.setInterval(() => {
+                void this.combatTick();
+            }, COMBAT_TICK_INTERVAL_MS);
+        }
     }
 
     /** Pause/resume combat tick (vd khi player chết / Đóng menu). */
