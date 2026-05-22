@@ -15,6 +15,8 @@ import { mapDisplayName } from '../../maps/registry';
 import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
+import { buildEquipmentStarBadgeHtml, buildEquipmentStarDetailHtml } from '../../equipmentStars';
+import { buildEquipmentUpgradeBadgeHtml, buildEquipmentUpgradeDetailHtml } from '../../equipmentUpgrade';
 import { buildEquipmentStatLines } from '../../itemStats';
 import {
     createKeyboardModalTarget,
@@ -29,6 +31,7 @@ interface InventoryItem {
     page: number;
     slot: number;
     userItemId: string;
+    itemTemplateId: string;
     name: string;
     type: InventoryItemType;
     subType: string | null;
@@ -108,6 +111,7 @@ function mapBeItem(dto: InventoryItemDTO): InventoryItem | null {
         page: DATA_PAGE,
         slot: dto.slot_index,
         userItemId: dto.id,
+        itemTemplateId: dto.item_template_id,
         name: dto.name_key,
         type: dto.item_type,
         subType: dto.sub_type,
@@ -820,14 +824,17 @@ export class InventoryModal extends BaseModal {
         // Layout dọc — mỗi field 1 dòng, text dài tự wrap (word-break để
         // tên item / description không vỡ panel khi quá dài).
         const wrap = 'word-break:break-word;white-space:normal;';
-        const upgradeRow = item.upgradeLevel > 0
-            ? `<div style="color:${MODAL_COLORS.title};font-size:13px;font-weight:bold;${wrap}">+${item.upgradeLevel}</div>`
+        const upgradeRow = item.type === 'equipment'
+            ? buildEquipmentUpgradeDetailHtml(item.upgradeLevel, item.itemTemplateId, wrap)
             : '';
         const lockRow = item.isBound
             ? `<div style="color:${MODAL_COLORS.statusError};font-size:12px;${wrap}">${escapeHtml(t('inventory.bound_badge'))}</div>`
             : '';
+        const starRow = item.type === 'equipment'
+            ? buildEquipmentStarDetailHtml(item.itemTemplateId, wrap)
+            : '';
         const statRows = item.type === 'equipment'
-            ? buildEquipmentStatLines(item.baseStats, item.rolledStats)
+            ? buildEquipmentStatLines(item.baseStats, item.rolledStats, { subType: item.subType })
                 .map((line) => (
                     `<div style="${wrap}">${escapeHtml(line.label)}: `
                     + `<span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${escapeHtml(line.value)}</span></div>`
@@ -840,6 +847,7 @@ export class InventoryModal extends BaseModal {
         this.detailPanelEl.innerHTML = [
             `<div style="display:flex;flex-direction:column;gap:6px;">`,
             `  <div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};${wrap}">${escapeHtml(t(item.name))}</div>`,
+            starRow,
             upgradeRow,
             `  <div style="font-size:12px;color:${TYPE_BORDER[item.type]};${wrap}">[${escapeHtml(t(TYPE_KEY[item.type]))}]</div>`,
             lockRow,
@@ -922,8 +930,11 @@ export class InventoryModal extends BaseModal {
                     item.amount > 1
                         ? `<div style="position:absolute;right:2px;bottom:0;font-size:11px;font-weight:bold;color:#fff;text-shadow:0 0 3px #000,1px 1px 0 #000;">${item.amount}</div>`
                         : '',
-                    item.upgradeLevel > 0
-                        ? `<div style="position:absolute;left:2px;top:0;font-size:10px;font-weight:bold;color:${MODAL_COLORS.title};text-shadow:0 0 3px #000,1px 1px 0 #000;">+${item.upgradeLevel}</div>`
+                    item.type === 'equipment'
+                        ? buildEquipmentStarBadgeHtml(item.itemTemplateId)
+                        : '',
+                    item.type === 'equipment'
+                        ? buildEquipmentUpgradeBadgeHtml(item.upgradeLevel, item.itemTemplateId)
                         : '',
                     item.isBound
                         ? `<div style="position:absolute;right:2px;top:0;font-size:9px;color:${MODAL_COLORS.statusError};text-shadow:0 0 3px #000;">🔒</div>`

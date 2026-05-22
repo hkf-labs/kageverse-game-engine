@@ -1002,6 +1002,7 @@ export const vi: TranslationTable = {
     'equipment.stat_power': 'Uy lực',
     'equipment.stat_crit_damage': 'Sát thương chí mạng',
     'equipment.stat_dodge': 'Né tránh',
+    'equipment.star_level': 'Sao {n}',
     'equipment.tooltip_locked': '(khoá)',
     'equipment.tooltip_empty': '{slot} — trống',
     'equipment.error_no_character': 'Chưa có nhân vật.',

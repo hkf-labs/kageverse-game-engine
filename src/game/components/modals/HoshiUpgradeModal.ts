@@ -6,6 +6,7 @@ import {
     type EnchantStatBonus,
     type InventoryItemDTO,
 } from '../../../network/api';
+import { WOODEN_SWORD_TEMPLATE_ID } from '../../itemIcon';
 import { getCurrentCharacter } from '../../playerSession';
 import { t } from '../../../i18n';
 import { BaseModal } from './BaseModal';
@@ -210,7 +211,9 @@ export class HoshiUpgradeModal extends BaseModal {
                 charactersAPI.getWallet(character.id),
                 charactersAPI.list(),
             ]);
-            this.items = inv.items.filter((i) => i.upgrade_category !== null);
+            this.items = inv.items.filter(
+                (i) => i.upgrade_category !== null && i.item_template_id !== WOODEN_SWORD_TEMPLATE_ID,
+            );
             this.stonesAvailable = inv.items
                 .filter((i) => i.item_template_id === STONE_TEMPLATE_ID)
                 .reduce((sum, i) => sum + i.amount, 0);

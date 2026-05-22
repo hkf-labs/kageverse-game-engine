@@ -991,6 +991,7 @@ export const en: TranslationTable = {
     'equipment.stat_power': 'Power',
     'equipment.stat_crit_damage': 'Crit Damage',
     'equipment.stat_dodge': 'Dodge',
+    'equipment.star_level': 'Star {n}',
     'equipment.tooltip_locked': '(bound)',
     'equipment.tooltip_empty': '{slot} — empty',
     'equipment.error_no_character': 'No character.',

@@ -21,8 +21,8 @@ const TELEPORT_CHARM_ASSET_URL = '/assets/game/items/teleport_charm.png';
 
 const WEAPON_ICON_DIR = '/assets/game/items/weapons/';
 
-/** Kiếm Gỗ (Q1) — `weapon_wooden_sword_starter` / `sprite_weapon_wooden_sword`. */
-const WOODEN_SWORD_TEMPLATE_ID = 'weapon_wooden_sword_starter';
+/** Kiếm Gỗ (Q1) — không có Sao / không cường hoá Hoshi. */
+export const WOODEN_SWORD_TEMPLATE_ID = 'weapon_wooden_sword_starter';
 const WOODEN_SWORD_SPRITE_KEY = 'sprite_weapon_wooden_sword';
 const WOODEN_SWORD_ASSET_URL = `${WEAPON_ICON_DIR}weapon_wooden_sword_starter.png`;
 

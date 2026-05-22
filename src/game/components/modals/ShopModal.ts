@@ -15,6 +15,8 @@ import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ConfirmDialog } from './ConfirmDialog';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
+import { buildEquipmentStarBadgeHtml, buildEquipmentStarDetailHtml, formatEquipmentStarTooltipLine } from '../../equipmentStars';
+import { buildEquipmentStatLines } from '../../itemStats';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 
 // Grid 6-cột (kích thước cell match InventoryModal — 56×56, gap 6px). Width
@@ -434,6 +436,7 @@ export class ShopModal extends BaseModal {
                 border: `2px solid ${isSelected ? MODAL_COLORS.borderAccent : borderColor}`,
                 borderRadius: '6px',
                 background: bgColor,
+                position: item ? 'relative' : '',
                 cursor: item ? 'pointer' : 'default',
                 display: 'flex',
                 alignItems: 'center',
@@ -443,8 +446,16 @@ export class ShopModal extends BaseModal {
                 transition: 'border-color 0.1s, box-shadow 0.1s',
             });
             if (item) {
-                cell.title = t(item.name_key);
-                cell.innerHTML = inventorySlotIconHtml(iconUrl, iconText);
+                const starTip = item.item_type === 'equipment'
+                    ? formatEquipmentStarTooltipLine(item.item_template_id)
+                    : '';
+                cell.title = starTip ? `${t(item.name_key)}\n${starTip}` : t(item.name_key);
+                cell.innerHTML = [
+                    inventorySlotIconHtml(iconUrl, iconText),
+                    item.item_type === 'equipment'
+                        ? buildEquipmentStarBadgeHtml(item.item_template_id)
+                        : '',
+                ].join('');
                 cell.addEventListener('click', () => this.selectListing(i));
                 cell.addEventListener('mouseenter', () => {
                     if (this.selectedIdx !== i) cell.style.borderColor = '#ffd070';
@@ -701,6 +712,19 @@ export class ShopModal extends BaseModal {
             ? t('shop.heal_mp', { n: item.base_stats.heal_mp })
             : '';
 
+        const wrap = 'word-break:break-word;white-space:normal;';
+        const starRow = item.item_type === 'equipment'
+            ? buildEquipmentStarDetailHtml(item.item_template_id, wrap)
+            : '';
+        const equipStatRows = item.item_type === 'equipment'
+            ? buildEquipmentStatLines(item.base_stats, null)
+                .map((line) => (
+                    `<div style="${wrap}">${escapeHtml(line.label)}: `
+                    + `<span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${escapeHtml(line.value)}</span></div>`
+                ))
+                .join('')
+            : '';
+
         // Detail liệt kê tất cả giá (info-only). Chọn currency thực hiện ở
         // popup Mua nếu cần (item có nhiều currency).
         const priceLines = item.prices.length === 0
@@ -719,7 +743,11 @@ export class ShopModal extends BaseModal {
             `  <span style="font-size:14px;font-weight:bold;color:${MODAL_COLORS.title};">${escapeHtml(t(item.name_key))}</span>`,
             `  <span style="font-size:11px;color:${TYPE_BORDER[item.item_type]};">[${escapeHtml(t(TYPE_KEY[item.item_type]))}]</span>`,
             `</div>`,
+            starRow,
             `<div style="margin-top:4px;font-size:11px;color:#aaa;">${escapeHtml(t('shop.required_level', { n: item.required_level }))}</div>`,
+            equipStatRows
+                ? `<div style="margin-top:6px;font-size:12px;color:${MODAL_COLORS.text};display:flex;flex-direction:column;gap:3px;">${equipStatRows}</div>`
+                : '',
             heal ? `<div style="margin-top:6px;">${heal}</div>` : '',
             `<div style="margin-top:10px;font-size:11px;color:#aaa;">${escapeHtml(t('shop.unit_price'))}</div>`,
             `<div style="margin-top:4px;display:flex;flex-direction:column;gap:4px;">${priceLines}</div>`,

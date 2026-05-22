@@ -12,6 +12,12 @@ import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
 import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
+import { buildEquipmentStarBadgeHtml, buildEquipmentStarDetailHtml, formatEquipmentStarTooltipLine } from '../../equipmentStars';
+import {
+    buildEquipmentUpgradeBadgeHtml,
+    buildEquipmentUpgradeDetailHtml,
+    canDisplayEquipmentUpgrade,
+} from '../../equipmentUpgrade';
 import { buildEquipmentStatLines, formatEquipmentStatTooltip } from '../../itemStats';
 
 type ActionSlot = 'left' | 'center' | 'right';
@@ -411,17 +417,16 @@ export class EquipmentModal extends BaseModal {
             return;
         }
         const item = equipped.item;
-        const upgradeBadge = item.upgrade_level > 0
-            ? `<div style="position:absolute;left:2px;top:0;font-size:10px;font-weight:bold;color:${MODAL_COLORS.title};text-shadow:0 0 3px #000,1px 1px 0 #000;">+${item.upgrade_level}</div>`
-            : '';
+        const upgradeBadge = buildEquipmentUpgradeBadgeHtml(item.upgrade_level, item.item_template_id);
         const boundBadge = item.is_bound
             ? `<div style="position:absolute;right:2px;top:0;font-size:9px;color:${MODAL_COLORS.statusError};text-shadow:0 0 3px #000;">🔒</div>`
             : '';
         const iconUrl = resolveItemIconUrl(item.sprite_key, item.item_template_id);
         const iconHtml = inventorySlotIconHtml(iconUrl, def.icon);
+        const starBadge = buildEquipmentStarBadgeHtml(item.item_template_id);
         cell.innerHTML =
             `<div data-icon style="display:flex;align-items:center;justify-content:center;">${iconHtml}</div>`
-            + upgradeBadge + boundBadge
+            + starBadge + upgradeBadge + boundBadge
             + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:${MODAL_COLORS.title};background:rgba(0,0,0,0.6);padding:1px 0;font-weight:bold;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${escapeHtml(slotLabel)}</div>`;
         cell.title = formatItemTooltip(slotLabel, item);
         cell.style.borderColor = MODAL_COLORS.borderAccent;
@@ -696,13 +701,12 @@ export class EquipmentModal extends BaseModal {
         }
         const item = equipped.item;
         const wrap = 'word-break:break-word;white-space:normal;';
-        const upgradeRow = item.upgrade_level > 0
-            ? `<div style="color:${MODAL_COLORS.title};font-size:13px;font-weight:bold;${wrap}">+${item.upgrade_level}</div>`
-            : '';
+        const upgradeRow = buildEquipmentUpgradeDetailHtml(item.upgrade_level, item.item_template_id, wrap);
         const boundRow = item.is_bound
             ? `<div style="color:${MODAL_COLORS.statusError};font-size:12px;${wrap}">${escapeHtml(t('inventory.bound_badge'))}</div>`
             : '';
-        const statRows = buildEquipmentStatLines(item.base_stats, item.rolled_stats)
+        const starRow = buildEquipmentStarDetailHtml(item.item_template_id, wrap);
+        const statRows = buildEquipmentStatLines(item.base_stats, item.rolled_stats, { subType: item.sub_type })
             .map((line) => (
                 `<div style="${wrap}">${escapeHtml(line.label)}: `
                 + `<span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${escapeHtml(line.value)}</span></div>`
@@ -711,6 +715,7 @@ export class EquipmentModal extends BaseModal {
         this.detailPanelEl.innerHTML = [
             `<div style="display:flex;flex-direction:column;gap:6px;">`,
             `  <div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};${wrap}">${escapeHtml(t(item.name_key))}</div>`,
+            starRow,
             upgradeRow,
             `  <div style="font-size:12px;color:#d4af37;${wrap}">[${escapeHtml(t(def.labelKey))}]</div>`,
             boundRow,
@@ -854,9 +859,13 @@ export class EquipmentModal extends BaseModal {
 
 function formatItemTooltip(slotLabel: string, item: InventoryItemDTO): string {
     const parts = [`${slotLabel}: ${t(item.name_key)}`];
-    if (item.upgrade_level > 0) parts.push(`+${item.upgrade_level}`);
+    const starLine = formatEquipmentStarTooltipLine(item.item_template_id);
+    if (starLine) parts.push(starLine);
+    if (canDisplayEquipmentUpgrade(item.item_template_id)) {
+        parts.push(`+${Math.max(0, item.upgrade_level)}`);
+    }
     if (item.is_bound) parts.push(t('equipment.tooltip_locked'));
-    const statText = formatEquipmentStatTooltip(item.base_stats, item.rolled_stats);
+    const statText = formatEquipmentStatTooltip(item.base_stats, item.rolled_stats, item.sub_type);
     if (statText) parts.push(statText);
     return parts.join('\n');
 }

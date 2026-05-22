@@ -40,15 +40,25 @@ function formatRangeValue(min: number, max: number, percent?: boolean): string {
     return `${min} – ${max}${suffix}`;
 }
 
+export type EquipmentStatDisplayOptions = {
+    /** Vũ khí chưa roll (`rolled_stats` rỗng) → không hiện chỉ số (Túi / Trang bị). */
+    subType?: string | null;
+};
+
 /**
  * Sinh danh sách chỉ số trang bị để hiển thị tooltip / modal Xem chi tiết.
  * - Đã roll (`rolled_stats` non-empty): flat bonus (atk_bonus, power_bonus, …).
- * - Chưa roll: dải min–max từ `base_stats` (vd Tấn công 101 – 140).
+ * - Chưa roll: dải min–max từ `base_stats` (trừ `sub_type=weapon` — chờ equip/roll).
  */
 export function buildEquipmentStatLines(
     baseStats: Record<string, number> | null | undefined,
     rolledStats: Record<string, number> | null | undefined,
+    options?: EquipmentStatDisplayOptions,
 ): ItemStatLine[] {
+    if (options?.subType === 'weapon' && !hasRolledValues(rolledStats)) {
+        return [];
+    }
+
     const lines: ItemStatLine[] = [];
     const base = baseStats ?? {};
     const rolled = rolledStats;
@@ -82,8 +92,9 @@ export function buildEquipmentStatLines(
 export function formatEquipmentStatTooltip(
     baseStats: Record<string, number> | null | undefined,
     rolledStats: Record<string, number> | null | undefined,
+    subType?: string | null,
 ): string {
-    return buildEquipmentStatLines(baseStats, rolledStats)
+    return buildEquipmentStatLines(baseStats, rolledStats, { subType })
         .map((line) => `${line.label}: ${line.value}`)
         .join('\n');
 }
