@@ -67,6 +67,7 @@ const SUBTYPE_ICON: Record<string, string> = {
     mp_potion: '🍵',
     food_buff: '🍜',
     teleport_charm: '✨',
+    skill_book: '📖',
 };
 
 interface OpenParams {

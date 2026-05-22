@@ -21,6 +21,19 @@ const TELEPORT_CHARM_ASSET_URL = '/assets/game/items/teleport_charm.png';
 
 const WEAPON_ICON_DIR = '/assets/game/items/weapons/';
 
+/** Bí kíp kỹ năng — `public/assets/game/items/skill_books/{template_id}.png` (mock tạm, đổi file theo phái sau). */
+const SKILL_BOOK_ICON_DIR = '/assets/game/items/skill_books/';
+
+function resolveSkillBookIconUrl(spriteKey: string, itemTemplateId?: string): string | null {
+    if (itemTemplateId?.startsWith('skill_book_')) {
+        return `${SKILL_BOOK_ICON_DIR}${itemTemplateId}.png`;
+    }
+    if (spriteKey.startsWith('sprite_skill_book_')) {
+        return `${SKILL_BOOK_ICON_DIR}${spriteKey.slice('sprite_'.length)}.png`;
+    }
+    return null;
+}
+
 /** Kiếm Gỗ (Q1) — không có Sao / không cường hoá Hoshi. */
 export const WOODEN_SWORD_TEMPLATE_ID = 'weapon_wooden_sword_starter';
 const WOODEN_SWORD_SPRITE_KEY = 'sprite_weapon_wooden_sword';
@@ -69,6 +82,8 @@ export function resolveItemIconUrl(spriteKey: string, itemTemplateId?: string): 
     ) {
         return TELEPORT_CHARM_ASSET_URL;
     }
+    const skillBookUrl = resolveSkillBookIconUrl(spriteKey, itemTemplateId);
+    if (skillBookUrl) return skillBookUrl;
     const weaponUrl = resolveWeaponIconUrl(spriteKey, itemTemplateId);
     if (weaponUrl) return weaponUrl;
     return null;
