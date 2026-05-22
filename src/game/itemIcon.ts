@@ -19,6 +19,30 @@ const TELEPORT_CHARM_SPRITE_KEY = 'sprite_teleport_charm';
 const TELEPORT_CHARM_TEMPLATE_ID = 'consumable_teleport_charm';
 const TELEPORT_CHARM_ASSET_URL = '/assets/game/items/teleport_charm.png';
 
+const WEAPON_ICON_DIR = '/assets/game/items/weapons/';
+
+/** Kiếm Gỗ (Q1) — `weapon_wooden_sword_starter` / `sprite_weapon_wooden_sword`. */
+const WOODEN_SWORD_TEMPLATE_ID = 'weapon_wooden_sword_starter';
+const WOODEN_SWORD_SPRITE_KEY = 'sprite_weapon_wooden_sword';
+const WOODEN_SWORD_ASSET_URL = `${WEAPON_ICON_DIR}weapon_wooden_sword_starter.png`;
+
+/** Vũ khí ★ / faction — file `public/assets/game/items/weapons/{id}.webp`. */
+function resolveWeaponIconUrl(spriteKey: string, itemTemplateId?: string): string | null {
+    if (
+        itemTemplateId === WOODEN_SWORD_TEMPLATE_ID ||
+        spriteKey === WOODEN_SWORD_SPRITE_KEY
+    ) {
+        return WOODEN_SWORD_ASSET_URL;
+    }
+    if (itemTemplateId?.startsWith('weapon_')) {
+        return `${WEAPON_ICON_DIR}${itemTemplateId}.webp`;
+    }
+    if (spriteKey.startsWith('sprite_weapon_')) {
+        return `${WEAPON_ICON_DIR}${spriteKey.slice('sprite_'.length)}.webp`;
+    }
+    return null;
+}
+
 /**
  * URL icon hiển thị trong UI DOM (túi đồ, shop, ...).
  * Trả null → fallback emoji theo item_type.
@@ -45,6 +69,8 @@ export function resolveItemIconUrl(spriteKey: string, itemTemplateId?: string): 
     ) {
         return TELEPORT_CHARM_ASSET_URL;
     }
+    const weaponUrl = resolveWeaponIconUrl(spriteKey, itemTemplateId);
+    if (weaponUrl) return weaponUrl;
     return null;
 }
 

@@ -11,6 +11,8 @@ import { BaseModal } from './BaseModal';
 import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { MODAL_COLORS, MODAL_SIZES, MODAL_Z_INDEX } from './theme';
+import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
+import { buildEquipmentStatLines, formatEquipmentStatTooltip } from '../../itemStats';
 
 type ActionSlot = 'left' | 'center' | 'right';
 
@@ -63,24 +65,6 @@ const BOTTOM_ROW: SlotDef[] = Array.from({ length: 6 }, (_, i) => ({
 
 const PLACEHOLDER_FEMALE = 'assets/game/characters/ninja-full-body-female.png';
 const PLACEHOLDER_MALE = 'assets/game/characters/ninja-full-body-male.png';
-
-// Stat key → i18n key (rolled_stats keys khớp `equipment-system.md`).
-const STAT_KEY: Record<string, string> = {
-    attack: 'equipment.stat_attack',
-    min_attack: 'equipment.stat_min_attack',
-    max_attack: 'equipment.stat_max_attack',
-    defense: 'equipment.stat_defense',
-    max_hp: 'equipment.stat_max_hp',
-    max_mp: 'equipment.stat_max_mp',
-    crit_rate: 'equipment.stat_crit_rate',
-    accuracy: 'equipment.stat_accuracy',
-    dodge: 'equipment.stat_dodge',
-};
-
-function statLabel(key: string): string {
-    const i18nKey = STAT_KEY[key];
-    return i18nKey ? t(i18nKey) : key;
-}
 
 export class EquipmentModal extends BaseModal {
     private slotsByKey = new Map<SlotKey, HTMLDivElement>();
@@ -433,8 +417,10 @@ export class EquipmentModal extends BaseModal {
         const boundBadge = item.is_bound
             ? `<div style="position:absolute;right:2px;top:0;font-size:9px;color:${MODAL_COLORS.statusError};text-shadow:0 0 3px #000;">🔒</div>`
             : '';
+        const iconUrl = resolveItemIconUrl(item.sprite_key, item.item_template_id);
+        const iconHtml = inventorySlotIconHtml(iconUrl, def.icon);
         cell.innerHTML =
-            `<div style="font-size:24px;">${def.icon}</div>`
+            `<div data-icon style="display:flex;align-items:center;justify-content:center;">${iconHtml}</div>`
             + upgradeBadge + boundBadge
             + `<div style="position:absolute;left:0;right:0;bottom:-1px;font-size:9px;text-align:center;color:${MODAL_COLORS.title};background:rgba(0,0,0,0.6);padding:1px 0;font-weight:bold;border-bottom-left-radius:4px;border-bottom-right-radius:4px;">${escapeHtml(slotLabel)}</div>`;
         cell.title = formatItemTooltip(slotLabel, item);
@@ -443,23 +429,23 @@ export class EquipmentModal extends BaseModal {
 
     private renderStatsSummary(): void {
         if (!this.statsEl) return;
-        // Cộng dồn rolled_stats từ mọi item đang equipped.
         const totals: Record<string, number> = {};
         for (const eq of this.equipped.values()) {
-            const stats = eq.item.rolled_stats ?? eq.item.base_stats;
-            if (!stats) continue;
-            for (const [k, v] of Object.entries(stats)) totals[k] = (totals[k] ?? 0) + v;
+            if (!eq.item.rolled_stats) continue;
+            for (const [k, v] of Object.entries(eq.item.rolled_stats)) {
+                totals[k] = (totals[k] ?? 0) + v;
+            }
         }
-        const entries = Object.entries(totals).filter(([, v]) => v !== 0);
-        if (entries.length === 0) {
+        const lines = buildEquipmentStatLines(null, Object.keys(totals).length > 0 ? totals : null);
+        if (lines.length === 0) {
             this.statsEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('equipment.stats_empty'))}</div>`;
             return;
         }
-        this.statsEl.innerHTML = entries
-            .map(([k, v]) => {
-                const sign = v > 0 ? '+' : '';
-                return `<div>${escapeHtml(statLabel(k))}: <span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${sign}${v}</span></div>`;
-            })
+        this.statsEl.innerHTML = lines
+            .map((line) => (
+                `<div>${escapeHtml(line.label)}: `
+                + `<span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${escapeHtml(line.value)}</span></div>`
+            ))
             .join('');
     }
 
@@ -716,16 +702,12 @@ export class EquipmentModal extends BaseModal {
         const boundRow = item.is_bound
             ? `<div style="color:${MODAL_COLORS.statusError};font-size:12px;${wrap}">${escapeHtml(t('inventory.bound_badge'))}</div>`
             : '';
-        const stats = item.rolled_stats ?? item.base_stats;
-        const statRows = stats
-            ? Object.entries(stats)
-                .filter(([, v]) => v !== 0)
-                .map(([k, v]) => {
-                    const sign = v > 0 ? '+' : '';
-                    return `<div style="${wrap}">${escapeHtml(statLabel(k))}: <span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${sign}${v}</span></div>`;
-                })
-                .join('')
-            : '';
+        const statRows = buildEquipmentStatLines(item.base_stats, item.rolled_stats)
+            .map((line) => (
+                `<div style="${wrap}">${escapeHtml(line.label)}: `
+                + `<span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${escapeHtml(line.value)}</span></div>`
+            ))
+            .join('');
         this.detailPanelEl.innerHTML = [
             `<div style="display:flex;flex-direction:column;gap:6px;">`,
             `  <div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};${wrap}">${escapeHtml(t(item.name_key))}</div>`,
@@ -874,13 +856,8 @@ function formatItemTooltip(slotLabel: string, item: InventoryItemDTO): string {
     const parts = [`${slotLabel}: ${t(item.name_key)}`];
     if (item.upgrade_level > 0) parts.push(`+${item.upgrade_level}`);
     if (item.is_bound) parts.push(t('equipment.tooltip_locked'));
-    const stats = item.rolled_stats ?? item.base_stats;
-    if (stats) {
-        for (const [k, v] of Object.entries(stats)) {
-            const sign = v > 0 ? '+' : '';
-            parts.push(`${statLabel(k)}: ${sign}${v}`);
-        }
-    }
+    const statText = formatEquipmentStatTooltip(item.base_stats, item.rolled_stats);
+    if (statText) parts.push(statText);
     return parts.join('\n');
 }
 

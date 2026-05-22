@@ -15,6 +15,7 @@ import { mapDisplayName } from '../../maps/registry';
 import { clickActionBarSlot, type SoftKeySlot } from './softKeys';
 import type { ModalShell, ModalShellOptions } from './createModalShell';
 import { inventorySlotIconHtml, resolveItemIconUrl } from '../../itemIcon';
+import { buildEquipmentStatLines } from '../../itemStats';
 import {
     createKeyboardModalTarget,
     createModalItemMenuInputTarget,
@@ -41,6 +42,8 @@ interface InventoryItem {
     isEquipped: boolean;
     equippedSlot: string | null;
     description: string;
+    baseStats: Record<string, number> | null;
+    rolledStats: Record<string, number> | null;
 }
 
 export interface CharacterCurrencies {
@@ -118,6 +121,8 @@ function mapBeItem(dto: InventoryItemDTO): InventoryItem | null {
         isEquipped: dto.is_equipped,
         equippedSlot: dto.equipped_slot,
         description: dto.sub_type ? `${dto.item_template_id} (${dto.sub_type})` : dto.item_template_id,
+        baseStats: dto.base_stats,
+        rolledStats: dto.rolled_stats,
     };
 }
 
@@ -821,13 +826,26 @@ export class InventoryModal extends BaseModal {
         const lockRow = item.isBound
             ? `<div style="color:${MODAL_COLORS.statusError};font-size:12px;${wrap}">${escapeHtml(t('inventory.bound_badge'))}</div>`
             : '';
+        const statRows = item.type === 'equipment'
+            ? buildEquipmentStatLines(item.baseStats, item.rolledStats)
+                .map((line) => (
+                    `<div style="${wrap}">${escapeHtml(line.label)}: `
+                    + `<span style="color:${MODAL_COLORS.statusOk};font-weight:bold;">${escapeHtml(line.value)}</span></div>`
+                ))
+                .join('')
+            : '';
+        const descRow = item.type !== 'equipment'
+            ? `<div style="margin-top:4px;color:${MODAL_COLORS.text};${wrap}">${escapeHtml(item.description)}</div>`
+            : '';
         this.detailPanelEl.innerHTML = [
             `<div style="display:flex;flex-direction:column;gap:6px;">`,
             `  <div style="font-size:15px;font-weight:bold;color:${MODAL_COLORS.title};${wrap}">${escapeHtml(t(item.name))}</div>`,
             upgradeRow,
             `  <div style="font-size:12px;color:${TYPE_BORDER[item.type]};${wrap}">[${escapeHtml(t(TYPE_KEY[item.type]))}]</div>`,
             lockRow,
-            `  <div style="margin-top:4px;color:${MODAL_COLORS.text};${wrap}">${escapeHtml(item.description)}</div>`,
+            statRows
+                ? `<div style="margin-top:4px;font-size:12px;color:${MODAL_COLORS.text};display:flex;flex-direction:column;gap:3px;">${statRows}</div>`
+                : descRow,
             `  <div style="margin-top:4px;color:#aaa;font-size:11px;${wrap}">${escapeHtml(t('inventory.amount_label', { amount: item.amount, max: item.maxStack }))}</div>`,
             `</div>`,
         ].join('');
