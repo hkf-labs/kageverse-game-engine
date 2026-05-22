@@ -37,12 +37,7 @@ export class Portal implements GameComponent {
     }
 
     create(): void {
-        const scaleFactor = this.scene.scale.height / 1440;
-        const scaledX = this.config.x * scaleFactor;
-        const groundY = this.background.getPlatformYAtX(scaledX);
-
-        this.centerX = scaledX;
-        this.centerY = groundY - this.radiusY - 10 + (this.config.offsetY ?? 0);
+        this.applyRenderX(this.config.x ?? 0);
 
         this.graphics = this.scene.add.graphics().setDepth(7);
 
@@ -94,6 +89,19 @@ export class Portal implements GameComponent {
     /** Gắn target_map_id từ GET /maps/:id (outgoing links). */
     bindLinkTargetMapId(targetMapId: string): void {
         this.resolvedTargetMapId = targetMapId;
+    }
+
+    /** Đặt lại vị trí cổng sau hydrate portal_point từ BE (tọa độ render X). */
+    reposition(renderX: number): void {
+        this.applyRenderX(renderX);
+    }
+
+    private applyRenderX(renderX: number): void {
+        const groundY = this.background.getPlatformYAtX(renderX);
+        this.centerX = renderX;
+        this.centerY = groundY - this.radiusY - 10 + (this.config.offsetY ?? 0);
+        this.label?.setPosition(this.centerX, this.centerY - this.radiusY - 18);
+        this.hint?.setPosition(this.centerX, this.centerY + this.radiusY + 14);
     }
 
     /** map_id đích — dùng gating unlocked_maps. Lock vẫn từ PortalConfig.locked. */

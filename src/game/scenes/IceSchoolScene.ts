@@ -44,11 +44,6 @@ export class IceSchoolScene extends BaseMapScene {
     protected getPortalConfigs(): PortalConfig[] {
         return [
             { x: 180, label: t('portal.label.return_bamboo'), targetSceneKey: 'FireToVillage004001Scene' },
-            {
-                x: 750,
-                label: t('portal.label.return'),
-                linkId: 'ice_school_001_to_village_to_ice_002',
-            },
         ];
     }
 

@@ -1,4 +1,4 @@
-import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import type { MapConfig, NpcConfig, PortalLinkOverride } from '../components';
 import { mapDisplayName } from '../maps/registry';
 import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
@@ -39,27 +39,12 @@ export class VillageScene extends BaseMapScene {
         ];
     }
 
-    protected getPortalConfigs(): PortalConfig[] {
+    protected getPortalOverrides(): PortalLinkOverride[] {
         return [
-            // Path 2 (Phong) — locked entry. QA char với unlock_all_maps=true
-            // sẽ auto-unlock toàn bộ portal locked (xem BaseMapScene
-            // loadInitialCharacterState ~L740).
             {
-                x: 1500,
-                label: t('portal.label.to_wind_school'),
                 linkId: 'village_001_to_village_to_wind_001',
                 locked: true,
                 lockedMessage: t('portal.locked.wind_school'),
-            },
-            {
-                x: 3500,
-                label: t('portal.label.to_ice_school'),
-                linkId: 'village_001_to_village_to_ice_001',
-            },
-            {
-                x: 6300,
-                label: t('portal.label.to_fire_school'),
-                linkId: 'village_001_to_village_to_fire_001',
             },
         ];
     }

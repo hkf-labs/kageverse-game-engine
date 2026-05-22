@@ -704,6 +704,7 @@ export const en: TranslationTable = {
     'portal.label.enter_wind_school': 'Enter Wind School',
     'portal.label.enter_ice_school': 'Enter Ice School',
     'portal.label.rocky_hill': 'Iwagumo Rocky Hill',
+    'portal.label.goto_map': '{name}',
 
     // Portal locked messages
     'portal.locked.bamboo': 'Complete the Bamboo Quest (lv 8) to unlock.',

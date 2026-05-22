@@ -1,4 +1,4 @@
-import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import type { MapConfig, NpcConfig } from '../components';
 import { mapDisplayName } from '../maps/registry';
 import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
@@ -36,16 +36,6 @@ export class WindSchoolScene extends BaseMapScene {
             { key: 'npc_hayato', name: t('npc.name.npc_hayato'), x: 2900, y: undefined, offsetY: 0, templateId: 'npc_hayato' },
             { key: 'npc_hina',   name: t('npc.name.npc_hina'),   x: 4300, y: undefined, offsetY: 0, templateId: 'npc_hina' },
             { key: 'npc_akira',  name: t('npc.name.npc_akira'),  x: 5700, y: undefined, offsetY: 0, templateId: 'npc_akira' },
-        ];
-    }
-
-    protected getPortalConfigs(): PortalConfig[] {
-        return [
-            {
-                x: 750,
-                label: t('portal.label.return'),
-                linkId: 'wind_school_001_to_village_to_wind_002',
-            },
         ];
     }
 

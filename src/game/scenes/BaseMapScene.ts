@@ -6,7 +6,7 @@ import { t } from '../../i18n';
 import {
     ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, LootDropManager, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PickupToast, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
-    type MapConfig, type NpcConfig, type PortalConfig,
+    type MapConfig, type NpcConfig, type PortalConfig, type PortalLinkOverride,
 } from '../components';
 import {
     createActionMenuInputTarget,
@@ -16,8 +16,10 @@ import {
     type InputFocusTarget,
 } from '../components/inputFocus';
 import { LOOT_PICKUP_RANGE_RAW_PX } from '../../network/lootDrop';
+import { portalLabelForTargetMap } from '../maps/portalLabels';
 import { resolveSceneKeyForMap } from '../maps/registry';
 import {
+    businessVecToRender,
     incomingLinkIdFromSceneInit,
     resolveSpawnFromIncomingLink,
     resolveSpawnOnMap,
@@ -25,6 +27,7 @@ import {
     type MapSceneInitData,
     type MapSpawnPoint,
 } from '../spawn';
+import type { MapDetail } from '../../features/maps';
 import { loadMapDetail, peekLinkTargetMapId } from '../../features/maps/mapDetailStore';
 import {
     REMOTE_PLAYER_SELECT_RANGE_PX,
@@ -136,7 +139,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
 
     // Default lookup từ map registry — scene chỉ cần override nếu muốn label khác.
     protected abstract getNpcConfigs(): NpcConfig[];
+    /**
+     * Cổng legacy không có trong map_links (targetSceneKey). Cổng có link_id
+     * lấy từ GET /maps/:id → links[] sau loadMapDetail.
+     */
     protected getPortalConfigs(): PortalConfig[] { return []; }
+    /** Ghi đè nhãn/khoá theo link_id (vd cổng Gió khoá ở làng). */
+    protected getPortalOverrides(): PortalLinkOverride[] { return []; }
     protected getMapDisplayName(): string { return ''; }
     protected onMapReady(): void {}
 
@@ -155,12 +164,41 @@ export abstract class BaseMapScene extends Phaser.Scene {
         return null;
     }
 
-    private hydratePortalsFromMapDetail(links: { linkId: string; targetMapId: string }[]): void {
-        for (const portal of this.portals) {
-            const linkId = portal.getLinkId();
-            if (!linkId) continue;
-            const link = links.find((l) => l.linkId === linkId);
-            if (link) portal.bindLinkTargetMapId(link.targetMapId);
+    /** Sinh cổng từ links[] BE — link_id, portal_point, target_map_id. */
+    private buildPortalsFromMapLinks(mapDetail: MapDetail): void {
+        const overrides = new Map(
+            this.getPortalOverrides().map((o) => [o.linkId, o]),
+        );
+        const mapHeight = mapDetail.size.height;
+        const viewportHeight = this.scale.height;
+
+        for (const link of mapDetail.links) {
+            const ov = overrides.get(link.linkId);
+            const labelKey = ov?.labelKey;
+            const label = labelKey ? t(labelKey) : portalLabelForTargetMap(link.targetMapId);
+            const cfg: PortalConfig = {
+                linkId: link.linkId,
+                label,
+                locked: ov?.locked,
+                lockedMessage: ov?.lockedMessage,
+            };
+
+            const portal = new Portal(this, cfg, this.background, () => {
+                const targetMapId = portal.getTargetMapId();
+                const targetScene = resolveSceneKeyForMap(targetMapId);
+                if (!targetScene) {
+                    console.warn(`[portal] no scene for map ${targetMapId}`);
+                    return;
+                }
+                this.scene.start(targetScene, { linkId: link.linkId });
+            });
+            portal.create();
+            portal.bindLinkTargetMapId(link.targetMapId);
+            if (link.portalPoint) {
+                const render = businessVecToRender(link.portalPoint, mapHeight, viewportHeight);
+                portal.reposition(render.x);
+            }
+            this.portals.push(portal);
         }
     }
 
@@ -369,7 +407,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             return p ? { x: p.x, y: p.y } : null;
         });
 
-        // Portals
+        // Portals — legacy (targetSceneKey); link_id từ BE thêm sau loadMapDetail.
         this.portals = this.getPortalConfigs().map((portalCfg) => {
             const portal = new Portal(this, portalCfg, this.background, () => {
                 const init = this.buildPortalSceneInit(portalCfg);
@@ -930,7 +968,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             try {
                 mapDetail = await loadMapDetail(cfg.mapId);
                 this.coordDebug?.setMapBusinessHeight(mapDetail.size.height);
-                this.hydratePortalsFromMapDetail(mapDetail.links);
+                this.buildPortalsFromMapLinks(mapDetail);
             } catch (err) {
                 console.warn('map: load detail failed', err instanceof Error ? err.message : err);
             }

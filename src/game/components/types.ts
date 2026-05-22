@@ -56,13 +56,25 @@ export interface TiledMapData {
     layers: TiledLayer[];
 }
 
+/** Ghi đè nhãn/khoá cho một link_id từ GET /maps (cổng sinh tự động từ links[]). */
+export type PortalLinkOverride = {
+    linkId: string;
+    labelKey?: string;
+    locked?: boolean;
+    lockedMessage?: string;
+};
+
 export interface PortalConfig {
-    x: number;
+    /**
+     * Tọa độ business X (bottom-left). Chỉ bắt buộc khi dùng targetSceneKey không có linkId.
+     * Có linkId → lấy portal_point từ GET /maps/:id sau khi load map detail.
+     */
+    x?: number;
     /** Lệch theo trục y so với ground tại x. Âm = lên cao, dương = xuống. Mặc định 0. */
     offsetY?: number;
     label: string;
     /**
-     * Mock map link — ưu tiên hơn targetSceneKey; spawn map đích theo target_x.
+     * Map link — ưu tiên hơn targetSceneKey; vị trí cổng + map đích từ BE map_links.
      * Khi có linkId, targetSceneKey có thể bỏ qua (derive từ registry).
      */
     linkId?: string;

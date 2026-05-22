@@ -35,5 +35,5 @@ export { SettingsModal } from './modals/SettingsModal';
 export { ShopModal } from './modals/ShopModal';
 export { SkillHotbar } from './SkillHotbar';
 export { SkillModal } from './modals/SkillModal';
-export type { GameComponent, MapConfig, NpcConfig, NpcEntry, PortalConfig, TiledMapData, TiledLayer, TiledObject } from './types';
+export type { GameComponent, MapConfig, NpcConfig, NpcEntry, PortalConfig, PortalLinkOverride, TiledMapData, TiledLayer, TiledObject } from './types';
 export type { ControlCallbacks } from './GameControls';

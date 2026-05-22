@@ -715,6 +715,7 @@ export const vi: TranslationTable = {
     'portal.label.enter_wind_school': 'Vào Trường Phong',
     'portal.label.enter_ice_school': 'Vào Trường Băng',
     'portal.label.rocky_hill': 'Đồi Đá Iwagumo',
+    'portal.label.goto_map': '{name}',
 
     // Portal locked messages (scene-specific gating)
     'portal.locked.bamboo': 'Cần hoàn thành nhiệm vụ Vào Rừng Tre (lv 8) để mở khoá.',

@@ -1,6 +1,5 @@
-import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import type { MapConfig, NpcConfig } from '../components';
 import { mapDisplayName } from '../maps/registry';
-import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
 /**
@@ -29,19 +28,4 @@ export class VillageToFire001Scene extends BaseMapScene {
 
     protected getMapDisplayName(): string { return mapDisplayName('village_to_fire_001').toUpperCase(); }
     protected getNpcConfigs(): NpcConfig[] { return []; }
-
-    protected getPortalConfigs(): PortalConfig[] {
-        return [
-            {
-                x: 180,
-                label: t('portal.label.return_village'),
-                linkId: 'village_to_fire_001_to_village_001',
-            },
-            {
-                x: 2900,
-                label: t('portal.label.continue'),
-                linkId: 'village_to_fire_001_to_village_to_fire_002',
-            },
-        ];
-    }
 }

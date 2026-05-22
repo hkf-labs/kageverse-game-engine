@@ -1,6 +1,5 @@
-import type { MapConfig, NpcConfig, PortalConfig } from '../components';
+import type { MapConfig, NpcConfig } from '../components';
 import { mapDisplayName } from '../maps/registry';
-import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
 /**
@@ -28,19 +27,4 @@ export class VillageToWind002Scene extends BaseMapScene {
 
     protected getMapDisplayName(): string { return mapDisplayName('village_to_wind_002').toUpperCase(); }
     protected getNpcConfigs(): NpcConfig[] { return []; }
-
-    protected getPortalConfigs(): PortalConfig[] {
-        return [
-            {
-                x: 180,
-                label: t('portal.label.return'),
-                linkId: 'village_to_wind_002_to_village_to_wind_001',
-            },
-            {
-                x: 2900,
-                label: t('portal.label.enter_wind_school'),
-                linkId: 'village_to_wind_002_to_wind_school_001',
-            },
-        ];
-    }
 }
