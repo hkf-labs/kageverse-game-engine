@@ -20,7 +20,6 @@ const FACTION_ICON: Record<string, string> = {
 };
 
 interface SlotView {
-    container: Phaser.GameObjects.Container;
     bg: Phaser.GameObjects.Image;
     selectRing: Phaser.GameObjects.Graphics;
     iconImage: Phaser.GameObjects.Image;
@@ -30,7 +29,8 @@ interface SlotView {
 }
 
 /**
- * SkillHotbar — 5-slot bar trên world map. Icon từ `public/assets/game/skills/icon_<skill_id>.png`.
+ * SkillHotbar — 5-slot bar giữa đáy màn hình.
+ * Click chuột: `scene.input` + hit-test screen (Container con không nhận pointer ổn định).
  */
 export class SkillHotbar implements GameComponent {
     private scene: Phaser.Scene;
@@ -45,16 +45,20 @@ export class SkillHotbar implements GameComponent {
     private classLocked = true;
     private externallyVisible = true;
     private iconLoadGeneration = 0;
+    private barCenterX = 0;
+    private barCenterY = 0;
+    private barTotalWidth = 0;
+    private readonly onPointerDown: (pointer: Phaser.Input.Pointer) => void;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
+        this.onPointerDown = (pointer) => this.handlePointerDown(pointer);
     }
 
     setOnSlotPressed(cb: (slotIdx: number, skillID: string) => void): void {
         this.onSlotPressed = cb;
     }
 
-    /** Skill chính gắn nút tấn công — đổi khi chọn ô hotbar. */
     setOnPrimaryChanged(cb: (skillID: string | null) => void): void {
         this.onPrimaryChanged = cb;
     }
@@ -64,7 +68,6 @@ export class SkillHotbar implements GameComponent {
         return this.boundSlots[this.selectedSlotIndex] ?? null;
     }
 
-    /** Skill dùng cho combat swing — chỉ active_attack; buff/passive → basic swing. */
     getPrimaryAttackSkillID(): string | null {
         const id = this.getPrimarySkillID();
         if (!id) return null;
@@ -74,14 +77,20 @@ export class SkillHotbar implements GameComponent {
     }
 
     create(): void {
-        const totalWidth = SLOT_COUNT * SLOT_SIZE + (SLOT_COUNT - 1) * SLOT_GAP;
-        const cx = this.scene.scale.width / 2;
-        const y = this.scene.scale.height - 70;
-        this.container = this.scene.add.container(cx - totalWidth / 2, y).setScrollFactor(0).setDepth(95);
+        this.barTotalWidth = SLOT_COUNT * SLOT_SIZE + (SLOT_COUNT - 1) * SLOT_GAP;
+        this.barCenterX = this.scene.scale.width / 2;
+        this.barCenterY = this.scene.scale.height - 70;
+
+        this.container = this.scene.add
+            .container(this.barCenterX, this.barCenterY)
+            .setScrollFactor(0)
+            .setDepth(105);
         this.container.setVisible(false);
 
+        this.scene.input.on('pointerdown', this.onPointerDown);
         this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
         this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.scene.input.off('pointerdown', this.onPointerDown);
             this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
         });
 
@@ -96,43 +105,36 @@ export class SkillHotbar implements GameComponent {
             ];
             for (let i = 0; i < SLOT_COUNT; i++) {
                 const key = keyboard.addKey(codes[i], false, false);
-                key.on('down', () => this.handleSlotPressed(i));
+                key.on('down', () => this.handleSlotTapped(i));
                 this.keyHandlers.push(key);
             }
         }
 
         for (let i = 0; i < SLOT_COUNT; i++) {
-            const slotX = i * (SLOT_SIZE + SLOT_GAP) + SLOT_SIZE / 2;
-            const cell = this.scene.add.container(slotX, 0);
-            const bg = this.scene.add.image(0, 0, TEX_KEY_EMPTY).setDisplaySize(SLOT_SIZE, SLOT_SIZE);
+            const slotX = this.slotLocalX(i);
+            const bg = this.scene.add.image(slotX, 0, TEX_KEY_EMPTY).setDisplaySize(SLOT_SIZE, SLOT_SIZE);
             const selectRing = this.scene.add.graphics();
-            const iconImage = this.scene.add.image(0, 0, TEX_KEY_EMPTY)
+            const iconImage = this.scene.add.image(slotX, 0, TEX_KEY_EMPTY)
                 .setDisplaySize(SLOT_SIZE - 6, SLOT_SIZE - 6)
                 .setVisible(false);
-            const iconText = this.scene.add.text(0, -2, '', {
+            const iconText = this.scene.add.text(slotX, -2, '', {
                 fontSize: '24px', color: '#ffea7a', fontFamily: 'system-ui, sans-serif',
                 stroke: '#000', strokeThickness: 3,
             }).setOrigin(0.5);
-            const keyLabel = this.scene.add.text(-SLOT_SIZE / 2 + 4, -SLOT_SIZE / 2 + 2, String(i + 1), {
-                fontSize: '10px', fontStyle: 'bold', color: '#ffffff',
-                fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 2,
-            }).setOrigin(0, 0);
-            const levelLabel = this.scene.add.text(SLOT_SIZE / 2 - 4, SLOT_SIZE / 2 - 4, '', {
-                fontSize: '11px', fontStyle: 'bold', color: '#bdf0a0',
-                fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
-            }).setOrigin(1, 1);
-            cell.add([bg, selectRing, iconImage, iconText, keyLabel, levelLabel]);
-            cell.setSize(SLOT_SIZE, SLOT_SIZE);
-            cell.setInteractive(
-                new Phaser.Geom.Rectangle(-SLOT_SIZE / 2, -SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE),
-                Phaser.Geom.Rectangle.Contains,
-            );
-            cell.on('pointerdown', () => this.handleSlotTapped(i));
-            this.container.add(cell);
-            this.slots.push({
-                container: cell, bg, iconImage, iconText, keyLabel, levelLabel,
-                selectRing,
-            });
+            const keyLabel = this.scene.add.text(
+                slotX - SLOT_SIZE / 2 + 4, -SLOT_SIZE / 2 + 2, String(i + 1), {
+                    fontSize: '10px', fontStyle: 'bold', color: '#ffffff',
+                    fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 2,
+                },
+            ).setOrigin(0, 0);
+            const levelLabel = this.scene.add.text(
+                slotX + SLOT_SIZE / 2 - 4, SLOT_SIZE / 2 - 4, '', {
+                    fontSize: '11px', fontStyle: 'bold', color: '#bdf0a0',
+                    fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
+                },
+            ).setOrigin(1, 1);
+            this.container.add([bg, selectRing, iconImage, iconText, keyLabel, levelLabel]);
+            this.slots.push({ bg, selectRing, iconImage, iconText, keyLabel, levelLabel });
         }
 
         void this.refresh();
@@ -169,11 +171,8 @@ export class SkillHotbar implements GameComponent {
         this.applyVisibility();
     }
 
-    private applyVisibility(): void {
-        this.container?.setVisible(this.externallyVisible && !this.classLocked);
-    }
-
     destroy(): void {
+        this.scene.input.off('pointerdown', this.onPointerDown);
         this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
         for (const k of this.keyHandlers) {
             k.removeAllListeners();
@@ -186,9 +185,37 @@ export class SkillHotbar implements GameComponent {
     }
 
     private layout(): void {
-        if (!this.container) return;
-        const totalWidth = SLOT_COUNT * SLOT_SIZE + (SLOT_COUNT - 1) * SLOT_GAP;
-        this.container.setPosition(this.scene.scale.width / 2 - totalWidth / 2, this.scene.scale.height - 70);
+        this.barCenterX = this.scene.scale.width / 2;
+        this.barCenterY = this.scene.scale.height - 70;
+        this.container?.setPosition(this.barCenterX, this.barCenterY);
+    }
+
+    /** Tọa độ local trong container (origin 0,0 = tâm thanh). */
+    private slotLocalX(slotIdx: number): number {
+        return -this.barTotalWidth / 2 + SLOT_SIZE / 2 + slotIdx * (SLOT_SIZE + SLOT_GAP);
+    }
+
+    private slotScreenBounds(slotIdx: number): Phaser.Geom.Rectangle {
+        const localX = this.slotLocalX(slotIdx);
+        const left = this.barCenterX + localX - SLOT_SIZE / 2;
+        const top = this.barCenterY - SLOT_SIZE / 2;
+        return new Phaser.Geom.Rectangle(left, top, SLOT_SIZE, SLOT_SIZE);
+    }
+
+    private isBarInteractive(): boolean {
+        return this.externallyVisible && !this.classLocked && !!this.container?.visible;
+    }
+
+    private handlePointerDown(pointer: Phaser.Input.Pointer): void {
+        if (!this.isBarInteractive()) return;
+        const px = pointer.x;
+        const py = pointer.y;
+        for (let i = 0; i < SLOT_COUNT; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.slotScreenBounds(i), px, py)) {
+                this.handleSlotTapped(i);
+                return;
+            }
+        }
     }
 
     private handleSlotTapped(slotIdx: number): void {
@@ -204,17 +231,12 @@ export class SkillHotbar implements GameComponent {
         }
     }
 
-    private handleSlotPressed(slotIdx: number): void {
-        this.handleSlotTapped(slotIdx);
-    }
-
     private selectPrimarySlot(slotIdx: number | null): void {
         this.selectedSlotIndex = slotIdx;
         this.repaintSelection();
         this.onPrimaryChanged?.(this.getPrimarySkillID());
     }
 
-    /** Bỏ chọn nếu ô đang chọn bị gỡ skill — không tự chọn ô khác. */
     private ensureValidPrimarySelection(): void {
         if (
             this.selectedSlotIndex !== null
@@ -225,19 +247,29 @@ export class SkillHotbar implements GameComponent {
         this.onPrimaryChanged?.(this.getPrimarySkillID());
     }
 
+    private applyVisibility(): void {
+        this.container?.setVisible(this.externallyVisible && !this.classLocked);
+    }
+
     private repaintSelection(): void {
         for (let i = 0; i < SLOT_COUNT; i++) {
             const slot = this.slots[i];
             if (!slot) continue;
             const g = slot.selectRing;
+            const slotX = this.slotLocalX(i);
             g.clear();
             if (this.selectedSlotIndex !== i) continue;
             g.lineStyle(3, 0xffea7a, 1);
-            g.strokeRoundedRect(-SLOT_SIZE / 2 + 2, -SLOT_SIZE / 2 + 2, SLOT_SIZE - 4, SLOT_SIZE - 4, 6);
+            g.strokeRoundedRect(
+                slotX - SLOT_SIZE / 2 + 2,
+                -SLOT_SIZE / 2 + 2,
+                SLOT_SIZE - 4,
+                SLOT_SIZE - 4,
+                6,
+            );
         }
     }
 
-    /** Nạp texture qua HTMLImageElement — ổn định hơn LoaderPlugin sau create(). */
     private async loadBoundSkillIcons(): Promise<void> {
         const gen = ++this.iconLoadGeneration;
         const ids = [...new Set(this.boundSlots.filter((id): id is string => !!id))];
