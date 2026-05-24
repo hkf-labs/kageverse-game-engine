@@ -1087,6 +1087,9 @@ export abstract class BaseMapScene extends Phaser.Scene {
             // nếu không có saved pos). finally đảm bảo chạy kể cả API fail —
             // tránh kẹt nhân vật invisible mãi.
             this.playerCtrl.activate();
+            // Lưu vị trí ngay lập tức khi nhân vật đã được kích hoạt thành công,
+            // đảm bảo API nhận đúng map mới và kích hoạt quest visit_zone realtime.
+            this.savePositionFireAndForget(false);
         }
     }
 
