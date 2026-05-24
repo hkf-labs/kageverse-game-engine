@@ -2005,7 +2005,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
                     this.deathState = 'alive';
                     this.monsters?.setTickPaused(false);
                     this.deathMenu.hide();
-                    this.scene.start('VillageScene', { useHubSpawn: true });
+                    this.scene.start(resolveSceneKeyForMap(res.map_id), { useHubSpawn: true });
                 } catch (err) {
                     const msg = err instanceof Error ? err.message : t('combat.respawn_failed');
                     this.hud.setStatus(msg, '#ff8a8a');

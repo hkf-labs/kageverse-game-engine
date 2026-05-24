@@ -670,6 +670,18 @@ export const npcAPI = {
         }
         return resData as CancelMainQuestResponse;
     },
+
+    /** Lưu tọa độ hồi sinh tại map hiện tại qua Kura. Trả saved_map_id khi thành công. */
+    async saveCoordinates(mapId: string, npcTemplateId: string, characterId: string): Promise<{ saved_map_id: string }> {
+        const qs = `?character_id=${encodeURIComponent(characterId)}`;
+        const path = `/maps/${encodeURIComponent(mapId)}/npcs/${encodeURIComponent(npcTemplateId)}/save-coordinates${qs}`;
+        const { response, traceId } = await authFetch(path, { method: 'POST' });
+        const resData = await parseJsonSafe(response);
+        if (!response.ok) {
+            throw new Error(`${formatApiError(resData, t('api.error.save_coordinates'))} (trace_id=${traceId || 'n/a'})`);
+        }
+        return resData as { saved_map_id: string };
+    },
 };
 
 // ----- Quest -----

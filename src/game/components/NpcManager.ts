@@ -609,6 +609,9 @@ export class NpcManager implements GameComponent {
             case 'cancel_main_quest':
                 this.runCancelMainQuest(npc);
                 break;
+            case 'save_coordinates':
+                this.runSaveCoordinates(npc);
+                break;
             default:
                 this.onStatusMessage?.(t('npc.run.action_unsupported', { name: action }), '#aaaaaa');
         }
@@ -669,6 +672,22 @@ export class NpcManager implements GameComponent {
         } else {
             doCancel();
         }
+    }
+
+    private runSaveCoordinates(npc: NpcEntry): void {
+        const character = getCurrentCharacter();
+        if (!character || !npc.templateId) {
+            this.onStatusMessage?.(t('npc.save_coordinates.failed'), '#ff8a8a');
+            return;
+        }
+        void npcAPI.saveCoordinates(this.mapId, npc.templateId, character.id)
+            .then(() => {
+                this.chatBubble?.show(npc.sprite, t('npc.dialogue.save_coordinates_success'));
+                this.onStatusMessage?.(t('npc.save_coordinates.success'), '#aaffaa');
+            })
+            .catch(() => {
+                this.onStatusMessage?.(t('npc.save_coordinates.failed'), '#ff8a8a');
+            });
     }
 
     private runQuestAccept(npc: NpcEntry, questID: string): void {
