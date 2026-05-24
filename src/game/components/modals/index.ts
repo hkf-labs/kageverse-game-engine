@@ -32,6 +32,7 @@ export type { CharacterCurrencies } from './InventoryModal';
 export { ModalItemMenu } from './ModalItemMenu';
 export type { ModalItemMenuEntry, ModalItemMenuOptions } from './ModalItemMenu';
 export { QuestLogPanel, questDisplayName, targetDisplayName } from './QuestLogPanel';
+export { AutoSettingsModal } from './AutoSettingsModal';
 export { SettingsModal } from './SettingsModal';
 export { ShopModal } from './ShopModal';
 export { SkillModal } from './SkillModal';

@@ -4,7 +4,7 @@ import { disconnectRealtime, wsClient } from '../../network/realtime';
 import { getCurrentCharacter } from '../playerSession';
 import { t } from '../../i18n';
 import {
-    ActionMenu, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, LootDropManager, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PickupToast, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
+    ActionMenu, AutoSettingsModal, BossHPBar, BuffIndicator, CharacterInfoModal, ChatPanel, ConfirmDialog, DeathMenu, EndMvpOverlay, EquipmentModal, GameControls, HoshiUpgradeModal, HUD, InventoryModal, LootDropManager, MapBackground, Minimap, MonsterManager, MonsterTargetFrame, NpcChatBubble, NpcManager, PickupToast, PlayerChatBubble, PlayerController, Portal, QuestLogPanel, QuestTracker, RemotePlayerManager, SettingsModal, ShopModal, SkillHotbar, SkillModal,
     categoryForTemplate, iconForTemplate,
     type MapConfig, type NpcConfig, type PortalConfig, type PortalLinkOverride,
 } from '../components';
@@ -67,6 +67,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
     protected skillModal!: SkillModal;
     protected skillHotbar!: SkillHotbar;
     protected settingsModal!: SettingsModal;
+    protected autoSettingsModal!: AutoSettingsModal;
     protected portals: Portal[] = [];
     protected remotePlayers!: RemotePlayerManager;
     protected playerChatBubble!: PlayerChatBubble;
@@ -623,6 +624,8 @@ export abstract class BaseMapScene extends Phaser.Scene {
         // ngữ) là feature MVP duy nhất; các option khác placeholder.
         this.settingsModal = new SettingsModal(this);
         this.settingsModal.create();
+        this.autoSettingsModal = new AutoSettingsModal(this);
+        this.autoSettingsModal.create();
 
         // Death menu (Kiệt sức) — overlay khi character HP=0.
         this.deathMenu = new DeathMenu(this, {
@@ -676,6 +679,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             this.skillModal?.destroy();
             this.skillHotbar?.destroy();
             this.settingsModal?.destroy();
+            this.autoSettingsModal?.destroy();
             this.inventory?.destroy();
             this.shop?.destroy();
             this.chat?.destroy();
@@ -1109,6 +1113,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             || this.characterInfo.isOpen()
             || this.skillModal.isOpen()
             || this.settingsModal.isOpen()
+            || this.autoSettingsModal.isOpen()
             || this.hoshiUpgradeModal.isOpen()
             || this.actionMenu.isOpen()
             || this.confirmDialog.isOpen()
@@ -1172,6 +1177,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 INPUT_LAYER.modal,
                 this.settingsModal,
                 () => { this.settingsModal.close(); return true; },
+            ));
+        }
+        if (this.autoSettingsModal.isOpen()) {
+            targets.push(createKeyboardModalTarget(
+                INPUT_LAYER.modal,
+                this.autoSettingsModal,
+                () => { this.autoSettingsModal.close(); return true; },
             ));
         }
         if (this.chat.isOpen()) {
@@ -2061,6 +2073,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
             || this.characterInfo.isOpen()
             || this.skillModal.isOpen()
             || this.settingsModal.isOpen()
+            || this.autoSettingsModal.isOpen()
             || this.hoshiUpgradeModal.isOpen()
             || this.confirmDialog.isOpen()
             || this.endMvpOverlay.isOpen()
@@ -2087,7 +2100,15 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 { key: 'self', label: t('menu.self'), icon: '🥷', action: () => this.openSelfMenu() },
                 { key: 'quests', label: t('menu.quests'), icon: '📜', action: wrap('quests', () => this.questLog.open()) },
                 { key: 'suicide', label: t('menu.suicide'), icon: '☠️', action: () => void this.handleSuicide() },
-                { key: 'settings', label: t('menu.settings'), icon: '⚙️', action: wrap('settings', () => this.settingsModal.open()) },
+                { key: 'settings', label: t('menu.settings'), icon: '⚙️', action: () => {
+                    this.actionMenu.open({
+                        title: t('menu.settings'),
+                        items: [
+                            { key: 'auto',     label: 'Tự Động',  icon: '🤖', action: () => this.autoSettingsModal.open() },
+                            { key: 'language', label: 'Ngôn ngữ', icon: '🌐', action: () => this.settingsModal.open() },
+                        ],
+                    });
+                } },
                 { key: 'logout', label: t('menu.logout'), icon: '🚪', action: () => this.handleLogout() },
             ],
         });
@@ -2159,6 +2180,7 @@ export abstract class BaseMapScene extends Phaser.Scene {
         if (this.characterInfo.isOpen()) { this.characterInfo.close(); return true; }
         if (this.skillModal.isOpen()) { this.skillModal.close(); return true; }
         if (this.settingsModal.isOpen()) { this.settingsModal.close(); return true; }
+        if (this.autoSettingsModal.isOpen()) { this.autoSettingsModal.close(); return true; }
         if (this.chat.isOpen()) { this.chat.toggle(); return true; }
         return false;
     }
