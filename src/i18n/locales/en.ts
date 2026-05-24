@@ -97,6 +97,10 @@ export const en: TranslationTable = {
     'character_info.row_combat_power': 'Combat Power',
     'character_info.row_attack': 'Attack',
     'character_info.row_defense': 'Defense',
+    'character_info.row_crit_rate': 'Crit Rate',
+    'character_info.row_crit_damage': 'Crit Damage',
+    'character_info.row_accuracy': 'Accuracy',
+    'character_info.row_power': 'Power',
 
     // Monster grade
     'monster.grade.normal': 'Normal',

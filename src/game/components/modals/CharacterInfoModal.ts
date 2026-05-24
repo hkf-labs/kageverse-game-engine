@@ -204,6 +204,7 @@ export class CharacterInfoModal extends BaseModal {
         const gender = genderKey ? t(genderKey) : c.gender;
         const combatPower = computeCombatPower(c);
         const expPct = c.exp_to_next_level > 0 ? (c.exp / c.exp_to_next_level) * 100 : 0;
+        const es = c.effective_stats;
 
         this.rows = [
             { label: t('character_info.row_character'), value: c.display_name, valueColor: MODAL_COLORS.statusOk },
@@ -213,10 +214,14 @@ export class CharacterInfoModal extends BaseModal {
             { label: t('character_info.row_class'), value: className },
             { label: t('character_info.row_school'), value: school },
             { label: t('character_info.row_combat_power'), value: combatPower.toLocaleString('en-US'), valueColor: MODAL_COLORS.title },
-            { label: 'HP', value: `${c.current_hp.toLocaleString('en-US')} / ${c.max_hp.toLocaleString('en-US')}`, valueColor: '#ff8a8a' },
-            { label: 'MP', value: `${c.current_mp.toLocaleString('en-US')} / ${c.max_mp.toLocaleString('en-US')}`, valueColor: '#8aaaff' },
-            { label: t('character_info.row_attack'), value: `${c.min_attack} – ${c.max_attack}` },
-            { label: t('character_info.row_defense'), value: String(c.defense) },
+            { label: 'HP', value: `${c.current_hp.toLocaleString('en-US')} / ${es.max_hp.toLocaleString('en-US')}`, valueColor: '#ff8a8a' },
+            { label: 'MP', value: `${c.current_mp.toLocaleString('en-US')} / ${es.max_mp.toLocaleString('en-US')}`, valueColor: '#8aaaff' },
+            { label: t('character_info.row_attack'), value: `${es.min_attack} – ${es.max_attack}` },
+            { label: t('character_info.row_defense'), value: String(es.defense) },
+            ...(es.crit_rate > 0 ? [{ label: t('character_info.row_crit_rate'), value: `+${es.crit_rate}%` }] : []),
+            ...(es.crit_damage > 0 ? [{ label: t('character_info.row_crit_damage'), value: `+${es.crit_damage}%` }] : []),
+            ...(es.accuracy > 0 ? [{ label: t('character_info.row_accuracy'), value: `+${es.accuracy}` }] : []),
+            ...(es.power > 0 ? [{ label: t('character_info.row_power'), value: `+${es.power}%` }] : []),
         ];
         this.selectedIdx = 0;
 
@@ -238,9 +243,9 @@ export class CharacterInfoModal extends BaseModal {
 }
 
 function computeCombatPower(c: CharacterDTO): number {
-    // Heuristic gọn: stat aggregate. Sẽ thay bằng BE-side khi chuẩn hoá công thức.
-    const avgAtk = (c.min_attack + c.max_attack) / 2;
-    return Math.round(c.max_hp * 0.3 + c.max_mp * 0.2 + avgAtk * 5 + c.defense * 4 + c.level * 50);
+    const es = c.effective_stats;
+    const avgAtk = (es.min_attack + es.max_attack) / 2;
+    return Math.round(es.max_hp * 0.3 + es.max_mp * 0.2 + avgAtk * 5 + es.defense * 4 + c.level * 50);
 }
 
 function escapeHtml(s: string): string {

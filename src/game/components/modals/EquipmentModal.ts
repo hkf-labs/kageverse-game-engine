@@ -1,6 +1,8 @@
 import * as Phaser from 'phaser';
 import {
     inventoryAPI,
+    charactersAPI,
+    type CharacterDTO,
     type CharacterStatsSnapshot,
     type EquippedItemDTO,
     type InventoryItemDTO,
@@ -76,6 +78,7 @@ export class EquipmentModal extends BaseModal {
     private slotsByKey = new Map<SlotKey, HTMLDivElement>();
     private statsEl?: HTMLDivElement;
     private equipped = new Map<string, EquippedItemDTO>(); // be slot id → item
+    private characterDTO: CharacterDTO | null = null;
     private loading = false;
     private actionInFlight = false;
     /** 2D nav coords trên grid (LEFT_COL | RIGHT_COL) × 5 row. col=0 left, col=1 right. */
@@ -368,9 +371,13 @@ export class EquipmentModal extends BaseModal {
         this.loading = true;
         this.shell?.setStatus(t('equipment.loading'), 'muted');
         try {
-            const res = await inventoryAPI.listEquipped(character.id);
+            const [res, charRes] = await Promise.all([
+                inventoryAPI.listEquipped(character.id),
+                charactersAPI.list(),
+            ]);
             this.equipped.clear();
             for (const it of res.items) this.equipped.set(it.slot, it);
+            this.characterDTO = charRes.characters.find((c) => c.id === character.id) ?? null;
             this.renderSlots();
             this.renderStatsSummary();
             this.shell?.setStatus('', 'muted');
@@ -434,18 +441,23 @@ export class EquipmentModal extends BaseModal {
 
     private renderStatsSummary(): void {
         if (!this.statsEl) return;
-        const totals: Record<string, number> = {};
-        for (const eq of this.equipped.values()) {
-            if (!eq.item.rolled_stats) continue;
-            for (const [k, v] of Object.entries(eq.item.rolled_stats)) {
-                totals[k] = (totals[k] ?? 0) + v;
-            }
-        }
-        const lines = buildEquipmentStatLines(null, Object.keys(totals).length > 0 ? totals : null);
-        if (lines.length === 0) {
+        const c = this.characterDTO;
+        if (!c?.effective_stats) {
             this.statsEl.innerHTML = `<div style="color:#888;font-style:italic;">${escapeHtml(t('equipment.stats_empty'))}</div>`;
             return;
         }
+        const es = c.effective_stats;
+        type StatLine = { label: string; value: string };
+        const lines: StatLine[] = [
+            { label: t('equipment.stat_attack'), value: `${es.min_attack} – ${es.max_attack}` },
+            { label: t('equipment.stat_defense'), value: String(es.defense) },
+            { label: 'HP', value: String(es.max_hp) },
+            { label: 'MP', value: String(es.max_mp) },
+            ...(es.crit_rate > 0 ? [{ label: t('equipment.stat_crit_rate'), value: `+${es.crit_rate}%` }] : []),
+            ...(es.crit_damage > 0 ? [{ label: t('equipment.stat_crit_damage'), value: `+${es.crit_damage}%` }] : []),
+            ...(es.accuracy > 0 ? [{ label: t('equipment.stat_accuracy'), value: `+${es.accuracy}` }] : []),
+            ...(es.power > 0 ? [{ label: t('equipment.stat_power'), value: `+${es.power}%` }] : []),
+        ];
         this.statsEl.innerHTML = lines
             .map((line) => (
                 `<div>${escapeHtml(line.label)}: `

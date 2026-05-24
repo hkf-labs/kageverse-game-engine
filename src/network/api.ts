@@ -216,6 +216,18 @@ export type ActiveFoodBuffDTO = {
     expires_at: string;
 };
 
+export type EffectiveStatsDTO = {
+    min_attack: number;
+    max_attack: number;
+    defense: number;
+    max_hp: number;
+    max_mp: number;
+    crit_rate: number;
+    crit_damage: number;
+    accuracy: number;
+    power: number;
+};
+
 export type CharacterDTO = {
     id: string;
     user_id: string;
@@ -237,6 +249,7 @@ export type CharacterDTO = {
     coin: number;
     gold: number;
     gem: number;
+    effective_stats: EffectiveStatsDTO;
     active_food_buff: ActiveFoodBuffDTO | null;
     last_map_id: string | null;
     last_pos_x: number | null;

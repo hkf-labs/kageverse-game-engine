@@ -387,13 +387,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 // + lastKnownLevel + max_hp/mp. Mọi nhãn dán cache khác (apparel/
                 // jewelry classFilter) đọc từ playerSession đã refresh trước đó.
                 this.lastKnownLevel = char.level;
-                this.lastKnownStats.max_hp = char.max_hp;
-                this.lastKnownStats.max_mp = char.max_mp;
+                this.lastKnownStats.max_hp = char.effective_stats.max_hp;
+                this.lastKnownStats.max_mp = char.effective_stats.max_mp;
                 this.hud.setStats({
                     current_hp: char.current_hp,
-                    max_hp: char.max_hp,
+                    max_hp: char.effective_stats.max_hp,
                     current_mp: char.current_mp,
-                    max_mp: char.max_mp,
+                    max_mp: char.effective_stats.max_mp,
                     level: char.level,
                 });
                 this.hud.setClass(char.class);
@@ -1007,13 +1007,13 @@ export abstract class BaseMapScene extends Phaser.Scene {
             const c = list.characters.find((it) => it.id === current.id) ?? list.characters[0];
             if (!c) return;
             this.lastKnownLevel = c.level;
-            this.lastKnownStats.max_hp = c.max_hp;
-            this.lastKnownStats.max_mp = c.max_mp;
+            this.lastKnownStats.max_hp = c.effective_stats.max_hp;
+            this.lastKnownStats.max_mp = c.effective_stats.max_mp;
             this.hud.setStats({
                 current_hp: c.current_hp,
-                max_hp: c.max_hp,
+                max_hp: c.effective_stats.max_hp,
                 current_mp: c.current_mp,
-                max_mp: c.max_mp,
+                max_mp: c.effective_stats.max_mp,
                 level: c.level,
             });
             this.hud.setExpPercent(c.exp_to_next_level > 0 ? (c.exp / c.exp_to_next_level) * 100 : 0);

@@ -97,6 +97,10 @@ export const vi: TranslationTable = {
     'character_info.row_combat_power': 'Hiệu chiến',
     'character_info.row_attack': 'Tấn công',
     'character_info.row_defense': 'Phòng thủ',
+    'character_info.row_crit_rate': 'Tỉ lệ chí mạng',
+    'character_info.row_crit_damage': 'Sát thương chí mạng',
+    'character_info.row_accuracy': 'Chính xác',
+    'character_info.row_power': 'Uy lực',
 
     // Monster grade
     'monster.grade.normal': 'Thường',
