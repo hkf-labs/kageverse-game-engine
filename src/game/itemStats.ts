@@ -55,12 +55,16 @@ export function buildEquipmentStatLines(
     rolledStats: Record<string, number> | null | undefined,
     options?: EquipmentStatDisplayOptions,
 ): ItemStatLine[] {
-    // Nếu là vũ khí và chưa roll, chúng ta vẫn cho phép hiển thị dải chỉ số cơ bản (baseStats)
-    // từ template thay vì ẩn hoàn toàn, giúp người chơi xem được thông tin của vũ khí khi ở trong Túi đồ.
-
     const lines: ItemStatLine[] = [];
     const base = baseStats ?? {};
     const rolled = rolledStats;
+
+    // Vũ khí chưa roll (sub_type=weapon, rolled_stats rỗng) → ẩn dải chỉ số
+    // vì chỉ số thực chỉ xác định sau khi equip/roll. Các sub_type khác vẫn
+    // hiện dải base_stats để người chơi biết trang bị sẽ có chỉ số gì.
+    if (options?.subType === 'weapon' && !hasRolledValues(rolled)) {
+        return lines;
+    }
 
     if (hasRolledValues(rolled)) {
         for (const row of EQUIPMENT_STAT_ROWS) {
