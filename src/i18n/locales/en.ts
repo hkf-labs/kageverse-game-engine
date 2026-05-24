@@ -790,6 +790,7 @@ export const en: TranslationTable = {
     'npc.action_browse_apparel': 'Apparel',
     'npc.action_browse_jewelry': 'Jewelry',
     'npc.action_cancel_main_quest': 'Abandon Quest',
+    'npc.action_save_coordinates': 'Save Coordinates',
     'npc.action_leave': 'Leave',
     'npc.menu_loading': 'Loading...',
     'npc.menu_error_load': 'Failed to load NPC menu',

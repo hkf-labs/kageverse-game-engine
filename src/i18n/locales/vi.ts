@@ -801,6 +801,7 @@ export const vi: TranslationTable = {
     'npc.action_browse_apparel': 'Trang phục',
     'npc.action_browse_jewelry': 'Trang sức',
     'npc.action_cancel_main_quest': 'Hủy Nhiệm Vụ',
+    'npc.action_save_coordinates': 'Lưu Tọa Độ',
     'npc.action_leave': 'Rời đi',
     'npc.menu_loading': 'Đang tải...',
     'npc.menu_error_load': 'Không tải được menu NPC',

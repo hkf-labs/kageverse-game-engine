@@ -35,6 +35,7 @@ const ACTION_KEY: Record<string, string> = {
     browse_apparel: 'npc.action_browse_apparel',
     browse_jewelry: 'npc.action_browse_jewelry',
     cancel_main_quest: 'npc.action_cancel_main_quest',
+    save_coordinates: 'npc.action_save_coordinates',
 };
 
 const ACTION_ICON: Record<string, string> = {
@@ -49,6 +50,7 @@ const ACTION_ICON: Record<string, string> = {
     browse_apparel: '👘',
     browse_jewelry: '💍',
     cancel_main_quest: '🚫',
+    save_coordinates: '📍',
 };
 
 function actionLabel(a: NpcActionDTO): string {
