@@ -2109,7 +2109,21 @@ export abstract class BaseMapScene extends Phaser.Scene {
                         ],
                     });
                 } },
-                { key: 'logout', label: t('menu.logout'), icon: '🚪', action: () => this.handleLogout() },
+                {
+                    key: 'logout',
+                    label: t('menu.logout'),
+                    icon: '🚪',
+                    action: () => {
+                        this.confirmDialog.open({
+                            title: t('menu.logout'),
+                            message: t('menu.logout_confirm_message'),
+                            confirmLabel: t('menu.logout_confirm_yes'),
+                            cancelLabel: t('menu.logout_confirm_no'),
+                            confirmColor: 'amber',
+                            onConfirm: () => this.handleLogout(),
+                        });
+                    },
+                },
             ],
         });
     }

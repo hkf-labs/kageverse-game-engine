@@ -153,6 +153,9 @@ export const vi: TranslationTable = {
     'menu.suicide': 'Tự sát',
     'menu.settings': 'Cài đặt',
     'menu.logout': 'Đăng xuất',
+    'menu.logout_confirm_message': 'Bạn có chắc muốn đăng xuất không?',
+    'menu.logout_confirm_yes': 'Có',
+    'menu.logout_confirm_no': 'Không',
 
     // Death menu (Kiệt sức overlay)
     'death.banner': '☠️ BẠN ĐÃ GỤC',

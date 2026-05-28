@@ -153,6 +153,9 @@ export const en: TranslationTable = {
     'menu.suicide': 'Suicide',
     'menu.settings': 'Settings',
     'menu.logout': 'Logout',
+    'menu.logout_confirm_message': 'Are you sure you want to log out?',
+    'menu.logout_confirm_yes': 'Yes',
+    'menu.logout_confirm_no': 'No',
 
     // Death menu (collapsed overlay)
     'death.banner': '☠️ YOU HAVE FALLEN',
