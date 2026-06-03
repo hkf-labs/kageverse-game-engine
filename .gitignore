@@ -13,6 +13,14 @@ jspm_packages/
 .npm
 .yarn-integrity
 
+# Yarn Berry — local cache, không commit
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
 # Lockfile — repo dùng yarn, không commit npm lockfile
 package-lock.json
 
