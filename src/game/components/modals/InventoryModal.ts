@@ -261,7 +261,7 @@ export class InventoryModal extends BaseModal {
         this.currenciesEl = currencies;
 
         // Action bar — sibling của panel trong overlay, absolute ở đáy màn hình.
-        // pointerEvents:none cho container để click backdrop vẫn close modal;
+        // pointerEvents:none cho container để không chặn click lên overlay;
         // button con tự set pointerEvents:auto. Share CSS zoom với panel để
         // bar shrink đồng bộ trên màn nhỏ.
         const bar = document.createElement('div');

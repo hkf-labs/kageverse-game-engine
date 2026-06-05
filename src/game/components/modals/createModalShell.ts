@@ -37,7 +37,7 @@ export interface ModalShellOptions {
      * Default 'canvas-parent'.
      */
     mount?: 'canvas-parent' | 'document-body';
-    /** Callback khi user click backdrop / close button. Mặc định no-op. */
+    /** Callback khi user click close button (✕). Mặc định no-op. */
     onClose?: () => void;
     /**
      * 'modal' (default) — panel có gradient bg + border + radius + header.
@@ -110,7 +110,9 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
         : opts.scene.game.canvas.parentElement;
     if (!parent) return null;
 
-    // Backdrop overlay — full-screen, dim, click outside = close.
+    // Backdrop overlay — full-screen, dim. Click outside KHÔNG đóng modal —
+    // chỉ close button (✕) hoặc ESC (scene routeBlockedInput) mới đóng, tránh
+    // user lỡ tay click ra ngoài mất state đang thao tác.
     const overlay = document.createElement('div');
     overlay.classList.add('kageverse-overlay', opts.overlayClassName);
     Object.assign(overlay.style, {
@@ -122,9 +124,6 @@ export function createModalShell(opts: ModalShellOptions): ModalShell | null {
         alignItems: 'center',
         justifyContent: 'center',
         fontFamily: 'system-ui, sans-serif',
-    });
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay && opts.onClose) opts.onClose();
     });
     if (mount === 'canvas-parent') {
         // canvas-parent cần `position: relative` để absolute con hoạt động đúng.

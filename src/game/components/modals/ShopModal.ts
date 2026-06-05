@@ -197,7 +197,7 @@ export class ShopModal extends BaseModal {
         shell.body.append(gridWrap, this.balanceEl);
 
         // Action bar — sibling của panel, absolute đáy overlay. pointerEvents:
-        // none cho container để click backdrop vẫn close modal; button con tự
+        // none cho container để không chặn click lên overlay; button con tự
         // set pointerEvents:auto. Share CSS zoom với panel để bar shrink đồng bộ
         // trên màn nhỏ.
         const bar = document.createElement('div');
