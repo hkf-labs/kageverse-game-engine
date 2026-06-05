@@ -1,5 +1,6 @@
 import type { MapConfig, NpcConfig, PortalConfig } from '../components';
 import { mapDisplayName } from '../maps/registry';
+import { portalLabelForTargetMap } from '../maps/portalLabels';
 import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
@@ -44,6 +45,8 @@ export class FireSchoolScene extends BaseMapScene {
     protected getPortalConfigs(): PortalConfig[] {
         return [
             { x: 180, label: t('portal.label.return_bamboo'), targetSceneKey: 'FireToVillage004001Scene' },
+            // Nhánh thứ 2 hướng village_005 — chain fire_to_village005_001..002.
+            { x: 6200, label: portalLabelForTargetMap('fire_to_village005_001'), targetSceneKey: 'FireToVillage005001Scene' },
         ];
     }
 

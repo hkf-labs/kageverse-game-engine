@@ -14,6 +14,12 @@ import { VillageToIce001Scene } from './scenes/VillageToIce001Scene';
 import { VillageToIce002Scene } from './scenes/VillageToIce002Scene';
 import { FireToVillage004001Scene } from './scenes/FireToVillage004001Scene';
 import { FireToVillage004002Scene } from './scenes/FireToVillage004002Scene';
+import { FireToVillage005001Scene } from './scenes/FireToVillage005001Scene';
+import { FireToVillage005002Scene } from './scenes/FireToVillage005002Scene';
+import { IceToVillage003001Scene } from './scenes/IceToVillage003001Scene';
+import { IceToVillage003002Scene } from './scenes/IceToVillage003002Scene';
+import { WindToVillage002001Scene } from './scenes/WindToVillage002001Scene';
+import { WindToVillage002002Scene } from './scenes/WindToVillage002002Scene';
 import { MahoragaBossScene } from './scenes/MahoragaBossScene';
 
 // Scale mode RESIZE — canvas internal size = viewport size (no letterbox bars).
@@ -65,7 +71,11 @@ export const getGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
             VillageToFire001Scene, VillageToFire002Scene,
             VillageToWind001Scene, VillageToWind002Scene,
             VillageToIce001Scene, VillageToIce002Scene,
-            FireToVillage004001Scene, FireToVillage004002Scene, MahoragaBossScene, MainScene,
+            FireToVillage004001Scene, FireToVillage004002Scene,
+            FireToVillage005001Scene, FireToVillage005002Scene,
+            IceToVillage003001Scene, IceToVillage003002Scene,
+            WindToVillage002001Scene, WindToVillage002002Scene,
+            MahoragaBossScene, MainScene,
         ]
     };
 };

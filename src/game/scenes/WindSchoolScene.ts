@@ -1,5 +1,6 @@
-import type { MapConfig, NpcConfig } from '../components';
+import type { MapConfig, NpcConfig, PortalConfig } from '../components';
 import { mapDisplayName } from '../maps/registry';
+import { portalLabelForTargetMap } from '../maps/portalLabels';
 import { t } from '../../i18n';
 import { BaseMapScene } from './BaseMapScene';
 
@@ -7,6 +8,7 @@ import { BaseMapScene } from './BaseMapScene';
  * Trường Phong (`wind_school_001`) — middle position trong topology, là phái
  * thứ 3 chưa active MVP. Entry từ village locked (chỉ QA với
  * `unlock_all_maps=true` qua được). Sau khi vào, nội bộ trường đi tự do.
+ * Hết dead-end: portal phải dẫn vào chain combat wind_to_village002_001..002.
  * Spec: docs/maps/village-schools-path-spec.md.
  */
 export class WindSchoolScene extends BaseMapScene {
@@ -29,6 +31,13 @@ export class WindSchoolScene extends BaseMapScene {
     }
 
     protected getMapDisplayName(): string { return mapDisplayName('wind_school_001').toUpperCase(); }
+
+    protected getPortalConfigs(): PortalConfig[] {
+        return [
+            // Nhánh hướng village_002 — chain wind_to_village002_001..002.
+            { x: 6200, label: portalLabelForTargetMap('wind_to_village002_001'), targetSceneKey: 'WindToVillage002001Scene' },
+        ];
+    }
 
     protected getNpcConfigs(): NpcConfig[] {
         return [

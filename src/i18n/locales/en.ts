@@ -697,6 +697,12 @@ export const en: TranslationTable = {
     'map.name.village_to_ice_002': 'Path to Ice School (2)',
     'map.name.fire_to_village004_001': 'Yatomi Bamboo Forest',
     'map.name.fire_to_village004_002': 'Iwagumo Rocky Hill',
+    'map.name.fire_to_village005_001': 'Homura Meadow',
+    'map.name.fire_to_village005_002': 'Kaen Ridge',
+    'map.name.ice_to_village003_001': 'Shirakawa Snow Forest',
+    'map.name.ice_to_village003_002': 'Fubuki Frozen Lake',
+    'map.name.wind_to_village002_001': 'Kazane Wind Plains',
+    'map.name.wind_to_village002_002': 'Arashi Canyon',
 
     // Portal labels
     'portal.label.return': 'Go Back',

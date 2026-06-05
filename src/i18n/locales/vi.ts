@@ -708,6 +708,12 @@ export const vi: TranslationTable = {
     'map.name.village_to_ice_002': 'Đường Tới Trường Băng (2)',
     'map.name.fire_to_village004_001': 'Rừng Tre Yatomi',
     'map.name.fire_to_village004_002': 'Đồi Đá Iwagumo',
+    'map.name.fire_to_village005_001': 'Đồng Cỏ Homura',
+    'map.name.fire_to_village005_002': 'Sườn Núi Kaen',
+    'map.name.ice_to_village003_001': 'Rừng Tuyết Shirakawa',
+    'map.name.ice_to_village003_002': 'Hồ Băng Fubuki',
+    'map.name.wind_to_village002_001': 'Đồng Gió Kazane',
+    'map.name.wind_to_village002_002': 'Hẻm Núi Arashi',
 
     // Portal labels — ngắn gọn, dùng ở scene config.
     'portal.label.return': 'Quay Lại',

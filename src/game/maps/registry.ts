@@ -22,6 +22,12 @@ export const MAP_REGISTRY: Record<string, MapRegistryEntry> = {
     village_to_ice_002:   { sceneKey: 'VillageToIce002Scene' },
     fire_to_village004_001: { sceneKey: 'FireToVillage004001Scene' },
     fire_to_village004_002: { sceneKey: 'FireToVillage004002Scene' },
+    fire_to_village005_001: { sceneKey: 'FireToVillage005001Scene' },
+    fire_to_village005_002: { sceneKey: 'FireToVillage005002Scene' },
+    ice_to_village003_001:  { sceneKey: 'IceToVillage003001Scene' },
+    ice_to_village003_002:  { sceneKey: 'IceToVillage003002Scene' },
+    wind_to_village002_001: { sceneKey: 'WindToVillage002001Scene' },
+    wind_to_village002_002: { sceneKey: 'WindToVillage002002Scene' },
 };
 
 export function resolveSceneKeyForMap(mapId: string | null | undefined): string {
