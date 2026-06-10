@@ -79,14 +79,13 @@ export function createKeyboardModalTarget(
 
 export type ActionMenuInputContext = {
     menu: ActionMenu;
-    currentMenuName: 'main' | 'self' | null;
-    onBackFromSelf: () => void;
     onCloseMenu: () => void;
 };
 
-/** Menu chức năng / NPC — Phaser ActionMenu. */
+/** NPC dialog / shop slot — Phaser ActionMenu. (Menu chức năng F1 cũ đã thay
+ * bằng QuickMenuBar — FEAT-UI-002.) */
 export function createActionMenuInputTarget(ctx: ActionMenuInputContext): InputFocusTarget {
-    const { menu, currentMenuName, onBackFromSelf, onCloseMenu } = ctx;
+    const { menu, onCloseMenu } = ctx;
     return {
         layer: INPUT_LAYER.actionMenu,
         navigate: (d) => {
@@ -104,8 +103,7 @@ export function createActionMenuInputTarget(ctx: ActionMenuInputContext): InputF
                 return true;
             }
             if (slot === 'right') {
-                if (currentMenuName === 'self') onBackFromSelf();
-                else onCloseMenu();
+                onCloseMenu();
                 return true;
             }
             return false;

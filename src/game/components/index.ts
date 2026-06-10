@@ -30,6 +30,8 @@ export { PlayerController } from './PlayerController';
 export { Portal } from './Portal';
 export { QuestLogPanel, questDisplayName, targetDisplayName } from './modals/QuestLogPanel';
 export { QuestTracker } from './QuestTracker';
+export { QuickMenuBar } from './QuickMenuBar';
+export type { QuickMenuBarItem } from './QuickMenuBar';
 export { RemotePlayerManager } from './RemotePlayerManager';
 export { AutoSettingsModal } from './modals/AutoSettingsModal';
 export { SettingsModal } from './modals/SettingsModal';

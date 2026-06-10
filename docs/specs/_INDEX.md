@@ -43,3 +43,4 @@ Master tracker for feature specs. Every spec gets a row here in the same PR that
 | FEAT-SKL-001 | [Skills & hotbar](FEAT-SKL-001_skills_and_hotbar.md) | Implemented | [✓](../plans/FEAT-SKL-001_skills_and_hotbar.md) |
 | FEAT-CHAT-001 | [Chat](FEAT-CHAT-001_chat.md) | Implemented | [✓](../plans/FEAT-CHAT-001_chat.md) |
 | FEAT-UI-001 | [HUD, controls & menus](FEAT-UI-001_hud_controls_and_menus.md) | Implemented | [✓](../plans/FEAT-UI-001_hud_controls_and_menus.md) |
+| FEAT-UI-002 | [Quick menu bar (left of minimap)](FEAT-UI-002_quick_menu_bar.md) | Implemented | [✓](../plans/FEAT-UI-002_quick_menu_bar.md) |
