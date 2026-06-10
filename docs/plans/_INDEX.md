@@ -17,5 +17,6 @@ Implementation plans, one per feature, named `FEAT-<DOMAIN>-<NNN>_<slug>.md` wit
 | FEAT-SHOP-001 | [Shop & food buffs](FEAT-SHOP-001_shop_and_food_buffs.md) | Done | [✓](../specs/FEAT-SHOP-001_shop_and_food_buffs.md) |
 | FEAT-SKL-001 | [Skills & hotbar](FEAT-SKL-001_skills_and_hotbar.md) | Done | [✓](../specs/FEAT-SKL-001_skills_and_hotbar.md) |
 | FEAT-CHAT-001 | [Chat](FEAT-CHAT-001_chat.md) | Done | [✓](../specs/FEAT-CHAT-001_chat.md) |
+| FEAT-CHAT-002 | [Always-visible chat dock](FEAT-CHAT-002_chat_dock.md) | Approved | [✓](../specs/FEAT-CHAT-002_chat_dock.md) |
 | FEAT-UI-001 | [HUD, controls & menus](FEAT-UI-001_hud_controls_and_menus.md) | Done | [✓](../specs/FEAT-UI-001_hud_controls_and_menus.md) |
 | FEAT-UI-002 | [Quick menu bar (left of minimap)](FEAT-UI-002_quick_menu_bar.md) | Done | [✓](../specs/FEAT-UI-002_quick_menu_bar.md) |
