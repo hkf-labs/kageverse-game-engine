@@ -22,7 +22,7 @@ Kageverse là một **Web3 MMORPG 2D Game Engine** được xây dựng và lấ
 
 ## ✨ Tính năng công nghệ
 
-- 🏗 **Kiến trúc tối ưu**: Giao thoa sức mạnh của **React** (quản lý UI/UX và logic Web3 phi tập trung) và **Phaser 3** (render vòng lặp game 2D hiệu năng cao).
+- 🏗 **Kiến trúc tối ưu**: Giao thoa sức mạnh của **React** (quản lý UI/UX và logic Web3 phi tập trung) và **Phaser 4** (render vòng lặp game 2D hiệu năng cao).
 - ⚡ **Dynamic Import**: Phaser engine được load dưới dạng *trì hoãn (dynamic loaded)*. Việc này giúp game tải cực nhẹ mà không làm nghẽn main-thread của trình duyệt.
 - 🔌 **Tích hợp realtime**: WebSocket client có sẵn, tích hợp với backend Golang và được thiết lập cơ chế *chống spam* toạ độ tự động.
 - 🎨 **Giao diện cao cấp**: Setup chuẩn CSS animations, glassmorphism và dark mode cực kỳ bí ẩn dành cho hệ sinh thái game Web3.
