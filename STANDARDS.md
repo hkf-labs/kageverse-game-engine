@@ -106,7 +106,15 @@ Recommendation: <recommended option with reasoning>
 - New env var → `.env.example` with comment.
 - New screen/onboarding flow → page under `docs/screen/`.
 
-### 7.2 Code Comments
+### 7.2 ADR Required For
+
+- Any deviation from `ARCHITECTURE.md` (scene/component structure, React ↔ Phaser boundary, network layer).
+- New runtime dependency (rendering/physics/state library, external service).
+- Replacing a core mechanism (input focus layers, modal shell, move throttle, map registry).
+
+ADRs live in `docs/adr/`, numbered sequentially, per `docs/adr/_TEMPLATE.md`.
+
+### 7.3 Code Comments
 
 - Write only WHY, never WHAT. Well-named code explains WHAT.
 - Good: `// scaleY=-1: Spine editor Y-axis is inverted vs Phaser world space.`

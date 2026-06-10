@@ -15,7 +15,7 @@
 Design (BE docs/business or docs/screen) ──→ Implement ──→ Verify (tsc + lint + build + manual) ──→ Docs sync ──→ PR
 ```
 
-1. **Design.** Gameplay behavior is defined in the backend repo (`docs/business/`); FE-specific flows (screens, onboarding) live in `docs/screen/`. If neither covers your task, stop and ask — don't invent game design.
+1. **Design.** Gameplay behavior is defined in the backend repo (`docs/business/`); FE-specific flows (screens, onboarding) live in `docs/screen/`. Non-trivial FE features get a spec in `docs/specs/` plus a plan in `docs/plans/` (templates: `_TEMPLATE.md` in each; track both in `_INDEX.md`); FE architecture-level changes need an ADR first (`docs/adr/_TEMPLATE.md`). If no source covers your task, stop and ask — don't invent game design.
 2. **Implement.** Follow the boundary/scene/component rules (`STANDARDS.md` §1–2). New code is English-commented, i18n-keyed, typed (no `any`).
 3. **Verify.** `npx tsc -b` → `yarn lint` → `yarn build`, then a manual pass of the affected flow in the running game (`yarn dev` + backend). There is no CI — local green is the gate.
 4. **Docs sync.** Same-PR rules in `STANDARDS.md` §7.1.

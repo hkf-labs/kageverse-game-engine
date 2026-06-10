@@ -10,6 +10,9 @@ Navigation map for everything under `docs/`. Rule files live at the repo root: `
 
 | Path | Contents | Authority |
 |---|---|---|
+| `adr/` | Architecture Decision Records for FE-only decisions (`_TEMPLATE.md` to start one) | Why a structural choice was made |
+| `specs/` | Feature specs, one per screen/feature (`_INDEX.md` tracker, `_TEMPLATE.md` to start one) | Behavior authority for the feature |
+| `plans/` | Implementation plans, same `FEAT-…` ID as the spec (`_INDEX.md` tracker) | How the feature is built — file map + steps |
 | `maps/README.md` | Map asset workflow — Tiled export, `public/assets/maps/<map_id>/` layout, collider conventions | How map assets are produced and wired |
 | `maps/village-schools-path-spec.md` | Planning spec for the village ↔ three-schools path maps (MVP phase 1) | Historical planning artifact |
 | `screen/auth/` | Login / register screen flows (`login.md`, `register.md`) | FE screen behavior |

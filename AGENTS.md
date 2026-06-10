@@ -31,11 +31,12 @@ Read in order — each item has a non-bypassable reason.
 | 2 | `STANDARDS.md` | Code rules + AI working protocol |
 | 3 | `CONTRIBUTING.md` | Workflow, checklists (new map / component / WS event) |
 | 4 | `ARCHITECTURE.md` | Scene/component/network inventory + invariants |
-| 5 | For gameplay behavior: the matching page under `../kageverse-server/docs/business/` | Game-design authority lives in the backend repo |
-| 6 | For every endpoint touched: `../kageverse-server/docs/api/<module>/*.md` | REST contract authority |
-| 7 | For every WS event touched: `../kageverse-server/docs/api/realtime.md` + `src/network/protocol/events.ts` | Protocol authority + its FE mirror |
-| 8 | For map work: `docs/maps/README.md` | Map asset workflow (Tiled → colliders.json) |
-| 9 | Relevant existing code | `grep` first, then read — never guess |
+| 5 | `docs/specs/<feature>.md` *(if the task has a spec)* | FE behavior authority for the feature |
+| 6 | For gameplay behavior: the matching page under `../kageverse-server/docs/business/` | Game-design authority lives in the backend repo |
+| 7 | For every endpoint touched: `../kageverse-server/docs/api/<module>/*.md` | REST contract authority |
+| 8 | For every WS event touched: `../kageverse-server/docs/api/realtime.md` + `src/network/protocol/events.ts` | Protocol authority + its FE mirror |
+| 9 | For map work: `docs/maps/README.md` | Map asset workflow (Tiled → colliders.json) |
+| 10 | Relevant existing code | `grep` first, then read — never guess |
 
 ---
 
@@ -44,6 +45,8 @@ Read in order — each item has a non-bypassable reason.
 | Concern | Authoritative source | Override rule |
 |---|---|---|
 | Game design / gameplay behavior | `../kageverse-server/docs/business/` | Product decision required to deviate |
+| FE feature behavior (new features) | `docs/specs/<feature>.md` | Code derives from spec, never the reverse |
+| FE architecture decisions | `docs/adr/` + `ARCHITECTURE.md` | New ADR required to deviate |
 | REST API contract | `../kageverse-server/docs/api/` | FE adapts to BE, never the reverse |
 | WebSocket protocol | `../kageverse-server/docs/api/realtime.md`; FE mirror: `src/network/protocol/events.ts` | Update the mirror in the same PR as any protocol change |
 | Map ↔ scene mapping | `src/game/maps/registry.ts` (`MAP_REGISTRY`) | Every map scene must have an entry; keys must match `super('SceneKey')` |
@@ -139,6 +142,7 @@ There is no test runner — verification is type-check + lint + build, then runn
 | Need | Command / path |
 |---|---|
 | Scene & component inventory | `ARCHITECTURE.md` |
+| Feature specs / plans | `docs/specs/_INDEX.md` / `docs/plans/_INDEX.md` |
 | Add a new map | `CONTRIBUTING.md` §3 + `docs/maps/README.md` |
 | Game-design answer | `../kageverse-server/docs/business/` |
 | REST endpoint contract | `../kageverse-server/docs/api/<module>/*.md` |
