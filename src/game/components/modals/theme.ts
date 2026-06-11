@@ -74,7 +74,7 @@ export const MODAL_SIZES = {
  * với menu item DOM trên modal.
  *
  * Thứ tự DOM (z-index):
- *  - panel: ChatPanel (100)
+ *  - panel: ChatDock (100)
  *  - modal: Inventory / Shop / … (110)
  *  - modalItemMenu / tooltip: sub-menu & Xem chi tiết trên modal (150)
  *  - blockingDialog: Settings / QuestLog / HoshiUpgrade (200)

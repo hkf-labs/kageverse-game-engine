@@ -25,7 +25,7 @@ export interface ModalShellOptions {
     title?: string;
     /**
      * Có hiển thị title element trong header không (default true). Set false
-     * cho modal cần custom header content (vd ChatPanel — tabs thay vì title).
+     * cho modal cần custom header content (vd tabs thay vì title).
      * Subclass tự append element vào headerEl (trước close button).
      */
     withTitle?: boolean;

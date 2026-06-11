@@ -19,7 +19,6 @@ export {
 export type { ModalSize, ModalLayer } from './theme';
 
 export { CharacterInfoModal } from './CharacterInfoModal';
-export { ChatPanel } from './ChatPanel';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogOpenParams } from './ConfirmDialog';
 export { DeathMenu } from './DeathMenu';

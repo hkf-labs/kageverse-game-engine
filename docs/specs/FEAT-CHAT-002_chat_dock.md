@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Feature ID | FEAT-CHAT-002 |
-| Status | Approved |
+| Status | Implemented |
 | Linked plan | `docs/plans/FEAT-CHAT-002_chat_dock.md` |
 | Game-design source | `../kageverse-server/docs/business/` (chat rules unchanged from FEAT-CHAT-001) |
 | Created / Updated | 2026-06-11 / 2026-06-11 |

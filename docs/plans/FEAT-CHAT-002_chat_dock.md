@@ -6,7 +6,7 @@
 |---|---|
 | Feature ID | FEAT-CHAT-002 |
 | Linked spec | `docs/specs/FEAT-CHAT-002_chat_dock.md` |
-| Status | Approved |
+| Status | Done |
 | Created / Updated | 2026-06-11 / 2026-06-11 |
 
 ## 1. Goal
@@ -63,7 +63,7 @@ Constraints discovered up front:
 
 ## 6. Definition of Done
 
-- [ ] All spec acceptance criteria (AC-1…AC-9) pass in a manual game pass.
-- [ ] `npx tsc -b` + `yarn lint` + `yarn build` green.
-- [ ] Docs synced per `STANDARDS.md` §7.1 (FEAT-CHAT-001 spec/plan marked superseded-in-part by this feature where relevant).
-- [ ] Spec status moved to `Implemented`; `_INDEX.md` rows updated.
+- [x] Spec acceptance criteria verified in a live game pass (Playwright vs the dev server, 2026-06-11): AC-1…AC-7 fully; AC-8 send/tabs/bubble verified, rate-limit status not triggered; AC-9 narrow-viewport clearance verified, EN↔VI runtime switch pending a manual check.
+- [x] `npx tsc -b` + `yarn build` green (`yarn lint` has 6 pre-existing errors on `main`, untouched files).
+- [x] Docs synced per `STANDARDS.md` §7.1.
+- [x] Spec status moved to `Implemented`; `_INDEX.md` rows updated.

@@ -6,7 +6,7 @@ export { BossHPBar } from './BossHPBar';
 export { BuffIndicator, iconForTemplate, categoryForTemplate } from './BuffIndicator';
 export type { ActiveBuff } from './BuffIndicator';
 export { CharacterInfoModal } from './modals/CharacterInfoModal';
-export { ChatPanel } from './modals/ChatPanel';
+export { ChatDock } from './ChatDock';
 export { ConfirmDialog } from './modals/ConfirmDialog';
 export type { ConfirmDialogOpenParams } from './modals/ConfirmDialog';
 export { DeathMenu } from './modals/DeathMenu';
