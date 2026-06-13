@@ -158,8 +158,6 @@ export const en: TranslationTable = {
     'menu.settings': 'Settings',
     'menu.auto': 'Auto',
     'menu.language': 'Language',
-    'menu.bar_collapse': 'Hide menu',
-    'menu.bar_expand': 'Show menu',
     'menu.logout': 'Logout',
     'menu.logout_confirm_message': 'Are you sure you want to log out?',
     'menu.logout_confirm_yes': 'Yes',

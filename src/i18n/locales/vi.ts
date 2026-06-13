@@ -158,8 +158,6 @@ export const vi: TranslationTable = {
     'menu.settings': 'Cài đặt',
     'menu.auto': 'Tự Động',
     'menu.language': 'Ngôn ngữ',
-    'menu.bar_collapse': 'Thu gọn menu',
-    'menu.bar_expand': 'Mở menu',
     'menu.logout': 'Đăng xuất',
     'menu.logout_confirm_message': 'Bạn có chắc muốn đăng xuất không?',
     'menu.logout_confirm_yes': 'Có',

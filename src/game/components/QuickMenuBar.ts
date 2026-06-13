@@ -1,11 +1,14 @@
 import * as Phaser from 'phaser';
-import { t } from '../../i18n';
+import { onLocaleChange, t } from '../../i18n';
 import type { GameComponent } from './types';
 
 /**
- * Quick menu bar (FEAT-UI-002) — hàng icon chức năng thường trực bên trái
+ * Quick menu bar (FEAT-UI-002) — hàng nút chức năng thường trực bên trái
  * minimap, thay cây menu F1 main/self cũ. Canvas Phaser (scrollFactor 0) như
  * Minimap/SkillHotbar: nằm dưới modal HTML và bị camera minimap ignore.
+ *
+ * Mỗi nút hiển thị icon + tên chức năng (label) ngay bên dưới — tên ăn theo
+ * locale hiện tại và tự cập nhật khi đổi ngôn ngữ.
  *
  * Bar không bắt keyboard — F1/btn_menu toggle collapse từ BaseMapScene.
  */
@@ -13,7 +16,7 @@ export interface QuickMenuBarItem {
     key: string;
     /** Emoji icon (chưa có sprite asset riêng). */
     icon: string;
-    /** i18n key cho tooltip — resolve lúc hover để ăn theo locale hiện tại. */
+    /** i18n key cho tên chức năng — resolve theo locale hiện tại. */
     labelKey: string;
     action: () => void;
 }
@@ -24,19 +27,29 @@ export interface QuickMenuBarOptions {
     items: QuickMenuBarItem[];
 }
 
-const BTN = 36;
+const BTN_W = 54;
+const BTN_H = 48;
 const GAP = 6;
 const RADIUS = 8;
 const MARGIN_TO_MINIMAP = 12;
+// Tối đa số item mỗi dòng; dư thì xuống dòng dưới.
+const ITEMS_PER_ROW = 5;
+// Bar bám sát mép trên màn hình.
+const TOP_MARGIN = 8;
 const BG_DEPTH = 200;
 const ICON_DEPTH = 201;
 const HIT_DEPTH = 202;
-const TOOLTIP_DEPTH = 203;
+// Icon ngồi nửa trên, tên chức năng nửa dưới của ô nút (nút có label).
+const ICON_OFFSET_Y = -9;
+const LABEL_OFFSET_Y = 14;
 const STORAGE_KEY = 'kageverse_quickmenu_collapsed';
 
 interface ButtonView {
     bg: Phaser.GameObjects.Graphics;
     icon: Phaser.GameObjects.Text;
+    /** Nút toggle chỉ có icon — không kèm label. */
+    label?: Phaser.GameObjects.Text;
+    getLabel?: () => string;
     hit: Phaser.GameObjects.Rectangle;
     hovered: boolean;
     x: number;
@@ -48,10 +61,10 @@ export class QuickMenuBar implements GameComponent {
     private opts: QuickMenuBarOptions;
     private itemViews: ButtonView[] = [];
     private toggleView?: ButtonView;
-    private tooltip?: Phaser.GameObjects.Text;
     private collapsed: boolean;
     private enabled = true;
     private visible = true;
+    private unsubLocale?: () => void;
 
     constructor(scene: Phaser.Scene, opts: QuickMenuBarOptions) {
         this.scene = scene;
@@ -60,23 +73,18 @@ export class QuickMenuBar implements GameComponent {
     }
 
     create(): void {
-        // Tooltip tạo trước (ẩn) — mọi object phải tồn tại trước khi
-        // Minimap.ignoreUIElements() chạy, tạo lúc hover sẽ lọt vào minimap.
-        this.tooltip = this.scene.add.text(0, 0, '', {
-            fontSize: '12px', fontStyle: 'bold', color: '#ffe4c4',
-            fontFamily: 'system-ui, sans-serif', stroke: '#000', strokeThickness: 3,
-            backgroundColor: '#3e2723', padding: { left: 8, right: 8, top: 3, bottom: 3 },
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(TOOLTIP_DEPTH).setVisible(false);
-
         this.opts.items.forEach((item) => {
             const view = this.makeButton(item.icon, () => item.action(), () => t(item.labelKey));
             this.itemViews.push(view);
         });
+        // Nút toggle: chỉ icon ☰/«, không hiện chữ "Mở menu/Thu gọn menu".
         this.toggleView = this.makeButton(
             this.collapsed ? '☰' : '«',
             () => this.toggleCollapsed(),
-            () => t(this.collapsed ? 'menu.bar_expand' : 'menu.bar_collapse'),
         );
+
+        // Tên chức năng theo locale — cập nhật khi người chơi đổi ngôn ngữ.
+        this.unsubLocale = onLocaleChange(() => this.syncLabels());
 
         this.layout();
         this.scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
@@ -85,27 +93,31 @@ export class QuickMenuBar implements GameComponent {
         });
     }
 
-    private makeButton(icon: string, onClick: () => void, getLabel: () => string): ButtonView {
+    private makeButton(icon: string, onClick: () => void, getLabel?: () => string): ButtonView {
         const bg = this.scene.add.graphics().setScrollFactor(0).setDepth(BG_DEPTH);
         const iconTxt = this.scene.add.text(0, 0, icon, {
             fontSize: '18px', fontFamily: 'system-ui, sans-serif',
         }).setOrigin(0.5).setScrollFactor(0).setDepth(ICON_DEPTH);
-        const hit = this.scene.add.rectangle(0, 0, BTN, BTN, 0x000000, 0.001)
+        const label = getLabel
+            ? this.scene.add.text(0, 0, getLabel(), {
+                fontSize: '9px', fontFamily: 'system-ui, sans-serif', color: '#ffe4c4',
+                stroke: '#000', strokeThickness: 2, align: 'center',
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(ICON_DEPTH)
+            : undefined;
+        const hit = this.scene.add.rectangle(0, 0, BTN_W, BTN_H, 0x000000, 0.001)
             .setScrollFactor(0).setDepth(HIT_DEPTH)
             .setInteractive({ useHandCursor: true });
 
-        const view: ButtonView = { bg, icon: iconTxt, hit, hovered: false, x: 0, y: 0 };
+        const view: ButtonView = { bg, icon: iconTxt, label, getLabel, hit, hovered: false, x: 0, y: 0 };
         hit.on('pointerover', () => {
             if (!this.enabled) return;
             view.hovered = true;
             this.drawButton(view);
-            this.showTooltip(view, getLabel());
         });
         hit.on('pointerout', () => {
             view.hovered = false;
             view.icon.setScale(1);
             this.drawButton(view);
-            this.tooltip?.setVisible(false);
         });
         hit.on('pointerdown', () => {
             if (!this.enabled || !this.visible) return;
@@ -114,45 +126,53 @@ export class QuickMenuBar implements GameComponent {
         hit.on('pointerup', () => {
             if (!this.enabled || !this.visible) return;
             view.icon.setScale(1);
-            this.tooltip?.setVisible(false);
             onClick();
         });
         return view;
     }
 
-    private showTooltip(view: ButtonView, label: string): void {
-        if (!this.tooltip) return;
-        this.tooltip.setText(label);
-        // Tooltip phía trên nút — phía dưới đụng cụm nút chat/menu của minimap.
-        this.tooltip.setPosition(view.x, view.y - BTN / 2 - 16).setVisible(true);
+    private syncLabels(): void {
+        this.itemViews.forEach((v) => v.getLabel && v.label?.setText(v.getLabel()));
     }
 
     private drawButton(view: ButtonView): void {
         const g = view.bg;
         g.clear();
         g.fillStyle(0x000000, 0.4);
-        g.fillRoundedRect(view.x - BTN / 2 + 2, view.y - BTN / 2 + 3, BTN, BTN, RADIUS);
+        g.fillRoundedRect(view.x - BTN_W / 2 + 2, view.y - BTN_H / 2 + 3, BTN_W, BTN_H, RADIUS);
         g.fillStyle(view.hovered ? 0x6b3a14 : 0x3e2723, 0.95);
-        g.fillRoundedRect(view.x - BTN / 2, view.y - BTN / 2, BTN, BTN, RADIUS);
+        g.fillRoundedRect(view.x - BTN_W / 2, view.y - BTN_H / 2, BTN_W, BTN_H, RADIUS);
         g.lineStyle(2, view.hovered ? 0xffea7a : 0xe29e4a, 1);
-        g.strokeRoundedRect(view.x - BTN / 2, view.y - BTN / 2, BTN, BTN, RADIUS);
+        g.strokeRoundedRect(view.x - BTN_W / 2, view.y - BTN_H / 2, BTN_W, BTN_H, RADIUS);
     }
 
-    /** Re-anchor theo minimap — gọi khi resize và khi đổi collapsed. Bar
-     * bottom-aligned với khung minimap để không đè tên map ở top-center. */
+    /** Grid bám sát mép trên, bên trái minimap. Tối đa ITEMS_PER_ROW nút mỗi
+     * dòng, dư thì xuống dòng dưới. Nút toggle cố định ở ô trên-cùng-bên-phải
+     * (sát minimap) nên khi thu gọn vẫn nằm đúng chỗ. */
     private layout = (): void => {
         const anchor = this.opts.getAnchor();
-        const cy = anchor.y + anchor.height - BTN / 2 + 4;
-        let cx = anchor.x - MARGIN_TO_MINIMAP - BTN / 2;
+        const cols = ITEMS_PER_ROW;
+        const cellW = BTN_W + GAP;
+        const cellH = BTN_H + GAP;
+        // Cột phải nhất nằm sát minimap; cột trái hơn lùi dần sang trái.
+        const rightCenterX = anchor.x - MARGIN_TO_MINIMAP - BTN_W / 2;
+        const topCenterY = TOP_MARGIN + BTN_H / 2;
+        const colX = (c: number): number => rightCenterX - (cols - 1 - c) * cellW;
+        const rowY = (r: number): number => topCenterY + r * cellH;
 
-        if (this.toggleView) {
-            this.placeButton(this.toggleView, cx, cy);
-            cx -= BTN + GAP;
-        }
-        // Items xếp từ toggle lan sang trái, giữ thứ tự khai báo trái→phải.
-        for (let i = this.itemViews.length - 1; i >= 0; i--) {
-            this.placeButton(this.itemViews[i], cx, cy);
-            cx -= BTN + GAP;
+        // Toggle: ô (row 0, cột phải nhất).
+        if (this.toggleView) this.placeButton(this.toggleView, colX(cols - 1), rowY(0));
+
+        // Items lấp các ô còn lại theo thứ tự khai báo (trái→phải, trên→xuống),
+        // chừa ô của toggle.
+        let idx = 0;
+        for (let r = 0; idx < this.itemViews.length; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (r === 0 && c === cols - 1) continue; // ô toggle
+                if (idx >= this.itemViews.length) break;
+                this.placeButton(this.itemViews[idx], colX(c), rowY(r));
+                idx++;
+            }
         }
         this.applyVisibility();
     };
@@ -160,7 +180,9 @@ export class QuickMenuBar implements GameComponent {
     private placeButton(view: ButtonView, x: number, y: number): void {
         view.x = x;
         view.y = y;
-        view.icon.setPosition(x, y);
+        // Nút có label: icon nửa trên + label nửa dưới. Nút chỉ-icon: icon giữa ô.
+        view.icon.setPosition(x, y + (view.label ? ICON_OFFSET_Y : 0));
+        view.label?.setPosition(x, y + LABEL_OFFSET_Y);
         view.hit.setPosition(x, y);
         this.drawButton(view);
     }
@@ -170,6 +192,7 @@ export class QuickMenuBar implements GameComponent {
         this.itemViews.forEach((v) => {
             v.bg.setVisible(showItems);
             v.icon.setVisible(showItems);
+            v.label?.setVisible(showItems);
             v.hit.setVisible(showItems);
             if (showItems) v.hit.setInteractive({ useHandCursor: true });
             else v.hit.disableInteractive();
@@ -177,9 +200,9 @@ export class QuickMenuBar implements GameComponent {
         if (this.toggleView) {
             this.toggleView.bg.setVisible(this.visible);
             this.toggleView.icon.setVisible(this.visible);
+            this.toggleView.label?.setVisible(this.visible);
             this.toggleView.hit.setVisible(this.visible);
         }
-        if (!this.visible || this.collapsed) this.tooltip?.setVisible(false);
     }
 
     toggleCollapsed(): void {
@@ -187,7 +210,6 @@ export class QuickMenuBar implements GameComponent {
         if (this.collapsed) localStorage.setItem(STORAGE_KEY, '1');
         else localStorage.removeItem(STORAGE_KEY);
         this.toggleView?.icon.setText(this.collapsed ? '☰' : '«');
-        this.tooltip?.setVisible(false);
         this.layout();
     }
 
@@ -204,11 +226,11 @@ export class QuickMenuBar implements GameComponent {
         [...this.itemViews, ...(this.toggleView ? [this.toggleView] : [])].forEach((v) => {
             v.bg.setAlpha(alpha);
             v.icon.setAlpha(alpha);
+            v.label?.setAlpha(alpha);
             v.hovered = false;
             v.icon.setScale(1);
             this.drawButton(v);
         });
-        if (!enabled) this.tooltip?.setVisible(false);
     }
 
     setVisible(visible: boolean): void {
@@ -218,12 +240,12 @@ export class QuickMenuBar implements GameComponent {
 
     destroy(): void {
         this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+        this.unsubLocale?.();
+        this.unsubLocale = undefined;
         [...this.itemViews, ...(this.toggleView ? [this.toggleView] : [])].forEach((v) => {
-            v.bg.destroy(); v.icon.destroy(); v.hit.destroy();
+            v.bg.destroy(); v.icon.destroy(); v.label?.destroy(); v.hit.destroy();
         });
         this.itemViews = [];
         this.toggleView = undefined;
-        this.tooltip?.destroy();
-        this.tooltip = undefined;
     }
 }
