@@ -130,6 +130,8 @@ export const en: TranslationTable = {
     'chat.btn_send': 'Send',
     'chat.collapse': 'Collapse chat',
     'chat.expand': 'Expand chat',
+    'chat.maximize': 'Maximize chat',
+    'chat.restore': 'Restore chat',
     'chat.system_sender': '[System]',
     'chat.error_rate_limited': 'You are typing too fast, please wait a moment.',
     'chat.error_text_too_long': 'Message is too long (max 256 characters).',

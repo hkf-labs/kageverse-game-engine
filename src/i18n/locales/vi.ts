@@ -130,6 +130,8 @@ export const vi: TranslationTable = {
     'chat.btn_send': 'Gửi',
     'chat.collapse': 'Thu gọn chat',
     'chat.expand': 'Mở rộng chat',
+    'chat.maximize': 'Phóng to chat',
+    'chat.restore': 'Thu nhỏ chat',
     'chat.system_sender': '[Hệ Thống]',
     'chat.error_rate_limited': 'Bạn nhắn quá nhanh, đợi chút nhé.',
     'chat.error_text_too_long': 'Tin nhắn quá dài (tối đa 256 ký tự).',

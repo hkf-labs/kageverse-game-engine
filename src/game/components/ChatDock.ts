@@ -23,10 +23,17 @@ const HISTORY_FETCH_LIMIT = 50;
 // Real rate-limiting is enforced by the server (map 2s, world 15s).
 const SEND_DEBOUNCE_MS = 200;
 
-// The SkillHotbar occupies the bottom-center edge (centered at height-70,
-// top edge at height-94 under Phaser.Scale.RESIZE where canvas px == CSS px).
-// The dock anchors above it with an 8px gap.
-const DOCK_BOTTOM_PX = 102;
+// Anchor the dock near the bottom edge of the viewport.
+const DOCK_BOTTOM_PX = 16;
+
+// Fixed message-strip heights. These never change with content, so a transient
+// status line (e.g. rate-limit warning) can't resize the dock — the status is
+// an absolute overlay, not part of the flex flow.
+const COMPACT_MSG_HEIGHT = '72px';
+const EXPANDED_MSG_HEIGHT = '200px';
+// Height of the input row (5px padding × 2 + 30px input) — the status overlay
+// sits just above it.
+const INPUT_ROW_HEIGHT_PX = 40;
 
 // Width clamp keeps the dock clear of the mobile D-pad cluster (x <= 172)
 // and the attack-button cluster (x >= width-172).
@@ -80,9 +87,11 @@ export class ChatDock implements GameComponent {
     private statusEl?: HTMLDivElement;
     private inputEl?: HTMLInputElement;
     private sendBtnEl?: HTMLButtonElement;
+    private maxBtnEl?: HTMLDivElement;
     private arrowEl?: HTMLDivElement;
 
     private state: DockState = 'compact';
+    private maximized = false;
     private collapsedPref = false;
     private activeTab: Tab = 'current';
     private lastSendAt = 0;
@@ -103,9 +112,28 @@ export class ChatDock implements GameComponent {
 
         this.buildDom(parent);
 
+        // Clicking the game world doesn't blur the input on its own — Phaser
+        // calls preventDefault() on canvas pointer events, so the input keeps
+        // focus and the dock would stay expanded. Blur it explicitly on any
+        // pointerdown outside the dock so it shrinks back.
+        const onOutsidePointerDown = (e: PointerEvent): void => {
+            if (!this.root) return;
+            // Only react when the dock is currently "open" (focused or maximized).
+            if (!this.isFocused() && !this.maximized) return;
+            if (this.root.contains(e.target as Node)) return;
+            // Clicking outside also exits the maximized panel.
+            this.maximized = false;
+            // Blur (if focused) lets handleInputBlur shrink the dock; otherwise
+            // shrink it directly so an un-focused maximized panel still closes.
+            if (this.isFocused()) this.inputEl?.blur();
+            else this.setState(this.collapsedPref ? 'collapsed' : 'compact');
+        };
+        document.addEventListener('pointerdown', onOutsidePointerDown, true);
+
         this.unsubs.push(
             wsClient.events.on('error', (p) => this.handleErrorEvent(p)),
             onLocaleChange(() => this.syncLocaleTexts()),
+            () => document.removeEventListener('pointerdown', onOutsidePointerDown, true),
         );
 
         // Fetch world history once per session so the compact strip is
@@ -139,6 +167,7 @@ export class ChatDock implements GameComponent {
         this.statusEl = undefined;
         this.inputEl = undefined;
         this.sendBtnEl = undefined;
+        this.maxBtnEl = undefined;
         this.arrowEl = undefined;
     }
 
@@ -211,7 +240,8 @@ export class ChatDock implements GameComponent {
         ].join(';');
 
         const panel = document.createElement('div');
-        panel.style.cssText = 'pointer-events:auto;display:flex;flex-direction:column;border-radius:8px;overflow:hidden;';
+        // position:relative anchors the absolute status overlay below.
+        panel.style.cssText = 'position:relative;pointer-events:auto;display:flex;flex-direction:column;border-radius:8px;overflow:hidden;';
         // Keep any key pressed while interacting with the dock away from Phaser.
         panel.addEventListener('keydown', (e) => e.stopPropagation());
         panel.addEventListener('keyup', (e) => e.stopPropagation());
@@ -239,8 +269,10 @@ export class ChatDock implements GameComponent {
             if (this.state !== 'expanded') this.inputEl?.focus();
         });
 
+        // Absolute overlay just above the input row — appears on top of the
+        // message strip without resizing the dock.
         const status = document.createElement('div');
-        status.style.cssText = `display:none;padding:3px 10px;font-size:11px;color:${MODAL_COLORS.statusError};background:rgba(80,20,20,0.55);`;
+        status.style.cssText = `display:none;position:absolute;left:0;right:0;bottom:${INPUT_ROW_HEIGHT_PX}px;padding:3px 10px;font-size:11px;color:${MODAL_COLORS.statusError};background:rgba(80,20,20,0.92);z-index:1;`;
 
         const inputRow = document.createElement('div');
         inputRow.style.cssText = 'display:flex;gap:6px;padding:5px 6px;align-items:center;flex-shrink:0;';
@@ -264,12 +296,17 @@ export class ChatDock implements GameComponent {
         sendBtn.addEventListener('mousedown', (e) => e.preventDefault());
         sendBtn.addEventListener('click', () => this.handleSend());
 
+        const maxBtn = document.createElement('div');
+        maxBtn.style.cssText = `width:26px;height:30px;line-height:30px;text-align:center;cursor:pointer;font-size:14px;color:${MODAL_COLORS.title};user-select:none;flex-shrink:0;`;
+        maxBtn.addEventListener('mousedown', (e) => e.preventDefault());
+        maxBtn.addEventListener('click', () => this.toggleMaximized());
+
         const arrow = document.createElement('div');
         arrow.style.cssText = `width:26px;height:30px;line-height:30px;text-align:center;cursor:pointer;font-size:13px;color:${MODAL_COLORS.title};user-select:none;flex-shrink:0;`;
         arrow.addEventListener('mousedown', (e) => e.preventDefault());
         arrow.addEventListener('click', () => this.toggleCollapsed());
 
-        inputRow.append(input, sendBtn, arrow);
+        inputRow.append(input, sendBtn, maxBtn, arrow);
         panel.append(header, messages, status, inputRow);
         root.appendChild(panel);
         parent.appendChild(root);
@@ -283,6 +320,7 @@ export class ChatDock implements GameComponent {
         this.statusEl = status;
         this.inputEl = input;
         this.sendBtnEl = sendBtn;
+        this.maxBtnEl = maxBtn;
         this.arrowEl = arrow;
 
         this.syncLocaleTexts();
@@ -297,16 +335,54 @@ export class ChatDock implements GameComponent {
     }
 
     private applyState(): void {
-        if (!this.panel || !this.headerEl || !this.messagesEl || !this.sendBtnEl) return;
+        if (!this.panel || !this.headerEl || !this.messagesEl || !this.sendBtnEl || !this.root) return;
+        const collapsed = this.state === 'collapsed';
         const expanded = this.state === 'expanded';
 
-        this.headerEl.style.display = expanded ? 'flex' : 'none';
-        this.messagesEl.style.display = this.state === 'collapsed' ? 'none' : 'block';
-        this.messagesEl.style.height = expanded ? '220px' : '96px';
-        this.messagesEl.style.overflowY = expanded ? 'auto' : 'hidden';
-        this.sendBtnEl.style.display = this.state === 'collapsed' ? 'none' : 'block';
+        // Root layout: maximized blows the dock up to a near-fullscreen panel;
+        // otherwise it stays the compact bottom-anchored strip.
+        if (this.maximized) {
+            this.root.style.top = '24px';
+            this.root.style.bottom = '24px';
+            this.root.style.width = 'min(900px, calc(100vw - 48px))';
+            this.panel.style.height = '100%';
+        } else {
+            this.root.style.top = 'auto';
+            this.root.style.bottom = `${DOCK_BOTTOM_PX}px`;
+            this.root.style.width = DOCK_WIDTH_CSS;
+            this.panel.style.height = 'auto';
+        }
 
-        if (expanded) {
+        // Header (tabs) shows in expanded or maximized.
+        this.headerEl.style.display = (expanded || this.maximized) ? 'flex' : 'none';
+        this.messagesEl.style.display = collapsed ? 'none' : 'block';
+        if (this.maximized) {
+            // Fill the tall panel; let the message strip absorb the free space.
+            this.messagesEl.style.flex = '1';
+            this.messagesEl.style.height = 'auto';
+            this.messagesEl.style.overflowY = 'auto';
+        } else {
+            this.messagesEl.style.flex = '0 0 auto';
+            this.messagesEl.style.height = expanded ? EXPANDED_MSG_HEIGHT : COMPACT_MSG_HEIGHT;
+            this.messagesEl.style.overflowY = expanded ? 'auto' : 'hidden';
+        }
+        this.sendBtnEl.style.display = collapsed ? 'none' : 'block';
+        if (this.maxBtnEl) this.maxBtnEl.style.display = collapsed ? 'none' : 'block';
+
+        // Input is a solid cream field when the dock is open (expanded/maximized)
+        // but transparent in the resting compact/collapsed strip so the white box
+        // doesn't sit on the game world.
+        if (this.inputEl) {
+            const open = expanded || this.maximized;
+            this.inputEl.style.background = open ? 'rgba(255,245,224,0.92)' : 'transparent';
+            this.inputEl.style.color = open ? MODAL_COLORS.panelBgTop : MODAL_COLORS.text;
+            this.inputEl.style.borderColor = open ? MODAL_COLORS.divider : 'rgba(255,255,255,0.28)';
+        }
+        // The collapse arrow is meaningless while maximized — the restore
+        // (maximize) button handles getting back.
+        if (this.arrowEl) this.arrowEl.style.display = this.maximized ? 'none' : 'block';
+
+        if (expanded || this.maximized) {
             this.panel.style.background = 'rgba(26,18,8,0.92)';
             this.panel.style.border = `2px solid ${MODAL_COLORS.border}`;
         } else {
@@ -315,6 +391,7 @@ export class ChatDock implements GameComponent {
         }
 
         this.updateArrow();
+        this.updateMaxBtn();
         this.scrollToBottom();
     }
 
@@ -327,6 +404,24 @@ export class ChatDock implements GameComponent {
         } else {
             this.setState('compact');
         }
+    }
+
+    private toggleMaximized(): void {
+        this.maximized = !this.maximized;
+        if (this.maximized) {
+            this.setState('expanded');
+        } else {
+            // Restore to whatever the focus/collapse state implies.
+            this.setState(this.isFocused() ? 'expanded' : (this.collapsedPref ? 'collapsed' : 'compact'));
+        }
+    }
+
+    private updateMaxBtn(): void {
+        if (!this.maxBtnEl) return;
+        this.maxBtnEl.textContent = this.maximized ? '❐' : '⛶';
+        const label = this.maximized ? t('chat.restore') : t('chat.maximize');
+        this.maxBtnEl.title = label;
+        this.maxBtnEl.setAttribute('aria-label', label);
     }
 
     private updateArrow(): void {
@@ -357,6 +452,9 @@ export class ChatDock implements GameComponent {
         this.blurTimer = window.setTimeout(() => {
             this.blurTimer = undefined;
             if (this.root && this.root.contains(document.activeElement)) return;
+            // Stay expanded while maximized — blurring the input shouldn't
+            // shrink the message strip inside the big panel.
+            if (this.maximized) { this.setState('expanded'); return; }
             this.setState(this.collapsedPref ? 'collapsed' : 'compact');
         }, 0);
     }
@@ -464,6 +562,7 @@ export class ChatDock implements GameComponent {
         if (this.sendBtnEl) this.sendBtnEl.textContent = t('chat.btn_send');
         if (this.inputEl) this.inputEl.placeholder = t('chat.input_placeholder');
         this.updateArrow();
+        this.updateMaxBtn();
         // Re-render so the [System] sender tag follows the locale.
         this.renderActiveTab();
     }
