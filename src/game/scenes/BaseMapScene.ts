@@ -85,8 +85,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
      * menu icon) khi modal mở. Polled trong update() — chỉ toggle khi state
      * đổi để tránh setVisible mỗi frame. */
     private mapUIHiddenForModal = false;
-    /** Ref nút menu góc minimap — lưu để toggle visibility khi modal mở. */
-    private menuBtn?: Phaser.GameObjects.Image;
     private lastKnownLevel = 1;
     private lastKnownExp = { exp: 0, expToNext: 1 };
     private lastKnownStats = { max_hp: 100, max_mp: 50 };
@@ -246,7 +244,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
             }
         }
         this.load.image('btn_attack', 'assets/game/buttons/button-attack.png');
-        this.load.image('btn_menu', 'assets/game/buttons/menu.png');
         this.load.image('topbar', 'assets/game/ui/topbar.png');
         this.load.image('skill_slot_empty', 'assets/game/skills/skill-empty.png');
         registerSkillIconPreloads(this);
@@ -510,10 +507,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.minimap.create();
         const player = this.playerCtrl.getPlayer();
         if (player) this.minimap.followPlayer(player);
-
-        // Menu button under minimap
-        const mm = this.minimap.getPosition();
-        this.createMenuButton(mm.x, mm.y, mm.width, mm.height);
 
         // Quick menu bar (FEAT-UI-002) — hàng icon chức năng bên trái minimap,
         // thay cây menu F1 main/self cũ. Action là closure nên các modal gán
@@ -910,7 +903,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
         this.controls?.setVisible?.(visible);
         this.skillHotbar?.setVisible?.(visible);
         this.chat?.setVisible(visible);
-        this.menuBtn?.setVisible(visible);
     }
 
     /**
@@ -2007,29 +1999,6 @@ export abstract class BaseMapScene extends Phaser.Scene {
                 }
                 break;
         }
-    }
-
-    private createMenuButton(mmX: number, mmY: number, mmWidth: number, mmHeight: number): void {
-        const cx = mmX + mmWidth / 2;
-        const btnY = mmY + mmHeight + 36;
-        const SCALE = 0.5;
-
-        const makeBtn = (x: number, y: number, key: string, onClick: () => void): Phaser.GameObjects.Image => {
-            const btn = this.add.image(x, y, key)
-                .setScrollFactor(0).setDepth(100).setScale(SCALE)
-                .setInteractive({ useHandCursor: true });
-            btn.on('pointerdown', () => { btn.setScale(SCALE * 0.94); onClick(); });
-            btn.on('pointerup', () => btn.setScale(SCALE));
-            btn.on('pointerout', () => btn.setScale(SCALE));
-            return btn;
-        };
-
-        // Nút menu cảm ứng = F1: toggle thu gọn/mở rộng quick menu bar. Nút bị
-        // ẩn khi modal mở (setMapUIVisible) nên không cần guard thêm.
-        this.menuBtn = makeBtn(cx, btnY, 'btn_menu', () => {
-            if (this.deathState !== 'alive' || this.isInputBlockingModalOpen()) return;
-            this.quickMenuBar.toggleCollapsed();
-        });
     }
 
     /**

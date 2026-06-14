@@ -10,7 +10,7 @@ import type { GameComponent } from './types';
  * Mỗi nút hiển thị icon + tên chức năng (label) ngay bên dưới — tên ăn theo
  * locale hiện tại và tự cập nhật khi đổi ngôn ngữ.
  *
- * Bar không bắt keyboard — F1/btn_menu toggle collapse từ BaseMapScene.
+ * Bar không bắt keyboard — F1 toggle collapse từ BaseMapScene.
  */
 export interface QuickMenuBarItem {
     key: string;
